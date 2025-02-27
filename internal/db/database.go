@@ -1,39 +1,56 @@
 package main
 
 import (
-  "gorm.io/gorm"
-  "gorm.io/driver/sqlite"
+	"fmt"
+
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 )
 
-type Product struct {
-  gorm.Model
-  Code  string
-  Price uint
+type Recipe struct {
+	gorm.Model
+	RecipeName string
+}
+
+type RecipeCategory struct {
+	gorm.Model
+	CategoryName string
+}
+
+type RecipeMetadata struct {
+	Recipe
+	author string
+}
+
+type RecipeSteps struct {
+	gorm.Model
+	Recipe
+	Description string
 }
 
 func main() {
-  db, err := gorm.Open(sqlite.Open("test.db"), &gorm.Config{})
-  if err != nil {
-    panic("failed to connect database")
-  }
+	db, err := gorm.Open(sqlite.Open("test.db"), &gorm.Config{})
+	if err != nil {
+		panic("Failed to connect to your own database for some reason, today you cook with passion only...")
+	}
 
-  // Migrate the schema
-  db.AutoMigrate(&Product{})
+	// Migrates the schema
+	db.AutoMigrate(&Recipe{})
 
-  // Create
-  db.Create(&Product{Code: "D42", Price: 100})
+	// Create
+	db.Create(&Recipe{RecipeName: "Guloash"})
 
-  // Read
-  var product Product
-  db.First(&product, 1) // find product with integer primary key
-  db.First(&product, "code = ?", "D42") // find product with code D42
+	// Read
+	var product Recipe
+	db.First(&product, "RecipeName = ?", "Guloash")
 
-  // Update - update product's price to 200
-  db.Model(&product).Update("Price", 200)
-  // Update - update multiple fields
-  db.Model(&product).Updates(Product{Price: 200, Code: "F42"}) // non-zero fields
-  db.Model(&product).Updates(map[string]interface{}{"Price": 200, "Code": "F42"})
+	fmt.Println("Recipe is: ", product)
+	// Update - update product's price to 200
+	// db.Model(&product).Update("Price", 200)
+	// Update - update multiple fields
+	// db.Model(&product).Updates(Product{Price: 200, Code: "F42"}) // non-zero fields
+	// db.Model(&product).Updates(map[string]interface{}{"Price": 200, "Code": "F42"})
 
-  // Delete - delete product
-  db.Delete(&product, 1)
+	// Delete - delete product
+	// db.Delete(&product, 1)
 }
