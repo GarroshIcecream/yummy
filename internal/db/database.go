@@ -1,4 +1,4 @@
-package main
+package db
 
 import (
 	"fmt"
@@ -28,6 +28,13 @@ type RecipeSteps struct {
 	Description string
 }
 
+func get_db_models(db *gorm.DB) {
+	db.AutoMigrate(&Recipe{})
+	db.AutoMigrate(&RecipeCategory{})
+	db.AutoMigrate(&RecipeMetadata{})
+	db.AutoMigrate(&RecipeSteps{})
+}
+
 func main() {
 	db, err := gorm.Open(sqlite.Open("test.db"), &gorm.Config{})
 	if err != nil {
@@ -42,7 +49,7 @@ func main() {
 
 	// Read
 	var product Recipe
-	db.First(&product, "RecipeName = ?", "Guloash")
+	db.Take(&product)
 
 	fmt.Println("Recipe is: ", product)
 	// Update - update product's price to 200

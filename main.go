@@ -5,12 +5,23 @@ package main
 // You may also need to run `go mod tidy` to download bubbletea and its
 // dependencies.
 import (
-	"database/sql"
 	"fmt"
+	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
-	_ "github.com/glebarez/go-sqlite"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 )
+
+func openDB() (*gorm.DB, error) {
+	db_con, err := gorm.Open(sqlite.Open("test.db"), &gorm.Config{})
+	if err != nil {
+		return nil, err
+	}
+
+	db.get_db_models(db_con)
+	return db_con, nil
+}
 
 type model struct {
 	choices  []string         // items on the to-do list
@@ -25,72 +36,9 @@ type Recipe struct {
 }
 
 func main() {
-	// p := tea.NewProgram(initialModel())
-	// if _, err := p.Run(); err != nil {
-	// 	fmt.Printf("Alas, there's been an error: %v", err)
-	// 	os.Exit(1)
-	// }
 
-	// rows := [][]string{
-	// 	{"Chinese", "您好", "你好"},
-	// 	{"Japanese", "こんにちは", "やあ"},
-	// 	{"Arabic", "أهلين", "أهلا"},
-	// 	{"Russian", "Здравствуйте", "Привет"},
-	// 	{"Spanish", "Hola", "¿Qué tal?"},
-	// }
-
-	// t := table.New().
-	// Border(lipgloss.NormalBorder()).
-	// BorderStyle(lipgloss.NewStyle().Foreground(lipgloss.Color("99"))).
-	// StyleFunc(func(row, col int) lipgloss.Style {
-	// 		switch {
-	// 		case row == 0:
-	// 			return HeaderStyle
-	// 		case row%2 == 0:
-	// 			return EvenRowStyle
-	// 		default:
-	// 			return OddRowStyle
-	// 		}
-	// 	}).
-	// 	Headers("LANGUAGE", "FORMAL", "INFORMAL").
-	// 	Rows(rows...)
-
-	// // You can also add tables row-by-row
-	// t.Row("English", "You look absolutely fabulous.", "How's it going?")
-	// fmt.Println(t)
-
-	// l := list.New(
-	// 	"A", list.New("Artichoke"),
-	// 	"B", list.New("Baking Flour", "Bananas", "Barley", "Bean Sprouts"),
-	// 	"C", list.New("Cashew Apple", "Cashews", "Coconut Milk", "Curry Paste", "Currywurst"),
-	// 	"D", list.New("Dill", "Dragonfruit", "Dried Shrimp"),
-	// 	"E", list.New("Eggs"),
-	// 	"F", list.New("Fish Cake", "Furikake"),
-	// 	"J", list.New("Jicama"),
-	// 	"K", list.New("Kohlrabi"),
-	// 	"L", list.New("Leeks", "Lentils", "Licorice Root"),
-	// )
-
-	// fmt.Println(l)
-	db, err := sql.Open("sqlite", "./my.db")
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-
-	defer db.Close()
-	fmt.Println("Connected to the SQLite database successfully.")
-
-	// Get the version of SQLite
-	var sqliteVersion string
-	db.Exec(query string, args ...any)
-	err = db.QueryRow("select sqlite_version()").Scan(&sqliteVersion)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-
-	fmt.Println(sqliteVersion)
+	rootCmd := rootCmd()
+	os.Exit(rootCmd.Execute())
 }
 
 func initialModel() model {
