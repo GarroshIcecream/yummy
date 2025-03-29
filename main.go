@@ -31,9 +31,21 @@ func main() {
 	instructions, _ := recipe.Instructions()
 	cook_time, _ := recipe.CookTime()
 	author, _ := recipe.Author()
+	category, _ := recipe.Categories()
+	cuisine, _ := recipe.Cuisine()
 
 	fmt.Println("Ingredients are : ", ingredients)
 	fmt.Println("Instructions are : ", instructions)
 	fmt.Println("Author is : ", author)
 	fmt.Println("Cook time is : ", cook_time)
+	fmt.Println("Categories : ", category)
+	fmt.Println("Cuisine : ", cuisine)
+
+	for idx, ing := range ingredients {
+		fmt.Printf("Ingredient %d are : %s \n", idx, ing)
+	}
+
+	for idx, ins := range instructions {
+		fmt.Printf("Step %d is: %s \n", idx, ins)
+	}
 }
