@@ -2,6 +2,7 @@ package db
 
 import (
 	"fmt"
+	"recipe_me/models"
 	"time"
 
 	"gorm.io/driver/sqlite"
@@ -15,30 +16,34 @@ type Recipe struct {
 
 type Category struct {
 	gorm.Model
-	Recipe
+	RecipeID     uint
 	CategoryName string
 }
 
 type Cuisine struct {
 	gorm.Model
-	Recipe
+	RecipeID    uint
 	CuisineName string
 }
 
 type Ingredients struct {
 	gorm.Model
-	Recipe
-	Ingredient string
-	Unit       string
+	RecipeID       uint
+	IngredientName string
+	Detail         string
+	Amount         string
+	Unit           string
 }
 
 type RecipeMetadata struct {
 	gorm.Model
-	Recipe
+	RecipeID    uint
 	Description string
 	Author      string
 	CookTime    time.Duration
 	PrepTime    time.Duration
+	TotalTime   time.Duration
+	Quantity    string
 	URL         string
 	Favourite   bool
 	Rating      int8
@@ -46,7 +51,7 @@ type RecipeMetadata struct {
 
 type Instructions struct {
 	gorm.Model
-	Recipe
+	RecipeID    uint
 	Description string
 }
 
@@ -112,10 +117,10 @@ func (c *CookBook) AllRecipes() ([]Recipe, error) {
 }
 
 // SaveScrapedRecipe saves a scraped recipe to the database
-func (c *CookBook) SaveScrapedRecipe(name string, author string, cookTime time.Duration, ingredients []string, instructions []string) error {
+func (c *CookBook) SaveScrapedRecipe(recipeRaw *models.RecipeRaw) error {
 	// Create the base recipe
 	recipe := Recipe{
-		RecipeName: name,
+		RecipeName: recipeRaw.Name,
 	}
 	if err := c.conn.Create(&recipe).Error; err != nil {
 		return fmt.Errorf("failed to create recipe: %w", err)
@@ -123,22 +128,29 @@ func (c *CookBook) SaveScrapedRecipe(name string, author string, cookTime time.D
 
 	// Save metadata
 	metadata := RecipeMetadata{
-		Recipe:    recipe,
-		Author:    author,
-		CookTime:  cookTime,
-		Favourite: false,
-		Rating:    0,
+		RecipeID:    recipe.ID,
+		Description: recipeRaw.Description,
+		Author:      recipeRaw.Author,
+		CookTime:    recipeRaw.CookTime,
+		PrepTime:    recipeRaw.PrepTime,
+		TotalTime:   recipeRaw.TotalTime,
+		Quantity:    recipeRaw.Quantity,
+		URL:         recipeRaw.URL,
+		Favourite:   false,
+		Rating:      0,
 	}
 	if err := c.conn.Create(&metadata).Error; err != nil {
 		return fmt.Errorf("failed to create recipe metadata: %w", err)
 	}
 
-	// Save ingredients
-	for _, ingredient := range ingredients {
+	// Save ingredients with parsed details
+	for _, ingredient := range recipeRaw.Ingredients {
 		ing := Ingredients{
-			Recipe:     recipe,
-			Ingredient: ingredient,
-			Unit:       "", // You might want to parse this from the ingredient string
+			RecipeID:       recipe.ID,
+			IngredientName: ingredient.Name,
+			Detail:         ingredient.Details,
+			Amount:         ingredient.Amount,
+			Unit:           ingredient.Unit,
 		}
 		if err := c.conn.Create(&ing).Error; err != nil {
 			return fmt.Errorf("failed to create ingredient: %w", err)
@@ -146,9 +158,9 @@ func (c *CookBook) SaveScrapedRecipe(name string, author string, cookTime time.D
 	}
 
 	// Save instructions
-	for _, instruction := range instructions {
+	for _, instruction := range recipeRaw.Instructions {
 		inst := Instructions{
-			Recipe:      recipe,
+			RecipeID:    recipe.ID,
 			Description: instruction,
 		}
 		if err := c.conn.Create(&inst).Error; err != nil {
@@ -156,5 +168,86 @@ func (c *CookBook) SaveScrapedRecipe(name string, author string, cookTime time.D
 		}
 	}
 
+	// Save categories
+	for _, categoryName := range recipeRaw.Categories {
+		category := Category{
+			RecipeID:     recipe.ID,
+			CategoryName: categoryName,
+		}
+		if err := c.conn.Create(&category).Error; err != nil {
+			return fmt.Errorf("failed to create category: %w", err)
+		}
+	}
+
 	return nil
+}
+
+// GetFullRecipe retrieves a complete recipe with all its related data
+func (c *CookBook) GetFullRecipe(recipeName string) (*models.RecipeRaw, error) {
+	// Get the base recipe
+	var recipe Recipe
+	if err := c.conn.Where("recipe_name = ?", recipeName).First(&recipe).Error; err != nil {
+		return nil, fmt.Errorf("recipe not found: %w", err)
+	}
+
+	// Get metadata
+	var metadata RecipeMetadata
+	if err := c.conn.Where("recipe_id = ?", recipe.ID).First(&metadata).Error; err != nil {
+		return nil, fmt.Errorf("metadata not found: %w", err)
+	}
+
+	// Get ingredients
+	var ingredients []Ingredients
+	if err := c.conn.Where("recipe_id = ?", recipe.ID).Find(&ingredients).Error; err != nil {
+		return nil, fmt.Errorf("failed to fetch ingredients: %w", err)
+	}
+
+	// Get instructions
+	var instructions []Instructions
+	if err := c.conn.Where("recipe_id = ?", recipe.ID).Find(&instructions).Error; err != nil {
+		return nil, fmt.Errorf("failed to fetch instructions: %w", err)
+	}
+
+	// Get categories
+	var categories []Category
+	if err := c.conn.Where("recipe_id = ?", recipe.ID).Find(&categories).Error; err != nil {
+		return nil, fmt.Errorf("failed to fetch categories: %w", err)
+	}
+
+	// Convert to RecipeRaw
+	recipeRaw := &models.RecipeRaw{
+		Name:        recipe.RecipeName,
+		Description: metadata.Description,
+		Author:      metadata.Author,
+		CookTime:    metadata.CookTime,
+		PrepTime:    metadata.PrepTime,
+		TotalTime:   metadata.TotalTime,
+		Quantity:    metadata.Quantity,
+		URL:         metadata.URL,
+	}
+
+	// Convert ingredients
+	recipeRaw.Ingredients = make([]models.Ingredient, len(ingredients))
+	for i, ing := range ingredients {
+		recipeRaw.Ingredients[i] = models.Ingredient{
+			Amount:  ing.Amount,
+			Unit:    ing.Unit,
+			Name:    ing.IngredientName,
+			Details: ing.Detail,
+		}
+	}
+
+	// Convert instructions
+	recipeRaw.Instructions = make([]string, len(instructions))
+	for i, inst := range instructions {
+		recipeRaw.Instructions[i] = inst.Description
+	}
+
+	// Convert categories
+	recipeRaw.Categories = make([]string, len(categories))
+	for i, cat := range categories {
+		recipeRaw.Categories[i] = cat.CategoryName
+	}
+
+	return recipeRaw, nil
 }

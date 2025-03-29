@@ -2,51 +2,76 @@ package models
 
 import (
 	"fmt"
-
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/huh"
+	"strings"
+	"time"
 )
 
-type Model struct {
-	form *huh.Form
+type RecipeRaw struct {
+	Name         string
+	Description  string
+	Author       string
+	CookTime     time.Duration
+	PrepTime     time.Duration
+	TotalTime    time.Duration
+	Quantity     string
+	URL          string
+	Ingredients  []Ingredient
+	Categories   []string
+	Instructions []string
 }
 
-func NewModel() Model {
-	return Model{
-		form: huh.NewForm(
-			huh.NewGroup(
-				huh.NewSelect[string]().
-					Key("class").
-					Options(huh.NewOptions("Warrior", "Mage", "Rogue")...).
-					Title("Choose your class"),
+func formatRecipeContent(recipe *RecipeRaw) string {
+	var s strings.Builder
 
-				huh.NewSelect[int]().
-					Key("level").
-					Options(huh.NewOptions(1, 20, 9999)...).
-					Title("Choose your level"),
-			),
-		),
+	// Metadata
+	s.WriteString(styles.headerStyle.Render("📝 Recipe Details"))
+	s.WriteString("\n\n")
+	s.WriteString(fmt.Sprintf("👤 Author: %s\n", recipe.Author))
+	s.WriteString(fmt.Sprintf("⏲️ Cook Time: %v\n", recipe.CookTime))
+	s.WriteString(fmt.Sprintf("📖 Description: %s\n", recipe.Description))
+	s.WriteString("\n")
+
+	// Ingredients
+	s.WriteString(styles.headerStyle.Render("📋 Ingredients"))
+	s.WriteString("\n\n")
+	for _, ing := range recipe.Ingredients {
+		var ingredient strings.Builder
+		ingredient.WriteString("• ")
+
+		if ing.Amount != "" {
+			ingredient.WriteString(ing.Amount + " ")
+		}
+
+		if ing.Unit != "" {
+			ingredient.WriteString(ing.Unit + " ")
+		}
+
+		ingredient.WriteString(ing.Name)
+
+		if ing.Details != "" {
+			ingredient.WriteString(fmt.Sprintf(" (%s)", ing.Details))
+		}
+		s.WriteString(styles.ingredientStyle.Render(ingredient.String()) + "\n")
 	}
-}
+	s.WriteString("\n")
 
-func (m Model) Init() tea.Cmd {
-	return m.form.Init()
-}
+	// Instructions
+	s.WriteString(styles.headerStyle.Render("🔨 Instructions"))
+	s.WriteString("\n\n")
+	for i, inst := range recipe.Instructions {
+		// Add each instruction with proper padding and a newline
+		s.WriteString(styles.instructionStyle.Render(fmt.Sprintf("%d. %s", i+1, inst)) + "\n")
+	}
+	s.WriteString("\n")
 
-func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	form, cmd := m.form.Update(msg)
-	if f, ok := form.(*huh.Form); ok {
-		m.form = f
+	// Categories
+	if len(recipe.Categories) > 0 {
+		s.WriteString(styles.headerStyle.Render("🏷️  Categories"))
+		s.WriteString("\n\n")
+		for _, cat := range recipe.Categories {
+			s.WriteString(fmt.Sprintf("• %s\n", cat))
+		}
 	}
 
-	return m, cmd
-}
-
-func (m Model) View() string {
-	if m.form.State == huh.StateCompleted {
-		class := m.form.GetString("class")
-		level := m.form.GetString("level")
-		return fmt.Sprintf("You selected: %s, Lvl. %s", class, level)
-	}
-	return m.form.View()
+	return s.String()
 }
