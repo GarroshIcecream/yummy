@@ -1,4 +1,4 @@
-package models
+package recipe
 
 import (
 	"fmt"
@@ -18,7 +18,7 @@ func ParseIngredient(input string) Ingredient {
 
 	re := regexp.MustCompile(fmt.Sprintf(`^(?:(\d+(?:/\d+)?(?:\s*-\s*\d+(?:/\d+)?)?\s*))?((?:%s)\s+)?([^(]+?)(?:\s*\((.*?)\))?$`, unitsPattern))
 
-	matches := re.FindStringSubmatch(input)
+	matches := re.FindStringSubmatch(strings.ToLower(input))
 	if len(matches) < 5 {
 		return Ingredient{Name: strings.TrimSpace(input)}
 	}

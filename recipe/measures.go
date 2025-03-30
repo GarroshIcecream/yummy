@@ -1,4 +1,4 @@
-package models
+package recipe
 
 var corpusMeasures = []string{
 	"tablespoon",

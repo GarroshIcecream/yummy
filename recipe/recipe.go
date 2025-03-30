@@ -1,9 +1,11 @@
-package models
+package recipe
 
 import (
 	"fmt"
 	"strings"
 	"time"
+
+	styles "github.com/GarroshIcecream/recipe_me/styles"
 )
 
 type RecipeRaw struct {
@@ -20,19 +22,27 @@ type RecipeRaw struct {
 	Instructions []string
 }
 
-func formatRecipeContent(recipe *RecipeRaw) string {
+func FormatRecipeContent(recipe *RecipeRaw) string {
 	var s strings.Builder
 
+	s.WriteString(styles.HeaderStyle.Render(fmt.Sprintf("🎉 %s 🎉", recipe.Name)))
+	s.WriteString("\n\n")
+
 	// Metadata
-	s.WriteString(styles.headerStyle.Render("📝 Recipe Details"))
+	s.WriteString(styles.HeaderStyle.Render("📝 Recipe Details"))
 	s.WriteString("\n\n")
 	s.WriteString(fmt.Sprintf("👤 Author: %s\n", recipe.Author))
-	s.WriteString(fmt.Sprintf("⏲️ Cook Time: %v\n", recipe.CookTime))
-	s.WriteString(fmt.Sprintf("📖 Description: %s\n", recipe.Description))
+	s.WriteString(fmt.Sprintf("⏲️ Total Time: %v\n", recipe.TotalTime))
+	s.WriteString(fmt.Sprintf("📖 Description: \n%s\n\n", recipe.Description))
+
+	// Include URL if available
+	if recipe.URL != "" {
+		s.WriteString(fmt.Sprintf("🔗 URL: %s\n", recipe.URL))
+	}
 	s.WriteString("\n")
 
 	// Ingredients
-	s.WriteString(styles.headerStyle.Render("📋 Ingredients"))
+	s.WriteString(styles.HeaderStyle.Render("📋 Ingredients"))
 	s.WriteString("\n\n")
 	for _, ing := range recipe.Ingredients {
 		var ingredient strings.Builder
@@ -51,22 +61,22 @@ func formatRecipeContent(recipe *RecipeRaw) string {
 		if ing.Details != "" {
 			ingredient.WriteString(fmt.Sprintf(" (%s)", ing.Details))
 		}
-		s.WriteString(styles.ingredientStyle.Render(ingredient.String()) + "\n")
+		s.WriteString(styles.IngredientStyle.Render(ingredient.String()) + "\n")
 	}
 	s.WriteString("\n")
 
 	// Instructions
-	s.WriteString(styles.headerStyle.Render("🔨 Instructions"))
+	s.WriteString(styles.HeaderStyle.Render("🔨 Instructions"))
 	s.WriteString("\n\n")
 	for i, inst := range recipe.Instructions {
 		// Add each instruction with proper padding and a newline
-		s.WriteString(styles.instructionStyle.Render(fmt.Sprintf("%d. %s", i+1, inst)) + "\n")
+		s.WriteString(styles.InstructionStyle.Render(fmt.Sprintf("%d. %s", i+1, inst)) + "\n")
 	}
 	s.WriteString("\n")
 
 	// Categories
 	if len(recipe.Categories) > 0 {
-		s.WriteString(styles.headerStyle.Render("🏷️  Categories"))
+		s.WriteString(styles.HeaderStyle.Render("🏷️  Categories"))
 		s.WriteString("\n\n")
 		for _, cat := range recipe.Categories {
 			s.WriteString(fmt.Sprintf("• %s\n", cat))
