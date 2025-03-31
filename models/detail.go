@@ -52,7 +52,17 @@ func (m *DetailModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		case key.Matches(msg, keys.Keys.Back):
 			log.Println("Going back to ListModel...")
-			return NewListModel(*m.cookbook, nil), nil
+			// Create new list model and send window size update
+			newModel := NewListModel(*m.cookbook, nil)
+			return newModel, tea.Batch(
+				cmd,
+				func() tea.Msg {
+					return tea.WindowSizeMsg{
+						Width:  m.viewport.Width,
+						Height: m.viewport.Height + lipgloss.Height(m.headerView()) + lipgloss.Height(m.footerView()),
+					}
+				},
+			)
 		}
 
 	case tea.WindowSizeMsg:
@@ -61,10 +71,14 @@ func (m *DetailModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		verticalMarginHeight := headerHeight + footerHeight
 
 		if !m.ready {
-			m.viewport = viewport.New(msg.Width, msg.Height-verticalMarginHeight)
-			m.viewport.YPosition = headerHeight
-			m.viewport.SetContent(recipes.FormatRecipeContent(m.current_recipe))
-			m.ready = true
+			if m.current_recipe != nil {
+				m.viewport = viewport.New(msg.Width, msg.Height-verticalMarginHeight)
+				m.viewport.YPosition = headerHeight
+				m.viewport.SetContent(recipes.FormatRecipeContent(m.current_recipe))
+				m.ready = true
+			} else {
+				log.Println("Current recipe is nil, cannot initialize viewport.")
+			}
 		} else {
 			m.viewport.Width = msg.Width
 			m.viewport.Height = msg.Height - verticalMarginHeight

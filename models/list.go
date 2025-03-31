@@ -33,6 +33,10 @@ func NewListModel(cookbook db.CookBook, recipe_id *uint) *ListModel {
 	l.Title = "My Cookbook"
 	l.Styles = styles.PunkyStyle
 
+	// Set initial size to ensure visibility
+	h, v := styles.DocStyle.GetFrameSize()
+	l.SetSize(80-h, 20-v)
+
 	return &ListModel{
 		cookbook:       &cookbook,
 		err:            err,
