@@ -1,8 +1,8 @@
-# RecipeMe CLI
+# Yummy
 
 ![RecipeMaster Logo](https://via.placeholder.com/150)
 
-**RecipeMaster** is a powerful command-line interface (CLI) tool designed to help you manage your recipes effortlessly. With RecipeMaster, you can store, view, categorize, and export your recipes using a beautiful interface powered by [Bubble Tea](https://github.com/charmbracelet/bubbletea).
+**yummy** is a powerful command-line interface (CLI) tool designed to help you manage your recipes effortlessly. With yummy, you can store, view, categorize, and export your recipes using a beautiful interface powered by [Bubble Tea](https://github.com/charmbracelet/bubbletea).
 
 ## Features
 
@@ -14,46 +14,46 @@
 
 ## Installation
 
-To install RecipeMaster, you need to have Go installed on your machine. Follow these steps:
+To install yummy, you need to have Go installed on your machine. Follow these steps:
 
 1. **Clone the Repository**:
    ```sh
-   git clone https://github.com/yourusername/recipemaster.git
-   cd recipemaster
+   git clone https://github.com/yourusername/yummy.git
+   cd yummy
    ```
 
 2. **Build the Project**:
    ```sh
-   go build -o recipemaster
+   go build -o yummy
    ```
 
 3. **Run the CLI Tool**:
    ```sh
-   ./recipemaster
+   ./yummy
    ```
 
 ## Usage
 
-RecipeMaster provides a simple and intuitive command-line interface. Here are some examples of how to use it:
+yummy provides a simple and intuitive command-line interface. Here are some examples of how to use it:
 
 - **Add a New Recipe**:
   ```sh
-  ./recipemaster add --name \"Pancakes\" --ingredients \"Flour, Milk, Eggs\" --instructions \"Mix and cook\" --time 15
+  ./yummy add --name \"Pancakes\" --ingredients \"Flour, Milk, Eggs\" --instructions \"Mix and cook\" --time 15
   ```
 
 - **View All Recipes**:
   ```sh
-  ./recipemaster view
+  ./yummy view
   ```
 
 - **Categorize a Recipe**:
   ```sh
-  ./recipemaster categorize --name \"Pancakes\" --category \"Breakfast\"
+  ./yummy categorize --name \"Pancakes\" --category \"Breakfast\"
   ```
 
 - **Export Recipes**:
   ```sh
-  ./recipemaster export --format json
+  ./yummy export --format json
   ```
 
 ## Dependencies
@@ -76,4 +76,4 @@ If you have any questions or need further assistance, feel free to reach out to 
 
 ---
 
-**Happy cooking with RecipeMaster!** 🍳🍴
+**Happy cooking with yummy!** 🍳🍴

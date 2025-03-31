@@ -1,4 +1,4 @@
-module github.com/GarroshIcecream/recipe_me
+module github.com/GarroshIcecream/yummy
 
 go 1.24.0
 

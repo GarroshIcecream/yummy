@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	styles "github.com/GarroshIcecream/recipe_me/styles"
+	styles "github.com/GarroshIcecream/yummy/styles"
 )
 
 type RecipeRaw struct {

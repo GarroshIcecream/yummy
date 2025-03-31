@@ -5,7 +5,7 @@ import (
 	"log"
 	"os"
 
-	models "github.com/GarroshIcecream/recipe_me/models"
+	models "github.com/GarroshIcecream/yummy/models"
 	tea "github.com/charmbracelet/bubbletea"
 )
 

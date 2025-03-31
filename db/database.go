@@ -5,7 +5,7 @@ import (
 	"log"
 	"time"
 
-	recipes "github.com/GarroshIcecream/recipe_me/recipe"
+	recipes "github.com/GarroshIcecream/yummy/recipe"
 
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"

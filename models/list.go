@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"log"
 
-	db "github.com/GarroshIcecream/recipe_me/db"
-	keys "github.com/GarroshIcecream/recipe_me/keymaps"
-	styles "github.com/GarroshIcecream/recipe_me/styles"
+	db "github.com/GarroshIcecream/yummy/db"
+	keys "github.com/GarroshIcecream/yummy/keymaps"
+	styles "github.com/GarroshIcecream/yummy/styles"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"

@@ -3,7 +3,7 @@ package models
 import (
 	"log"
 
-	db "github.com/GarroshIcecream/recipe_me/db"
+	db "github.com/GarroshIcecream/yummy/db"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
