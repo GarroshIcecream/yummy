@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"strings"
 	"time"
-
-	styles "github.com/GarroshIcecream/yummy/styles"
 )
 
 type RecipeRaw struct {
@@ -25,63 +23,85 @@ type RecipeRaw struct {
 func FormatRecipeContent(recipe *RecipeRaw) string {
 	var s strings.Builder
 
-	s.WriteString(styles.HeaderStyle.Render(fmt.Sprintf("🎉 %s 🎉", recipe.Name)))
-	s.WriteString("\n\n")
+	// Description in a styled blockquote
+	if recipe.Description != "" {
+		s.WriteString("💭 *About this recipe:*\n")
+		s.WriteString(fmt.Sprintf("> %s\n\n", recipe.Description))
+	}
 
-	// Metadata
-	s.WriteString(styles.HeaderStyle.Render("📝 Recipe Details"))
-	s.WriteString("\n\n")
-	s.WriteString(fmt.Sprintf("👤 Author: %s\n", recipe.Author))
-	s.WriteString(fmt.Sprintf("⏲️ Total Time: %v\n", recipe.TotalTime))
-	s.WriteString(fmt.Sprintf("📖 Description: \n%s\n\n", recipe.Description))
-
-	// Include URL if available
-	if recipe.URL != "" {
-		s.WriteString(fmt.Sprintf("🔗 URL: %s\n", recipe.URL))
+	// Kitchen Preparation Box
+	s.WriteString("## 👩‍🍳 Kitchen Prep\n\n")
+	s.WriteString("| Timing & Portions | Details |\n")
+	s.WriteString("|-------------------|----------|\n")
+	if recipe.Author != "" {
+		s.WriteString(fmt.Sprintf("| 👨‍🍳 Recipe By | *%s* |\n", recipe.Author))
+	}
+	if recipe.Quantity != "" {
+		s.WriteString(fmt.Sprintf("| 🍽️ Servings | **%s** |\n", recipe.Quantity))
+	}
+	if recipe.TotalTime > 0 {
+		s.WriteString(fmt.Sprintf("| ⏱️ Total Time | **%v** |\n", recipe.TotalTime))
+	}
+	if recipe.PrepTime > 0 {
+		s.WriteString(fmt.Sprintf("| 🔪 Prep Time | **%v** |\n", recipe.PrepTime))
+	}
+	if recipe.CookTime > 0 {
+		s.WriteString(fmt.Sprintf("| 🔥 Cook Time | **%v** |\n", recipe.CookTime))
 	}
 	s.WriteString("\n")
 
-	// Ingredients
-	s.WriteString(styles.HeaderStyle.Render("📋 Ingredients"))
-	s.WriteString("\n\n")
+	// Ingredients section with better organization
+	s.WriteString("## 🥘 Ingredients\n\n")
+	s.WriteString("*Gather all ingredients before starting:*\n\n")
+
 	for _, ing := range recipe.Ingredients {
 		var ingredient strings.Builder
 		ingredient.WriteString("• ")
 
-		if ing.Amount != "" {
-			ingredient.WriteString(ing.Amount + " ")
+		if ing.Amount != "" && ing.Unit != "" {
+			ingredient.WriteString(fmt.Sprintf("**%s %s** ", ing.Amount, ing.Unit))
+		} else if ing.Amount != "" {
+			ingredient.WriteString(fmt.Sprintf("**%s** ", ing.Amount))
 		}
 
-		if ing.Unit != "" {
-			ingredient.WriteString(ing.Unit + " ")
-		}
-
-		ingredient.WriteString(ing.Name)
+		ingredient.WriteString(fmt.Sprintf("*%s*", ing.Name))
 
 		if ing.Details != "" {
 			ingredient.WriteString(fmt.Sprintf(" (%s)", ing.Details))
 		}
-		s.WriteString(styles.IngredientStyle.Render(ingredient.String()) + "\n")
+		s.WriteString(ingredient.String() + "\n")
 	}
 	s.WriteString("\n")
 
-	// Instructions
-	s.WriteString(styles.HeaderStyle.Render("🔨 Instructions"))
-	s.WriteString("\n\n")
+	// Instructions section with clean formatting
+	s.WriteString("## 👩‍🍳 Cooking Instructions\n\n")
+	s.WriteString("*Follow these steps in order:*\n\n")
+
 	for i, inst := range recipe.Instructions {
-		// Add each instruction with proper padding and a newline
-		s.WriteString(styles.InstructionStyle.Render(fmt.Sprintf("%d. %s", i+1, inst)) + "\n")
+		s.WriteString(fmt.Sprintf("%d. %s\n\n", i+1, inst))
 	}
-	s.WriteString("\n")
 
-	// Categories
+	// Categories and Tags
 	if len(recipe.Categories) > 0 {
-		s.WriteString(styles.HeaderStyle.Render("🏷️  Categories"))
-		s.WriteString("\n\n")
+		s.WriteString("## 🏷️ Recipe Type\n\n")
+		s.WriteString("*This recipe falls under:*\n\n")
 		for _, cat := range recipe.Categories {
-			s.WriteString(fmt.Sprintf("• %s\n", cat))
+			s.WriteString(fmt.Sprintf("`%s` ", cat))
 		}
+		s.WriteString("\n\n")
 	}
+
+	// Source Attribution
+	if recipe.URL != "" {
+		s.WriteString("## 📖 Recipe Source\n\n")
+		s.WriteString("*Want to learn more? Check out the original recipe:*\n\n")
+		s.WriteString(fmt.Sprintf("🔗 [View Original Recipe](%s)\n\n", recipe.URL))
+	}
+
+	// Footer
+	s.WriteString("-----------------------------------\n")
+	s.WriteString("*Happy Cooking! 👩‍🍳✨*\n")
+	s.WriteString("-----------------------------------\n")
 
 	return s.String()
 }

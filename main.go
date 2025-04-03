@@ -22,13 +22,14 @@ func main() {
 		return
 	}
 
-	p := tea.NewProgram(m,
+	p := tea.NewProgram(
+		m,
 		tea.WithAltScreen(),
 		tea.WithMouseCellMotion(),
+		tea.WithMouseAllMotion(),
 	)
 
 	if _, err := p.Run(); err != nil {
 		fmt.Printf("Error running program: %v", err)
 	}
-
 }

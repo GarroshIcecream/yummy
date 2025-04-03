@@ -5,14 +5,13 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-var TitleStyle = func() lipgloss.Style {
-	b := lipgloss.RoundedBorder()
-	b.Right = "├"
-	return lipgloss.NewStyle().
-		BorderStyle(b).
-		Padding(0, 1).
-		Foreground(lipgloss.Color("#FFA07A"))
-}()
+var TitleStyle = lipgloss.NewStyle().
+	Bold(true).
+	Foreground(lipgloss.Color("#FFD700")).
+	Background(lipgloss.Color("#FF69B4")).
+	Padding(0, 4).
+	MarginTop(1).
+	MarginBottom(1)
 
 var InfoStyle = func() lipgloss.Style {
 	b := lipgloss.RoundedBorder()
