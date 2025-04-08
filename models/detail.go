@@ -3,24 +3,27 @@ package models
 import (
 	"fmt"
 	"strings"
-
-	"github.com/charmbracelet/glamour"
+	"time"
 
 	db "github.com/GarroshIcecream/yummy/db"
 	keys "github.com/GarroshIcecream/yummy/keymaps"
 	recipes "github.com/GarroshIcecream/yummy/recipe"
-	styles "github.com/GarroshIcecream/yummy/styles"
+	"github.com/GarroshIcecream/yummy/styles"
 	"github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
-	lipgloss "github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/glamour"
+	"github.com/charmbracelet/lipgloss"
 )
 
 type DetailModel struct {
 	cookbook       *db.CookBook
+	recipe_id      uint
+	recipe_name    string
 	current_recipe *recipes.RecipeRaw
+	content        string
 	err            error
 	ready          bool
-	content        string
 	scrollPosition int
 	renderer       *glamour.TermRenderer
 	windowHeight   int
@@ -28,12 +31,14 @@ type DetailModel struct {
 	contentHeight  int
 	headerHeight   int
 	footerHeight   int
+	spinner        spinner.Model
 }
 
 func NewDetailModel(cookbook db.CookBook, recipe_id uint) *DetailModel {
-	recipe, err := cookbook.GetFullRecipe(recipe_id)
+	s := spinner.New()
+	s.Spinner = spinner.Dot
+	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF6B6B"))
 
-	// Create a custom renderer with better styling
 	renderer, _ := glamour.NewTermRenderer(
 		glamour.WithAutoStyle(),
 		glamour.WithWordWrap(0),
@@ -41,8 +46,7 @@ func NewDetailModel(cookbook db.CookBook, recipe_id uint) *DetailModel {
 
 	return &DetailModel{
 		cookbook:       &cookbook,
-		current_recipe: recipe,
-		err:            err,
+		recipe_id:      recipe_id,
 		ready:          false,
 		renderer:       renderer,
 		scrollPosition: 0,
@@ -51,15 +55,48 @@ func NewDetailModel(cookbook db.CookBook, recipe_id uint) *DetailModel {
 		contentHeight:  0,
 		headerHeight:   4,
 		footerHeight:   2,
+		spinner:        s,
 	}
 }
 
 func (m *DetailModel) Init() tea.Cmd {
-	return nil
+	return tea.Batch(
+		m.spinner.Tick,
+		func() tea.Msg {
+			recipe, err := m.cookbook.GetFullRecipe(m.recipe_id)
+			if err != nil {
+				m.err = err
+				m.ready = true
+				return nil
+			}
+
+			markdown := recipes.FormatRecipeContent(recipe)
+			rendered, err := m.renderer.Render(markdown)
+			if err != nil {
+				m.err = err
+				m.ready = true
+				return nil
+			}
+
+			m.recipe_name = recipe.Name
+			m.content = rendered
+			m.contentHeight = len(strings.Split(m.content, "\n"))
+			m.ready = true
+			return nil
+		},
+	)
 }
 
 func (m *DetailModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+
 	switch msg := msg.(type) {
+
+	case spinner.TickMsg:
+		time.Sleep(5 * time.Millisecond)
+		m.spinner, cmd = m.spinner.Update(msg)
+		return m, tea.Batch(cmd, m.spinner.Tick)
+
 	case tea.KeyMsg:
 		switch {
 		case key.Matches(msg, keys.Keys.Quit):
@@ -86,41 +123,21 @@ func (m *DetailModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.windowHeight = msg.Height
 		m.windowWidth = msg.Width
 
-		// Create new renderer with updated width
 		if m.windowWidth > 0 {
 			renderer, err := glamour.NewTermRenderer(
 				glamour.WithAutoStyle(),
-				glamour.WithWordWrap(m.windowWidth-4), // Leave some margin
+				glamour.WithWordWrap(m.windowWidth-4),
 			)
 			if err == nil {
 				m.renderer = renderer
 			}
 		}
+	}
 
-		if !m.ready && m.current_recipe != nil {
-			// Initial render of content
-			markdown := recipes.FormatRecipeContent(m.current_recipe)
-			rendered, err := m.renderer.Render(markdown)
-			if err != nil {
-				m.err = err
-				return m, nil
-			}
-			m.content = rendered
-			m.contentHeight = len(strings.Split(m.content, "\n"))
-			m.ready = true
-		} else if m.ready && m.current_recipe != nil {
-			// Re-render content with new width
-			markdown := recipes.FormatRecipeContent(m.current_recipe)
-			rendered, err := m.renderer.Render(markdown)
-			if err != nil {
-				m.err = err
-				return m, nil
-			}
-			m.content = rendered
-			m.contentHeight = len(strings.Split(m.content, "\n"))
-			// Reset scroll position after re-render
-			m.scrollPosition = 0
-		}
+	if !m.ready {
+		time.Sleep(5 * time.Millisecond)
+		m.spinner, cmd = m.spinner.Update(msg)
+		return m, tea.Batch(cmd, m.spinner.Tick)
 	}
 
 	return m, nil
@@ -145,29 +162,24 @@ func (m *DetailModel) View() string {
 	}
 
 	if !m.ready {
-		return "\n  Initializing..."
+		return fmt.Sprintf("\n  %s Loading recipe...", m.spinner.View())
 	}
 
-	// Split content into lines and handle scrolling
 	lines := strings.Split(m.content, "\n")
 	visibleLines := make([]string, 0)
 
-	// Calculate visible range
 	viewportHeight := m.getViewportHeight()
 	start := m.scrollPosition
 	end := min(start+viewportHeight, m.contentHeight)
 
-	// Get visible lines
 	for i := start; i < end; i++ {
 		if i < len(lines) {
 			visibleLines = append(visibleLines, lines[i])
 		}
 	}
 
-	// Join visible lines
 	visibleContent := strings.Join(visibleLines, "\n")
 
-	// Create the full view with header and footer
 	return lipgloss.JoinVertical(
 		lipgloss.Left,
 		m.headerView(),
@@ -177,7 +189,6 @@ func (m *DetailModel) View() string {
 }
 
 func (m *DetailModel) headerView() string {
-	// Add cooking emoji and center the title
 	header := styles.TitleStyle.Render("🍳 " + m.current_recipe.Name)
 
 	return lipgloss.JoinHorizontal(lipgloss.Left, header)
