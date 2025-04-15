@@ -166,6 +166,7 @@ func (c *CookBook) AllRecipes() ([]RecipeWithDescription, error) {
 		Table("recipes").
 		Select("recipes.id, recipes.recipe_name, recipe_metadata.author, recipe_metadata.description").
 		Joins("LEFT JOIN recipe_metadata ON recipes.id = recipe_metadata.recipe_id").
+		Order("recipes.recipe_name").
 		Find(&recipes).
 		Error
 	if err != nil {

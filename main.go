@@ -9,6 +9,13 @@ import (
 
 func main() {
 
+	f, err := tea.LogToFile("debug.log", "debug")
+	if err != nil {
+		fmt.Printf("Error initializing app: %v\n", err)
+		return
+	}
+	defer f.Close()
+
 	m, err := models.NewManager()
 	if err != nil {
 		fmt.Printf("Error initializing app: %v\n", err)

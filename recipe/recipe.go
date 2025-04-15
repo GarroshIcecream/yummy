@@ -69,7 +69,7 @@ func FormatRecipeContent(recipe *RecipeRaw) string {
 		if ing.Details != "" {
 			ingredient.WriteString(fmt.Sprintf(" (%s)", ing.Details))
 		}
-		s.WriteString(ingredient.String() + "\n")
+		s.WriteString(ingredient.String() + "\n\n")
 	}
 	s.WriteString("\n")
 

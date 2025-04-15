@@ -2,8 +2,8 @@ package models
 
 import (
 	"fmt"
+	"log"
 	"strings"
-	"time"
 
 	db "github.com/GarroshIcecream/yummy/db"
 	keys "github.com/GarroshIcecream/yummy/keymaps"
@@ -16,14 +16,21 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+type LoadRecipeMsg struct {
+	recipe *recipes.RecipeRaw
+	err    error
+}
+
+type InitMsg struct{}
+
 type DetailModel struct {
 	cookbook       *db.CookBook
 	recipe_id      uint
 	recipe_name    string
 	current_recipe *recipes.RecipeRaw
 	content        string
+	markdown       string
 	err            error
-	ready          bool
 	scrollPosition int
 	renderer       *glamour.TermRenderer
 	windowHeight   int
@@ -35,6 +42,8 @@ type DetailModel struct {
 }
 
 func NewDetailModel(cookbook db.CookBook, recipe_id uint) *DetailModel {
+	log.Printf("Creating new DetailModel for recipe ID: %d\n", recipe_id)
+
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF6B6B"))
@@ -44,10 +53,9 @@ func NewDetailModel(cookbook db.CookBook, recipe_id uint) *DetailModel {
 		glamour.WithWordWrap(0),
 	)
 
-	return &DetailModel{
+	model := &DetailModel{
 		cookbook:       &cookbook,
 		recipe_id:      recipe_id,
-		ready:          false,
 		renderer:       renderer,
 		scrollPosition: 0,
 		windowHeight:   0,
@@ -57,56 +65,80 @@ func NewDetailModel(cookbook db.CookBook, recipe_id uint) *DetailModel {
 		footerHeight:   2,
 		spinner:        s,
 	}
+
+	return model
 }
 
 func (m *DetailModel) Init() tea.Cmd {
-	return tea.Batch(
-		m.spinner.Tick,
-		func() tea.Msg {
-			recipe, err := m.cookbook.GetFullRecipe(m.recipe_id)
-			if err != nil {
-				m.err = err
-				m.ready = true
-				return nil
-			}
-
-			markdown := recipes.FormatRecipeContent(recipe)
-			rendered, err := m.renderer.Render(markdown)
-			if err != nil {
-				m.err = err
-				m.ready = true
-				return nil
-			}
-
-			m.recipe_name = recipe.Name
-			m.content = rendered
-			m.contentHeight = len(strings.Split(m.content, "\n"))
-			m.ready = true
-			return nil
-		},
-	)
+	log.Printf("Initializing DetailModel...")
+	return func() tea.Msg {
+		return InitMsg{}
+	}
 }
 
 func (m *DetailModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 
 	switch msg := msg.(type) {
+	case InitMsg:
+		if m.content == "" && m.err == nil {
+			log.Printf("Received InitMsg message, starting recipe load...")
+			cmd = tea.Batch(
+				m.spinner.Tick,
+				m.loadRecipe(),
+			)
+			return m, cmd
+		}
+
+	case LoadRecipeMsg:
+		log.Printf("Received LoadRecipeMsg")
+		if msg.err != nil {
+			log.Printf("Error in LoadRecipeMsg: %v\n", msg.err)
+			m.err = msg.err
+			return m, nil
+		}
+
+		log.Printf("Formatting recipe content...")
+		m.markdown = recipes.FormatRecipeContent(msg.recipe)
+		m.current_recipe = msg.recipe
+		m.recipe_name = msg.recipe.Name
+
+		log.Printf("Rendering markdown...")
+		rendered, err := m.renderer.Render(m.markdown)
+		if err != nil {
+			log.Printf("Error rendering markdown: %v\n", err)
+			m.err = err
+			return m, nil
+		}
+
+		log.Printf("Updating model with recipe content...")
+		m.content = rendered
+		m.contentHeight = len(strings.Split(m.content, "\n"))
+		log.Printf("Content height: %d lines\n", m.contentHeight)
+		return m, nil
 
 	case spinner.TickMsg:
-		time.Sleep(5 * time.Millisecond)
 		m.spinner, cmd = m.spinner.Update(msg)
-		return m, tea.Batch(cmd, m.spinner.Tick)
+		if m.content == "" && m.err == nil {
+			return m, cmd
+		}
+		return m, nil
 
 	case tea.KeyMsg:
 		switch {
 		case key.Matches(msg, keys.Keys.Quit):
+			log.Printf("Quit command received")
 			return m, tea.Quit
 		case key.Matches(msg, keys.Keys.Back):
+			log.Printf("Back command received")
 			return NewListModel(*m.cookbook, nil), nil
 		case key.Matches(msg, keys.Keys.Up):
 			m.scrollUp(1)
 		case key.Matches(msg, keys.Keys.Down):
 			m.scrollDown(1)
+		case key.Matches(msg, keys.Keys.Edit):
+			log.Printf("Edit command received for recipe ID: %d", m.recipe_id)
+			return NewEditModel(*m.cookbook, m.current_recipe, m.recipe_id), nil
 		}
 
 	case tea.MouseMsg:
@@ -120,6 +152,7 @@ func (m *DetailModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case tea.WindowSizeMsg:
+		log.Printf("Window size changed: %dx%d\n", msg.Width, msg.Height)
 		m.windowHeight = msg.Height
 		m.windowWidth = msg.Width
 
@@ -130,17 +163,33 @@ func (m *DetailModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			)
 			if err == nil {
 				m.renderer = renderer
+				if m.markdown != "" {
+					log.Printf("Re-rendering content with new window width")
+					rendered, err := m.renderer.Render(m.markdown)
+					if err == nil {
+						m.content = rendered
+						m.contentHeight = len(strings.Split(m.content, "\n"))
+						log.Printf("Content re-rendered, new height: %d lines\n", m.contentHeight)
+					}
+				}
 			}
 		}
 	}
 
-	if !m.ready {
-		time.Sleep(5 * time.Millisecond)
-		m.spinner, cmd = m.spinner.Update(msg)
-		return m, tea.Batch(cmd, m.spinner.Tick)
-	}
-
 	return m, nil
+}
+
+func (m *DetailModel) loadRecipe() tea.Cmd {
+	return func() tea.Msg {
+		log.Printf("Loading recipe with ID: %d\n", m.recipe_id)
+		recipe, err := m.cookbook.GetFullRecipe(m.recipe_id)
+		if err != nil {
+			log.Printf("Error loading recipe: %v\n", err)
+			return LoadRecipeMsg{recipe: nil, err: err}
+		}
+		log.Printf("Successfully loaded recipe: %s\n", recipe.Name)
+		return LoadRecipeMsg{recipe: recipe, err: nil}
+	}
 }
 
 func (m *DetailModel) scrollUp(amount int) {
@@ -161,7 +210,7 @@ func (m *DetailModel) View() string {
 		return fmt.Sprintf("Error: %v", m.err)
 	}
 
-	if !m.ready {
+	if m.content == "" {
 		return fmt.Sprintf("\n  %s Loading recipe...", m.spinner.View())
 	}
 

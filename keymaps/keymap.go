@@ -13,6 +13,7 @@ type KeyMap struct {
 	Quit   key.Binding
 	Enter  key.Binding
 	Help   key.Binding
+	Edit   key.Binding
 }
 
 func (k KeyMap) ShortHelp() []key.Binding {
@@ -38,6 +39,10 @@ var Keys = KeyMap{
 	No: key.NewBinding(
 		key.WithKeys("n"),
 		key.WithHelp("n", "no"),
+	),
+	Edit: key.NewBinding(
+		key.WithKeys("e"),
+		key.WithHelp("e", "edit"),
 	),
 	Down: key.NewBinding(
 		key.WithKeys("j", "down"),
