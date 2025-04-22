@@ -49,27 +49,27 @@ var Keys = KeyMap{
 		key.WithHelp("↓/j", "move down"),
 	),
 	Add: key.NewBinding(
-		key.WithKeys("ctrl+a"),
-		key.WithHelp("ctrl+a", "add"),
+		key.WithKeys("a", "+"),
+		key.WithHelp("a/+", "add recipe"),
 	),
 	Back: key.NewBinding(
-		key.WithKeys("esc"),
-		key.WithHelp("esc", "go back"),
+		key.WithKeys("esc", "q"),
+		key.WithHelp("esc/q", "go back"),
 	),
 	Quit: key.NewBinding(
 		key.WithKeys("ctrl+c"),
 		key.WithHelp("ctrl+c", "quit"),
 	),
 	Enter: key.NewBinding(
-		key.WithKeys("enter"),
-		key.WithHelp("enter", "select"),
+		key.WithKeys("enter", " "),
+		key.WithHelp("enter/space", "select"),
 	),
 	Help: key.NewBinding(
-		key.WithKeys("?"),
-		key.WithHelp("?", "toggle help"),
+		key.WithKeys("?", "h"),
+		key.WithHelp("?/h", "toggle help"),
 	),
 	Delete: key.NewBinding(
-		key.WithKeys("ctrl+d"),
-		key.WithHelp("ctrl+d", "delete"),
+		key.WithKeys("x"),
+		key.WithHelp("x", "delete recipe"),
 	),
 }

@@ -6,6 +6,42 @@ import (
 	"time"
 )
 
+type RecipeWithDescription struct {
+	RecipeID             uint
+	RecipeName           string
+	FormattedDescription string
+}
+
+func (i RecipeWithDescription) Title() string       { return i.RecipeName }
+func (i RecipeWithDescription) Description() string { return i.FormattedDescription }
+func (i RecipeWithDescription) FilterValue() string {
+	return fmt.Sprintf("%s - %s", i.RecipeName, i.FormattedDescription)
+}
+
+func FormatRecipe(
+	id uint,
+	name string,
+	author string,
+	description string) RecipeWithDescription {
+
+	author_fin := "N/A"
+	if author != "" {
+		author_fin = author
+	}
+
+	desc := "N/A"
+	if description != "" {
+		desc = description
+	}
+
+	return RecipeWithDescription{
+		RecipeID:             id,
+		RecipeName:           name,
+		FormattedDescription: fmt.Sprintf("%s - %s", author_fin, desc),
+	}
+
+}
+
 type RecipeRaw struct {
 	Name         string
 	Description  string

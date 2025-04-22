@@ -1,8 +1,6 @@
 package models
 
 import (
-	"log"
-
 	db "github.com/GarroshIcecream/yummy/db"
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -16,12 +14,6 @@ type Manager struct {
 func NewManager() (*Manager, error) {
 	cookbook, err := db.NewCookBook()
 	if err != nil {
-		log.Fatalf("Failed to create new Cookbook: %s", err)
-		return nil, err
-	}
-
-	if err := cookbook.Open(); err != nil {
-		log.Fatalf("Failed to open Cookbook: %s", err)
 		return nil, err
 	}
 
@@ -42,7 +34,6 @@ func (m *Manager) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	nextModel, cmd := m.currentModel.Update(msg)
 
 	if nextModel != m.currentModel {
-		log.Printf("Switching models in manager")
 		m.currentModel = nextModel
 		// Get the init command from the new model
 		initCmd := m.currentModel.Init()

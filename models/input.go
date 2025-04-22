@@ -2,20 +2,28 @@ package models
 
 import (
 	"fmt"
-	"log"
 
 	db "github.com/GarroshIcecream/yummy/db"
 	keys "github.com/GarroshIcecream/yummy/keymaps"
 	recipes "github.com/GarroshIcecream/yummy/recipe"
 	"github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
+type RecipeLoadedMsg struct {
+	recipe_id uint
+	err       error
+}
+
 type InputModel struct {
-	cookbook *db.CookBook
-	err      error
-	inputURL textinput.Model
+	cookbook  *db.CookBook
+	err       error
+	inputURL  textinput.Model
+	spinner   spinner.Model
+	isLoading bool
 }
 
 func NewInputModel(cookbook db.CookBook, url *string) *InputModel {
@@ -27,10 +35,16 @@ func NewInputModel(cookbook db.CookBook, url *string) *InputModel {
 		inputURL.SetValue(*url)
 	}
 
+	s := spinner.New()
+	s.Spinner = spinner.Dot
+	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF6B6B"))
+
 	return &InputModel{
-		cookbook: &cookbook,
-		err:      nil,
-		inputURL: inputURL,
+		cookbook:  &cookbook,
+		err:       nil,
+		inputURL:  inputURL,
+		spinner:   s,
+		isLoading: false,
 	}
 }
 
@@ -50,17 +64,34 @@ func (m *InputModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, keys.Keys.Quit):
 			return m, tea.Quit
 		case key.Matches(msg, keys.Keys.Enter):
-			recipe_id, err := m.HandleURLInput(msg)
-			if err != nil {
-				m.err = err
-				return m, nil
+			if !m.isLoading {
+				m.isLoading = true
+				url := m.inputURL.Value()
+				m.inputURL.Reset()
+				cmds = append(cmds, m.spinner.Tick)
+				cmds = append(cmds, func() tea.Msg {
+					return m.handleURLInput(url)
+				})
 			}
-
-			return NewDetailModel(*m.cookbook, recipe_id), nil
 		case key.Matches(msg, keys.Keys.Back):
 			return NewListModel(*m.cookbook, nil), nil
 		}
+
+	case spinner.TickMsg:
+		if m.isLoading {
+			m.spinner, cmd = m.spinner.Update(msg)
+			cmds = append(cmds, cmd)
+		}
+
+	case RecipeLoadedMsg:
+		m.isLoading = false
+		if msg.err != nil {
+			m.err = msg.err
+			return m, nil
+		}
+		return NewDetailModel(*m.cookbook, msg.recipe_id), nil
 	}
+
 	m.inputURL, cmd = m.inputURL.Update(msg)
 	cmds = append(cmds, cmd)
 
@@ -69,8 +100,17 @@ func (m *InputModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m *InputModel) View() string {
 	if m.err != nil {
-		log.Fatalf("Encountered unknown error while viewing ListModel: %s", m.err)
-		return fmt.Sprintf("Error: %v", m.err)
+		return fmt.Sprintf(
+			"Error: %v\n\nPress esc to go back",
+			m.err,
+		)
+	}
+
+	if m.isLoading {
+		return fmt.Sprintf(
+			"\n  %s Scraping recipe...",
+			m.spinner.View(),
+		)
 	}
 
 	return fmt.Sprintf(
@@ -80,21 +120,16 @@ func (m *InputModel) View() string {
 	) + "\n"
 }
 
-func (m *InputModel) HandleURLInput(msg tea.Msg) (uint, error) {
-	url := m.inputURL.Value()
-	m.inputURL.Reset()
-
+func (m *InputModel) handleURLInput(url string) tea.Msg {
 	recipeRaw, err := recipes.GetRecipeFromURL(url)
 	if err != nil {
-		m.err = err
-		return 0, err
+		return RecipeLoadedMsg{err: err}
 	}
 
 	id, err := m.cookbook.SaveScrapedRecipe(recipeRaw)
 	if err != nil {
-		m.err = err
-		return 0, err
+		return RecipeLoadedMsg{err: err}
 	}
 
-	return id, nil
+	return RecipeLoadedMsg{recipe_id: id, err: nil}
 }

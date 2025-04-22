@@ -42,7 +42,7 @@ func NewEditModel(cookbook db.CookBook, recipe *recipes.RecipeRaw, recipe_id uin
 		huh.NewInput().
 			Key("name").
 			Title("Recipe Name").
-			Value(&[]string{""}[0]).
+			Value(ternaryPtr(recipe != nil, &recipe.Name, &[]string{""}[0])).
 			Validate(func(value string) error {
 				if value == "" {
 					return fmt.Errorf("name is required")
