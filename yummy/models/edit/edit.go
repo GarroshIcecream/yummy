@@ -1,4 +1,4 @@
-package models
+package edit
 
 import (
 	"fmt"
@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	db "github.com/GarroshIcecream/yummy/db"
-	recipes "github.com/GarroshIcecream/yummy/recipe"
+	db "github.com/GarroshIcecream/yummy/yummy/db"
+	recipes "github.com/GarroshIcecream/yummy/yummy/recipe"
 	tea "github.com/charmbracelet/bubbletea"
 	huh "github.com/charmbracelet/huh"
 	"github.com/charmbracelet/lipgloss"
@@ -17,7 +17,7 @@ type EditModel struct {
 	cookbook  *db.CookBook
 	form      *huh.Form
 	recipe    *recipes.RecipeRaw
-	recipe_id uint
+	recipe_id *uint
 	isNew     bool
 	err       error
 }
@@ -27,11 +27,24 @@ type SaveMsg struct {
 	err    error
 }
 
-func NewEditModel(cookbook db.CookBook, recipe *recipes.RecipeRaw, recipe_id uint) *EditModel {
+type LoadRecipeMsg struct {
+	recipe *recipes.RecipeRaw
+	err    error
+}
+
+func New(cookbook *db.CookBook, recipe *recipes.RecipeRaw, recipe_id *uint) *EditModel {
 	// Get ingredients for the recipe
 	var ingredients []recipes.Ingredient
 	if recipe != nil {
 		ingredients = recipe.Ingredients
+	} else {
+		return &EditModel{
+			cookbook:  cookbook,
+			form:      nil,
+			recipe:    nil,
+			recipe_id: recipe_id,
+			isNew:     true,
+		}
 	}
 
 	// Generate fields for all ingredients
@@ -149,7 +162,7 @@ func NewEditModel(cookbook db.CookBook, recipe *recipes.RecipeRaw, recipe_id uin
 	form := huh.NewForm(huh.NewGroup(allFields...))
 
 	return &EditModel{
-		cookbook:  &cookbook,
+		cookbook:  cookbook,
 		form:      form,
 		recipe:    recipe,
 		recipe_id: recipe_id,
@@ -176,8 +189,6 @@ func (m *EditModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.Type {
-		case tea.KeyCtrlC, tea.KeyEsc:
-			return NewListModel(*m.cookbook, nil), nil
 		case tea.KeyEnter:
 			if m.form.State == huh.StateCompleted {
 				return m, tea.Cmd(m.saveRecipe)
@@ -189,7 +200,6 @@ func (m *EditModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.err = msg.err
 			return m, nil
 		}
-		return NewListModel(*m.cookbook, nil), nil
 
 	case LoadRecipeMsg:
 		if msg.err != nil {
@@ -434,7 +444,7 @@ func (m *EditModel) saveRecipe() tea.Msg {
 }
 
 func (m *EditModel) loadRecipe() tea.Msg {
-	recipe, err := m.cookbook.GetFullRecipe(m.recipe_id)
+	recipe, err := m.cookbook.GetFullRecipe(*m.recipe_id)
 	if err != nil {
 		return LoadRecipeMsg{err: fmt.Errorf("failed to load recipe: %v", err)}
 	}
@@ -547,13 +557,3 @@ func generateIngredientFields(ingredients []recipes.Ingredient) []huh.Field {
 
 	return fields
 }
-
-var (
-	focusedButton = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#FF6B6B")).
-			Render("[ Save ]")
-
-	blurredButton = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#A0A0A0")).
-			Render("[ Save ]")
-)

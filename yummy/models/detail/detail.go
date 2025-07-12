@@ -1,14 +1,15 @@
-package models
+package detail
 
 import (
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
-	db "github.com/GarroshIcecream/yummy/db"
-	keys "github.com/GarroshIcecream/yummy/keymaps"
-	recipes "github.com/GarroshIcecream/yummy/recipe"
-	"github.com/GarroshIcecream/yummy/styles"
+	db "github.com/GarroshIcecream/yummy/yummy/db"
+	keys "github.com/GarroshIcecream/yummy/yummy/keymaps"
+	recipes "github.com/GarroshIcecream/yummy/yummy/recipe"
+	styles "github.com/GarroshIcecream/yummy/yummy/styles"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
@@ -25,7 +26,7 @@ type InitMsg struct{}
 
 type DetailModel struct {
 	cookbook       *db.CookBook
-	recipe_id      uint
+	recipe_id      *uint
 	current_recipe *recipes.RecipeRaw
 	content        string
 	markdown       string
@@ -41,12 +42,14 @@ type DetailModel struct {
 	isLoading      bool
 }
 
-func NewDetailModel(cookbook db.CookBook, recipe_id uint) *DetailModel {
-
+// Creates a new DetailModel for a given recipe ID
+func New(cookbook *db.CookBook, recipe_id *uint) *DetailModel {
+	start := time.Now()
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF6B6B"))
 
+	// Create a new renderer for the markdown
 	renderer, _ := glamour.NewTermRenderer(
 		glamour.WithAutoStyle(),
 		glamour.WithEmoji(),
@@ -54,7 +57,7 @@ func NewDetailModel(cookbook db.CookBook, recipe_id uint) *DetailModel {
 	)
 
 	model := &DetailModel{
-		cookbook:       &cookbook,
+		cookbook:       cookbook,
 		recipe_id:      recipe_id,
 		renderer:       renderer,
 		scrollPosition: 0,
@@ -67,6 +70,7 @@ func NewDetailModel(cookbook db.CookBook, recipe_id uint) *DetailModel {
 		isLoading:      true,
 	}
 
+	log.Printf("DetailModel created in %v", time.Since(start))
 	return model
 }
 
@@ -84,12 +88,13 @@ func (m *DetailModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case InitMsg:
+		log.Println("Init Meessage received")
 		cmds = append(cmds, m.spinner.Tick)
 		cmds = append(cmds, func() tea.Msg {
 			return m.loadRecipe()
 		})
-
 	case LoadRecipeMsg:
+		log.Println("LoadRecipeMsg received")
 		m.isLoading = false
 
 	case spinner.TickMsg:
@@ -100,16 +105,10 @@ func (m *DetailModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		switch {
-		case key.Matches(msg, keys.Keys.Quit):
-			return m, tea.Quit
-		case key.Matches(msg, keys.Keys.Back):
-			return NewListModel(*m.cookbook, nil), nil
 		case key.Matches(msg, keys.Keys.Up):
 			m.scrollUp(1)
 		case key.Matches(msg, keys.Keys.Down):
 			m.scrollDown(1)
-		case key.Matches(msg, keys.Keys.Edit):
-			return NewEditModel(*m.cookbook, m.current_recipe, m.recipe_id), nil
 		}
 
 	case tea.MouseMsg:
@@ -148,12 +147,14 @@ func (m *DetailModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *DetailModel) loadRecipe() LoadRecipeMsg {
-	recipe, err := m.cookbook.GetFullRecipe(m.recipe_id)
+	log.Println("Starting loadRecipe...")
+	start := time.Now()
+
+	recipe, err := m.cookbook.GetFullRecipe(*m.recipe_id)
 	if err != nil {
+		log.Printf("Error getting recipe: %v", err)
 		return LoadRecipeMsg{recipe: nil, err: err}
 	}
-
-	time.Sleep(2 * time.Second)
 
 	m.markdown = recipes.FormatRecipeContent(recipe)
 	m.current_recipe = recipe
@@ -164,7 +165,10 @@ func (m *DetailModel) loadRecipe() LoadRecipeMsg {
 	}
 
 	m.content = rendered
+
+	m.content = m.markdown
 	m.contentHeight = len(strings.Split(m.content, "\n"))
+	log.Printf("Total loadRecipe completed in %v", time.Since(start))
 
 	return LoadRecipeMsg{recipe: recipe, err: nil}
 }
@@ -222,7 +226,13 @@ func (m *DetailModel) View() string {
 }
 
 func (m *DetailModel) headerView() string {
-	header := styles.TitleStyle.Render("🍳 " + m.current_recipe.Name)
+	var recipeName string
+	if m.current_recipe != nil {
+		recipeName = m.current_recipe.Name
+	} else {
+		recipeName = "Loading..."
+	}
+	header := styles.TitleStyle.Render("🍳 " + recipeName)
 
 	return lipgloss.JoinHorizontal(lipgloss.Left, header)
 }

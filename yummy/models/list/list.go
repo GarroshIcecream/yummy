@@ -1,12 +1,12 @@
-package models
+package list
 
 import (
 	"fmt"
 
-	db "github.com/GarroshIcecream/yummy/db"
-	keys "github.com/GarroshIcecream/yummy/keymaps"
-	"github.com/GarroshIcecream/yummy/recipe"
-	styles "github.com/GarroshIcecream/yummy/styles"
+	db "github.com/GarroshIcecream/yummy/yummy/db"
+	keys "github.com/GarroshIcecream/yummy/yummy/keymaps"
+	recipe "github.com/GarroshIcecream/yummy/yummy/recipe"
+	styles "github.com/GarroshIcecream/yummy/yummy/styles"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
@@ -15,11 +15,11 @@ import (
 type ListModel struct {
 	cookbook       *db.CookBook
 	err            error
-	recipeList     list.Model
-	selectedRecipe *uint
+	RecipeList     list.Model
+	SelectedRecipe *uint
 }
 
-func NewListModel(cookbook db.CookBook, recipe_id *uint) *ListModel {
+func New(cookbook *db.CookBook, recipe_id *uint) *ListModel {
 	recipes, err := cookbook.AllRecipes()
 
 	var items []list.Item
@@ -43,10 +43,10 @@ func NewListModel(cookbook db.CookBook, recipe_id *uint) *ListModel {
 	}
 
 	return &ListModel{
-		cookbook:       &cookbook,
+		cookbook:       cookbook,
 		err:            err,
-		recipeList:     l,
-		selectedRecipe: recipe_id,
+		RecipeList:     l,
+		SelectedRecipe: recipe_id,
 	}
 }
 
@@ -63,53 +63,32 @@ func (m *ListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch {
-		case key.Matches(msg, keys.Keys.Quit):
-			return m, tea.Quit
-		case key.Matches(msg, keys.Keys.Add):
-			if m.recipeList.FilterState() != list.Filtering {
-				return NewInputModel(*m.cookbook, nil), nil
-			}
 		case key.Matches(msg, keys.Keys.Delete):
-			if m.recipeList.FilterState() != list.Filtering {
-				if i, ok := m.recipeList.SelectedItem().(recipe.RecipeWithDescription); ok {
+			if m.RecipeList.FilterState() != list.Filtering {
+				if i, ok := m.RecipeList.SelectedItem().(recipe.RecipeWithDescription); ok {
 					if err := m.cookbook.DeleteRecipe(i.RecipeID); err != nil {
 						m.err = err
 						return m, nil
 					}
 
-					recipes, err := m.cookbook.AllRecipes()
-					if err != nil {
-						m.err = err
-						return m, nil
-					}
-
-					var items []list.Item
-					for _, recipe := range recipes {
-						items = append(items, recipe)
-					}
-					m.recipeList.SetItems(items)
+					m.RefreshRecipeList()
 					return m, nil
 				}
 			}
 		case key.Matches(msg, keys.Keys.Enter):
-			if m.recipeList.FilterState() != list.Filtering {
-				if i, ok := m.recipeList.SelectedItem().(recipe.RecipeWithDescription); ok {
-					m.selectedRecipe = &i.RecipeID
-					return NewDetailModel(*m.cookbook, i.RecipeID), nil
+			if m.RecipeList.FilterState() != list.Filtering {
+				if i, ok := m.RecipeList.SelectedItem().(recipe.RecipeWithDescription); ok {
+					m.SelectedRecipe = &i.RecipeID
 				}
-			}
-		case key.Matches(msg, keys.Keys.Back):
-			if m.recipeList.FilterState() != list.Filtering {
-				return m, tea.Quit
 			}
 		}
 
 	case tea.WindowSizeMsg:
 		h, v := styles.DocStyle.GetFrameSize()
-		m.recipeList.SetSize(msg.Width-h, msg.Height-v)
+		m.RecipeList.SetSize(msg.Width-h, msg.Height-v)
 	}
 
-	m.recipeList, cmd = m.recipeList.Update(msg)
+	m.RecipeList, cmd = m.RecipeList.Update(msg)
 	cmds = append(cmds, cmd)
 
 	return m, tea.Batch(cmds...)
@@ -120,5 +99,22 @@ func (m *ListModel) View() string {
 		return fmt.Sprintf("Error: %v", m.err)
 	}
 
-	return styles.DocStyle.Render(m.recipeList.View())
+	return styles.DocStyle.Render(m.RecipeList.View())
+}
+
+func (m *ListModel) RefreshRecipeList() tea.Cmd {
+	recipes, err := m.cookbook.AllRecipes()
+	if err != nil {
+		m.err = err
+		return nil
+	}
+
+	var items []list.Item
+	for _, recipe := range recipes {
+		items = append(items, recipe)
+	}
+
+	cmd := m.RecipeList.SetItems(items)
+
+	return cmd
 }

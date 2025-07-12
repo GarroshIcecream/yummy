@@ -7,11 +7,9 @@ import (
 
 var TitleStyle = lipgloss.NewStyle().
 	Bold(true).
-	Foreground(lipgloss.Color("#FFD700")).
-	Background(lipgloss.Color("#FF69B4")).
-	Padding(0, 4).
-	MarginTop(1).
-	MarginBottom(1)
+	Foreground(lipgloss.Color("#FFFFFF")).
+	Background(lipgloss.Color("#FF6B6B")).
+	Padding(0, 4)
 
 var InfoStyle = func() lipgloss.Style {
 	b := lipgloss.RoundedBorder()

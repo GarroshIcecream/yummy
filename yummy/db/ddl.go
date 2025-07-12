@@ -60,5 +60,6 @@ type RecipeMetadata struct {
 type Instructions struct {
 	gorm.Model
 	RecipeID    uint
+	Step        int
 	Description string
 }

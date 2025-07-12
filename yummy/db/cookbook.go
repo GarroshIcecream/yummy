@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/GarroshIcecream/yummy/recipe"
+	recipe "github.com/GarroshIcecream/yummy/yummy/recipe"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -13,8 +13,9 @@ type CookBook struct {
 	conn *gorm.DB
 }
 
-func NewCookBook() (*CookBook, error) {
-	db_con, err := gorm.Open(sqlite.Open("my_cookbook.db"), &gorm.Config{})
+// NewCookBook creates a new CookBook instance with the given database path and optional GORM options
+func NewCookBook(db_path string, gorm_opts ...gorm.Option) (*CookBook, error) {
+	db_con, err := gorm.Open(sqlite.Open(db_path), gorm_opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -24,6 +25,7 @@ func NewCookBook() (*CookBook, error) {
 	}
 
 	return &CookBook{conn: db_con}, nil
+
 }
 
 func (c *CookBook) RandomRecipe() Recipe {
@@ -206,9 +208,11 @@ func (c *CookBook) SaveScrapedRecipe(recipeRaw *recipe.RecipeRaw) (uint, error) 
 	}
 
 	// Save instructions
-	for _, instruction := range recipeRaw.Instructions {
+	// add step number to each instruction
+	for i, instruction := range recipeRaw.Instructions {
 		inst := Instructions{
 			RecipeID:    recipe.ID,
+			Step:        i + 1,
 			Description: instruction,
 		}
 		if err := c.conn.Create(&inst).Error; err != nil {
@@ -234,34 +238,46 @@ func (c *CookBook) SaveScrapedRecipe(recipeRaw *recipe.RecipeRaw) (uint, error) 
 func (c *CookBook) GetFullRecipe(recipeID uint) (*recipe.RecipeRaw, error) {
 	// Get the base recipe
 	fmt.Printf("Fetching recipe with ID: %d\n", recipeID)
+	log.Printf("Starting GetFullRecipe for ID: %d", recipeID)
+
 	var recipe_raw Recipe
 	if err := c.conn.First(&recipe_raw, recipeID).Error; err != nil {
+		log.Printf("Error fetching base recipe: %v", err)
 		return nil, fmt.Errorf("recipe not found: %w", err)
 	}
+	log.Printf("Base recipe loaded: %s", recipe_raw.RecipeName)
 
 	// Get metadata
 	var metadata RecipeMetadata
 	if err := c.conn.Where("recipe_id = ?", recipe_raw.ID).First(&metadata).Error; err != nil {
+		log.Printf("Error fetching metadata: %v", err)
 		return nil, fmt.Errorf("metadata not found: %w", err)
 	}
+	log.Printf("Metadata loaded")
 
 	// Get ingredients
 	var ingredients []Ingredients
 	if err := c.conn.Where("recipe_id = ?", recipe_raw.ID).Find(&ingredients).Error; err != nil {
+		log.Printf("Error fetching ingredients: %v", err)
 		return nil, fmt.Errorf("failed to fetch ingredients: %w", err)
 	}
+	log.Printf("Ingredients loaded: %d items", len(ingredients))
 
 	// Get instructions
 	var instructions []Instructions
 	if err := c.conn.Where("recipe_id = ?", recipe_raw.ID).Find(&instructions).Error; err != nil {
+		log.Printf("Error fetching instructions: %v", err)
 		return nil, fmt.Errorf("failed to fetch instructions: %w", err)
 	}
+	log.Printf("Instructions loaded: %d items", len(instructions))
 
 	// Get categories
 	var categories []Category
 	if err := c.conn.Where("recipe_id = ?", recipe_raw.ID).Find(&categories).Error; err != nil {
+		log.Printf("Error fetching categories: %v", err)
 		return nil, fmt.Errorf("failed to fetch categories: %w", err)
 	}
+	log.Printf("Categories loaded: %d items", len(categories))
 
 	// Convert to RecipeRaw
 	recipeRaw := &recipe.RecipeRaw{
@@ -298,5 +314,6 @@ func (c *CookBook) GetFullRecipe(recipeID uint) (*recipe.RecipeRaw, error) {
 		recipeRaw.Categories[i] = cat.CategoryName
 	}
 
+	log.Printf("GetFullRecipe completed successfully")
 	return recipeRaw, nil
 }

@@ -3,7 +3,8 @@ package main
 import (
 	"fmt"
 
-	models "github.com/GarroshIcecream/yummy/models"
+	db "github.com/GarroshIcecream/yummy/yummy/db"
+	manager "github.com/GarroshIcecream/yummy/yummy/models/manager"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -16,7 +17,13 @@ func main() {
 	}
 	defer f.Close()
 
-	m, err := models.NewManager()
+	cookbook, err := db.NewCookBook("my_cookbook.db")
+	if err != nil {
+		fmt.Printf("Error initializing app: %v\n", err)
+		return
+	}
+
+	m, err := manager.New(cookbook)
 	if err != nil {
 		fmt.Printf("Error initializing app: %v\n", err)
 		return
