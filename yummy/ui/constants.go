@@ -1,5 +1,14 @@
 package ui
 
+type SessionState int
+
+const (
+	SessionStateList SessionState = iota
+	SessionStateDetail
+	SessionStateEdit
+	SessionStateChat
+)
+
 const (
 	// Viewport dimensions
 	ViewportHeight = 30

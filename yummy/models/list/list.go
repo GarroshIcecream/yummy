@@ -7,19 +7,20 @@ import (
 	keys "github.com/GarroshIcecream/yummy/yummy/keymaps"
 	recipe "github.com/GarroshIcecream/yummy/yummy/recipe"
 	styles "github.com/GarroshIcecream/yummy/yummy/styles"
+	ui "github.com/GarroshIcecream/yummy/yummy/ui"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+
 type ListModel struct {
 	cookbook       *db.CookBook
 	err            error
 	RecipeList     list.Model
-	SelectedRecipe *uint
 }
 
-func New(cookbook *db.CookBook, recipe_id *uint) *ListModel {
+func New(cookbook *db.CookBook) *ListModel {
 	recipes, err := cookbook.AllRecipes()
 
 	var items []list.Item
@@ -46,7 +47,6 @@ func New(cookbook *db.CookBook, recipe_id *uint) *ListModel {
 		cookbook:       cookbook,
 		err:            err,
 		RecipeList:     l,
-		SelectedRecipe: recipe_id,
 	}
 }
 
@@ -78,7 +78,8 @@ func (m *ListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, keys.Keys.Enter):
 			if m.RecipeList.FilterState() != list.Filtering {
 				if i, ok := m.RecipeList.SelectedItem().(recipe.RecipeWithDescription); ok {
-					m.SelectedRecipe = &i.RecipeID
+					cmds = append(cmds, SendRecipeSelectedMsg(i.RecipeID))
+					cmds = append(cmds, SendSessionStateMsg(ui.SessionStateDetail))
 				}
 			}
 		}
@@ -92,6 +93,18 @@ func (m *ListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	cmds = append(cmds, cmd)
 
 	return m, tea.Batch(cmds...)
+}
+
+func SendRecipeSelectedMsg(recipe_id uint) tea.Cmd {
+	return func() tea.Msg {
+		return ui.RecipeSelectedMsg{RecipeID: recipe_id}
+	}
+}
+
+func SendSessionStateMsg(session_state ui.SessionState) tea.Cmd {
+	return func() tea.Msg {
+		return ui.SessionStateMsg{SessionState: session_state}
+	}
 }
 
 func (m *ListModel) View() string {

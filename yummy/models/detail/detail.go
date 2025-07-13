@@ -10,6 +10,7 @@ import (
 	keys "github.com/GarroshIcecream/yummy/yummy/keymaps"
 	recipes "github.com/GarroshIcecream/yummy/yummy/recipe"
 	styles "github.com/GarroshIcecream/yummy/yummy/styles"
+	ui "github.com/GarroshIcecream/yummy/yummy/ui"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
@@ -22,11 +23,8 @@ type LoadRecipeMsg struct {
 	err    error
 }
 
-type InitMsg struct{}
-
 type DetailModel struct {
 	cookbook       *db.CookBook
-	recipe_id      *uint
 	current_recipe *recipes.RecipeRaw
 	content        string
 	markdown       string
@@ -43,8 +41,7 @@ type DetailModel struct {
 }
 
 // Creates a new DetailModel for a given recipe ID
-func New(cookbook *db.CookBook, recipe_id *uint) *DetailModel {
-	start := time.Now()
+func New(cookbook *db.CookBook) *DetailModel {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF6B6B"))
@@ -58,7 +55,6 @@ func New(cookbook *db.CookBook, recipe_id *uint) *DetailModel {
 
 	model := &DetailModel{
 		cookbook:       cookbook,
-		recipe_id:      recipe_id,
 		renderer:       renderer,
 		scrollPosition: 0,
 		windowHeight:   0,
@@ -70,14 +66,11 @@ func New(cookbook *db.CookBook, recipe_id *uint) *DetailModel {
 		isLoading:      true,
 	}
 
-	log.Printf("DetailModel created in %v", time.Since(start))
 	return model
 }
 
 func (m *DetailModel) Init() tea.Cmd {
-	return func() tea.Msg {
-		return InitMsg{}
-	}
+	return nil
 }
 
 func (m *DetailModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -87,12 +80,12 @@ func (m *DetailModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	)
 
 	switch msg := msg.(type) {
-	case InitMsg:
-		log.Println("Init Meessage received")
+	case ui.RecipeSelectedMsg:
+		log.Println("RecipeSelectedMsg received")
+		m.isLoading = true
 		cmds = append(cmds, m.spinner.Tick)
-		cmds = append(cmds, func() tea.Msg {
-			return m.loadRecipe()
-		})
+		cmds = append(cmds, m.SendLoadRecipeMsg(msg.RecipeID))
+
 	case LoadRecipeMsg:
 		log.Println("LoadRecipeMsg received")
 		m.isLoading = false
@@ -146,46 +139,6 @@ func (m *DetailModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(cmds...)
 }
 
-func (m *DetailModel) loadRecipe() LoadRecipeMsg {
-	log.Println("Starting loadRecipe...")
-	start := time.Now()
-
-	recipe, err := m.cookbook.GetFullRecipe(*m.recipe_id)
-	if err != nil {
-		log.Printf("Error getting recipe: %v", err)
-		return LoadRecipeMsg{recipe: nil, err: err}
-	}
-
-	m.markdown = recipes.FormatRecipeContent(recipe)
-	m.current_recipe = recipe
-
-	rendered, err := m.renderer.Render(m.markdown)
-	if err != nil {
-		return LoadRecipeMsg{recipe: nil, err: err}
-	}
-
-	m.content = rendered
-
-	m.content = m.markdown
-	m.contentHeight = len(strings.Split(m.content, "\n"))
-	log.Printf("Total loadRecipe completed in %v", time.Since(start))
-
-	return LoadRecipeMsg{recipe: recipe, err: nil}
-}
-
-func (m *DetailModel) scrollUp(amount int) {
-	m.scrollPosition = max(0, m.scrollPosition-amount)
-}
-
-func (m *DetailModel) scrollDown(amount int) {
-	maxScroll := max(0, m.contentHeight-m.getViewportHeight())
-	m.scrollPosition = min(maxScroll, m.scrollPosition+amount)
-}
-
-func (m *DetailModel) getViewportHeight() int {
-	return m.windowHeight - m.headerHeight - m.footerHeight
-}
-
 func (m *DetailModel) View() string {
 	if m.err != nil {
 		return fmt.Sprintf("Error: %v", m.err)
@@ -223,6 +176,50 @@ func (m *DetailModel) View() string {
 		visibleContent,
 		m.footerView(),
 	)
+}
+
+func (m *DetailModel) SendLoadRecipeMsg(recipe_id uint) tea.Cmd {
+	return func() tea.Msg {
+		return m.loadRecipe(recipe_id)
+	}
+}
+
+func (m *DetailModel) loadRecipe(recipe_id uint) LoadRecipeMsg {
+	log.Println("Starting loadRecipe...")
+	start := time.Now()
+
+	recipe, err := m.cookbook.GetFullRecipe(recipe_id)
+	if err != nil {
+		log.Printf("Error getting recipe: %v", err)
+		return LoadRecipeMsg{recipe: nil, err: err}
+	}
+
+	m.markdown = recipes.FormatRecipeContent(recipe)
+	m.current_recipe = recipe
+
+	rendered, err := m.renderer.Render(m.markdown)
+	if err != nil {
+		return LoadRecipeMsg{recipe: nil, err: err}
+	}
+
+	m.content = rendered
+	m.contentHeight = len(strings.Split(m.content, "\n"))
+	log.Printf("Total loadRecipe completed in %v", time.Since(start))
+
+	return LoadRecipeMsg{recipe: recipe, err: nil}
+}
+
+func (m *DetailModel) scrollUp(amount int) {
+	m.scrollPosition = max(0, m.scrollPosition-amount)
+}
+
+func (m *DetailModel) scrollDown(amount int) {
+	maxScroll := max(0, m.contentHeight-m.getViewportHeight())
+	m.scrollPosition = min(maxScroll, m.scrollPosition+amount)
+}
+
+func (m *DetailModel) getViewportHeight() int {
+	return m.windowHeight - m.headerHeight - m.footerHeight
 }
 
 func (m *DetailModel) headerView() string {

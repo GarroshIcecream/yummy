@@ -9,22 +9,16 @@ import (
 	"github.com/GarroshIcecream/yummy/yummy/models/detail"
 	"github.com/GarroshIcecream/yummy/yummy/models/edit"
 	yummy_list "github.com/GarroshIcecream/yummy/yummy/models/list"
+	ui "github.com/GarroshIcecream/yummy/yummy/ui"
 	"github.com/charmbracelet/bubbles/key"
 	list "github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-type SessionState int
 
-const (
-	SessionStateList SessionState = iota
-	SessionStateDetail
-	SessionStateEdit
-	SessionStateChat
-)
 
 type Manager struct {
-	SessionState SessionState
+	SessionState ui.SessionState
 	ListModel    *yummy_list.ListModel
 	DetailModel  *detail.DetailModel
 	EditModel    *edit.EditModel
@@ -35,11 +29,11 @@ type Manager struct {
 func New(cookbook *db.CookBook) (*Manager, error) {
 	manager := Manager{
 		Cookbook:     cookbook,
-		ListModel:    yummy_list.New(cookbook, nil),
-		DetailModel:  detail.New(cookbook, nil),
+		ListModel:    yummy_list.New(cookbook),
+		DetailModel:  detail.New(cookbook),
 		EditModel:    edit.New(cookbook, nil, nil),
 		ChatModel:    chat.New(cookbook),
-		SessionState: SessionStateList,
+		SessionState: ui.SessionStateList,
 	}
 
 	return &manager, nil
@@ -50,33 +44,36 @@ func (m *Manager) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
+	case ui.SessionStateMsg:
+		m.SessionState = msg.SessionState
+
+	case tea.KeyMsg:	
 		switch {
 		case key.Matches(msg, keymaps.Keys.Quit):
 			return m, tea.Quit
 		case key.Matches(msg, keymaps.Keys.Back):
 			switch m.SessionState {
-			case SessionStateList:
+			case ui.SessionStateList:
 				if m.ListModel.RecipeList.FilterState() != list.Filtering {
 					return m, tea.Quit
 				}
-			case SessionStateDetail:
-				m.SessionState = SessionStateList
-			case SessionStateEdit:
-				m.SessionState = SessionStateDetail
-			case SessionStateChat:
-				m.SessionState = SessionStateList
+			case ui.SessionStateDetail:
+				m.SessionState = ui.SessionStateList
+			case ui.SessionStateEdit:
+				m.SessionState = ui.SessionStateDetail
+			case ui.SessionStateChat:
+				m.SessionState = ui.SessionStateList
 			}
 		case key.Matches(msg, keymaps.Keys.Add):
-			if m.SessionState == SessionStateList {
+			if m.SessionState == ui.SessionStateList {
 				if m.ListModel.RecipeList.FilterState() != list.Filtering {
-					m.SessionState = SessionStateChat
+					m.SessionState = ui.SessionStateChat
 				}
 			}
 		}
 
 		switch m.SessionState {
-		case SessionStateList:
+		case ui.SessionStateList:
 			var model tea.Model
 			model, cmd = m.ListModel.Update(msg)
 			listModel, ok := model.(*yummy_list.ListModel)
@@ -84,7 +81,7 @@ func (m *Manager) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				log.Println("ListModel is not a yummy_list.ListModel")
 			}
 			m.ListModel = listModel
-		case SessionStateDetail:
+		case ui.SessionStateDetail:
 			var model tea.Model
 			model, cmd = m.DetailModel.Update(msg)
 			detailModel, ok := model.(*detail.DetailModel)
@@ -92,7 +89,7 @@ func (m *Manager) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				log.Println("DetailModel is not a detail.DetailModel")
 			}
 			m.DetailModel = detailModel
-		case SessionStateEdit:
+		case ui.SessionStateEdit:
 			var model tea.Model
 			model, cmd = m.EditModel.Update(msg)
 			editModel, ok := model.(*edit.EditModel)
@@ -100,7 +97,7 @@ func (m *Manager) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				log.Println("EditModel is not a edit.EditModel")
 			}
 			m.EditModel = editModel
-		case SessionStateChat:
+		case ui.SessionStateChat:
 			var model tea.Model
 			model, cmd = m.ChatModel.Update(msg)
 			chatModel, ok := model.(*chat.ChatModel)
@@ -117,13 +114,13 @@ func (m *Manager) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m *Manager) Init() tea.Cmd {
 	switch m.SessionState {
-	case SessionStateList:
+	case ui.SessionStateList:
 		return m.ListModel.Init()
-	case SessionStateDetail:
+	case ui.SessionStateDetail:
 		return m.DetailModel.Init()
-	case SessionStateEdit:
+	case ui.SessionStateEdit:
 		return m.EditModel.Init()
-	case SessionStateChat:
+	case ui.SessionStateChat:
 		return m.ChatModel.Init()
 	}
 	return nil
@@ -131,13 +128,13 @@ func (m *Manager) Init() tea.Cmd {
 
 func (m Manager) View() string {
 	switch m.SessionState {
-	case SessionStateList:
+	case ui.SessionStateList:
 		return m.ListModel.View()
-	case SessionStateDetail:
+	case ui.SessionStateDetail:
 		return m.DetailModel.View()
-	case SessionStateEdit:
+	case ui.SessionStateEdit:
 		return m.EditModel.View()
-	case SessionStateChat:
+	case ui.SessionStateChat:
 		return m.ChatModel.View()
 	}
 	return ""

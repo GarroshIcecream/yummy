@@ -8,6 +8,7 @@ import (
 
 	db "github.com/GarroshIcecream/yummy/yummy/db"
 	recipes "github.com/GarroshIcecream/yummy/yummy/recipe"
+	ui "github.com/GarroshIcecream/yummy/yummy/ui"
 	tea "github.com/charmbracelet/bubbletea"
 	huh "github.com/charmbracelet/huh"
 	"github.com/charmbracelet/lipgloss"
@@ -22,15 +23,7 @@ type EditModel struct {
 	err       error
 }
 
-type SaveMsg struct {
-	recipe *recipes.RecipeRaw
-	err    error
-}
 
-type LoadRecipeMsg struct {
-	recipe *recipes.RecipeRaw
-	err    error
-}
 
 func New(cookbook *db.CookBook, recipe *recipes.RecipeRaw, recipe_id *uint) *EditModel {
 	// Get ingredients for the recipe
@@ -195,18 +188,21 @@ func (m *EditModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
-	case SaveMsg:
-		if msg.err != nil {
-			m.err = msg.err
+	case ui.SaveMsg:
+		if msg.Err != nil {
+			m.err = msg.Err
+			return m, nil
+		} else {
+			m.recipe = msg.Recipe
 			return m, nil
 		}
 
-	case LoadRecipeMsg:
-		if msg.err != nil {
-			m.err = msg.err
+	case ui.LoadRecipeMsg:
+		if msg.Err != nil {
+			m.err = msg.Err
 			return m, nil
 		}
-		m.recipe = msg.recipe
+		m.recipe = msg.Recipe
 		// Create a new form with the recipe data
 		form := huh.NewForm(
 			huh.NewGroup(
@@ -381,13 +377,13 @@ func (m *EditModel) saveRecipe() tea.Msg {
 	// Parse prep time
 	prepTime, err := strconv.Atoi(m.form.GetString("prepTime"))
 	if err != nil {
-		return SaveMsg{err: fmt.Errorf("invalid prep time: %v", err)}
+		return ui.SaveMsg{Err: fmt.Errorf("invalid prep time: %v", err)}
 	}
 
 	// Parse cook time
 	cookTime, err := strconv.Atoi(m.form.GetString("cookTime"))
 	if err != nil {
-		return SaveMsg{err: fmt.Errorf("invalid cook time: %v", err)}
+			return ui.SaveMsg{Err: fmt.Errorf("invalid cook time: %v", err)}
 	}
 
 	// Collect all ingredients
@@ -440,15 +436,15 @@ func (m *EditModel) saveRecipe() tea.Msg {
 		saveErr = fmt.Errorf("updating recipes not yet implemented")
 	}
 
-	return SaveMsg{recipe: recipe, err: saveErr}
+	return ui.SaveMsg{Recipe: recipe, Err: saveErr}
 }
 
 func (m *EditModel) loadRecipe() tea.Msg {
 	recipe, err := m.cookbook.GetFullRecipe(*m.recipe_id)
 	if err != nil {
-		return LoadRecipeMsg{err: fmt.Errorf("failed to load recipe: %v", err)}
+		return ui.LoadRecipeMsg{Recipe: nil, Err: fmt.Errorf("failed to load recipe: %v", err)}
 	}
-	return LoadRecipeMsg{recipe: recipe}
+	return ui.LoadRecipeMsg{Recipe: recipe}
 }
 
 func (m *EditModel) View() string {
