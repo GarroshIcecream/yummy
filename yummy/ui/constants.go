@@ -3,7 +3,8 @@ package ui
 type SessionState int
 
 const (
-	SessionStateList SessionState = iota
+	SessionStateMainMenu SessionState = iota
+	SessionStateList
 	SessionStateDetail
 	SessionStateEdit
 	SessionStateChat
@@ -11,14 +12,13 @@ const (
 
 const (
 	// Viewport dimensions
-	ViewportHeight = 30
-	ViewportWidth  = 80
+	DefaultViewportHeight = 30
+	DefaultViewportWidth  = 80
 
 	// Text area configuration
 	TextAreaPlaceholder = "Ask anything about cooking, recipes, ingredients, or anything else you want to know about food... 🍳 "
 	TextAreaMaxChar     = 400
-	TextAreaMaxHeight   = 3
-	TextAreaMaxWidth    = 3
+	TextAreaHeight      = 10
 	// Better models for function calling: llama3.1:8b, llama3.1:70b, codellama:7b, codellama:13b, llama3.2:3b
 	// Note: Smaller models like gemma3:1b may not support function calling well
 	LlamaModel   = "gemma3n:latest"

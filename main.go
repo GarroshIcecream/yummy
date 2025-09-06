@@ -2,9 +2,13 @@ package main
 
 import (
 	"fmt"
+	"log/slog"
+	"os"
+	"path/filepath"
 
 	db "github.com/GarroshIcecream/yummy/yummy/db"
-	manager "github.com/GarroshIcecream/yummy/yummy/models/manager"
+	"github.com/GarroshIcecream/yummy/yummy/log"
+	manager "github.com/GarroshIcecream/yummy/yummy/tui"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -17,7 +21,21 @@ func main() {
 	}
 	defer f.Close()
 
-	cookbook, err := db.NewCookBook("my_cookbook.db")
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		fmt.Printf("Error getting home directory: %v\n", err)
+		return
+	}
+
+	dbDir := filepath.Join(homeDir, ".yummy")
+	dbPath := filepath.Join(dbDir, "cookbook.db")
+
+	if err := os.MkdirAll(dbDir, 0755); err != nil {
+		fmt.Printf("Error creating database directory: %v\n", err)
+		return
+	}
+
+	cookbook, err := db.NewCookBook(dbPath)
 	if err != nil {
 		fmt.Printf("Error initializing app: %v\n", err)
 		return
@@ -28,6 +46,10 @@ func main() {
 		fmt.Printf("Error initializing app: %v\n", err)
 		return
 	}
+
+	defer log.RecoverPanic("main", func() {
+		slog.Error("Application terminated due to unhandled panic")
+	})
 
 	p := tea.NewProgram(
 		m,

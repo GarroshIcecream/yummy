@@ -3,6 +3,7 @@ package db
 import (
 	"fmt"
 	"log"
+	"os"
 
 	recipe "github.com/GarroshIcecream/yummy/yummy/recipe"
 	"gorm.io/driver/sqlite"
@@ -13,8 +14,16 @@ type CookBook struct {
 	conn *gorm.DB
 }
 
-// NewCookBook creates a new CookBook instance with the given database path and optional GORM options
 func NewCookBook(db_path string, gorm_opts ...gorm.Option) (*CookBook, error) {
+	_, err := os.Stat(db_path)
+	dbExists := err == nil
+
+	if !dbExists {
+		log.Printf("Database does not exist at %s, creating new database...", db_path)
+	} else {
+		log.Printf("Opening existing database at %s", db_path)
+	}
+
 	db_con, err := gorm.Open(sqlite.Open(db_path), gorm_opts...)
 	if err != nil {
 		return nil, err
@@ -25,7 +34,6 @@ func NewCookBook(db_path string, gorm_opts ...gorm.Option) (*CookBook, error) {
 	}
 
 	return &CookBook{conn: db_con}, nil
-
 }
 
 func (c *CookBook) RandomRecipe() Recipe {
@@ -281,6 +289,7 @@ func (c *CookBook) GetFullRecipe(recipeID uint) (*recipe.RecipeRaw, error) {
 
 	// Convert to RecipeRaw
 	recipeRaw := &recipe.RecipeRaw{
+		ID:          recipe_raw.ID,
 		Name:        recipe_raw.RecipeName,
 		Description: metadata.Description,
 		Author:      metadata.Author,

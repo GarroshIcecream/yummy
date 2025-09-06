@@ -14,6 +14,7 @@ func GetDBModels() []any {
 		&RecipeMetadata{},
 		&Instructions{},
 		&Ingredients{},
+		&ChatHistory{},
 	}
 }
 
@@ -62,4 +63,21 @@ type Instructions struct {
 	RecipeID    uint
 	Step        int
 	Description string
+}
+
+type ChatHistory struct {
+	gorm.Model
+	ChatID    uint
+	CreatedAt time.Time `gorm:"autoCreateTime"`
+}
+
+type ChatMessage struct {
+	gorm.Model
+	ChatID    uint
+	Message   string
+	Role      string
+	AIModel   string
+	Content   string
+	Tools     string
+	CreatedAt time.Time `gorm:"autoCreateTime"`
 }

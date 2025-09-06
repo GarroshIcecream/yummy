@@ -6,6 +6,12 @@ import (
 	"time"
 )
 
+type RecipeTableItem struct {
+	title  string
+	value  string
+	length int
+}
+
 type RecipeWithDescription struct {
 	RecipeID             uint
 	RecipeName           string
@@ -43,6 +49,7 @@ func FormatRecipe(
 }
 
 type RecipeRaw struct {
+	ID           uint
 	Name         string
 	Description  string
 	Author       string
@@ -56,37 +63,49 @@ type RecipeRaw struct {
 	Instructions []string
 }
 
+func ConstructTableRow(item *RecipeTableItem, first_column_length int, longest_string int) string {
+	r_pad_value := longest_string - item.length
+	r_pad_title := first_column_length - len(item.title)
+	return fmt.Sprintf("| %s | %s |\n", item.title+strings.Repeat(" ", r_pad_title), item.value+strings.Repeat(" ", r_pad_value))
+}
+
 func FormatRecipeContent(recipe *RecipeRaw) string {
 	var s strings.Builder
 
-	// Description in a styled blockquote
 	if recipe.Description != "" {
 		s.WriteString("💭 *About this recipe:*\n")
 		s.WriteString(fmt.Sprintf("> %s\n\n", recipe.Description))
 	}
 
-	// Kitchen Preparation Box
 	s.WriteString("## 👩‍🍳 Kitchen Prep\n\n")
-	s.WriteString("| Timing & Portions | Details |\n")
-	s.WriteString("|-------------------|----------|\n")
-	if recipe.Author != "" {
-		s.WriteString(fmt.Sprintf("| 👨‍🍳 Recipe By | *%s* |\n", recipe.Author))
+	recipe_table := []RecipeTableItem{
+		{title: "👨‍🍳 Recipe By", value: recipe.Author, length: len(recipe.Author)},
+		{title: "🍽️ Servings", value: recipe.Quantity, length: len(recipe.Quantity)},
+		{title: "⏱️ Total Time", value: recipe.TotalTime.String(), length: len(recipe.TotalTime.String())},
+		{title: "🔪 Prep Time", value: recipe.PrepTime.String(), length: len(recipe.PrepTime.String())},
+		{title: "🔥 Cook Time", value: recipe.CookTime.String(), length: len(recipe.CookTime.String())},
 	}
-	if recipe.Quantity != "" {
-		s.WriteString(fmt.Sprintf("| 🍽️ Servings | **%s** |\n", recipe.Quantity))
+
+	longest_string := 0
+	for _, item := range recipe_table {
+		if item.length > longest_string {
+			longest_string = item.length
+		}
 	}
-	if recipe.TotalTime > 0 {
-		s.WriteString(fmt.Sprintf("| ⏱️ Total Time | **%v** |\n", recipe.TotalTime))
-	}
-	if recipe.PrepTime > 0 {
-		s.WriteString(fmt.Sprintf("| 🔪 Prep Time | **%v** |\n", recipe.PrepTime))
-	}
-	if recipe.CookTime > 0 {
-		s.WriteString(fmt.Sprintf("| 🔥 Cook Time | **%v** |\n", recipe.CookTime))
+
+	first_column_length := 15
+	table_first_col_name := "Metadata"
+	table_second_col_name := "Details"
+	s.WriteString(fmt.Sprintf("| %s | %s |\n", table_first_col_name, table_second_col_name))
+	s.WriteString(fmt.Sprintf("| %s | %s |\n", strings.Repeat("-", first_column_length), strings.Repeat("-", longest_string)))
+
+	for _, item := range recipe_table {
+		r_pad_value := longest_string - item.length
+		r_pad_title := first_column_length - len(item.title)
+		s.WriteString(fmt.Sprintf("| %s | %s |\n", item.title+strings.Repeat(" ", r_pad_title), item.value+strings.Repeat(" ", r_pad_value)))
 	}
 	s.WriteString("\n")
 
-	// Ingredients section with better organization
 	s.WriteString("## 🥘 Ingredients\n\n")
 	s.WriteString("*Gather all ingredients before starting:*\n\n")
 
