@@ -102,6 +102,15 @@ func FormatRecipeContent(recipe *RecipeRaw) string {
 	for _, item := range recipe_table {
 		r_pad_value := longest_string - item.length
 		r_pad_title := first_column_length - len(item.title)
+		
+		// Ensure padding values are never negative
+		if r_pad_value < 0 {
+			r_pad_value = 0
+		}
+		if r_pad_title < 0 {
+			r_pad_title = 0
+		}
+		
 		s.WriteString(fmt.Sprintf("| %s | %s |\n", item.title+strings.Repeat(" ", r_pad_title), item.value+strings.Repeat(" ", r_pad_value)))
 	}
 	s.WriteString("\n")

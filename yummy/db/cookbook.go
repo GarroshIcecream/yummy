@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 
 	recipe "github.com/GarroshIcecream/yummy/yummy/recipe"
 	"gorm.io/driver/sqlite"
@@ -15,13 +16,10 @@ type CookBook struct {
 }
 
 func NewCookBook(db_path string, gorm_opts ...gorm.Option) (*CookBook, error) {
+	db_path = filepath.Join(db_path, "cookbook.db")
 	_, err := os.Stat(db_path)
-	dbExists := err == nil
-
-	if !dbExists {
+	if err != nil {
 		log.Printf("Database does not exist at %s, creating new database...", db_path)
-	} else {
-		log.Printf("Opening existing database at %s", db_path)
 	}
 
 	db_con, err := gorm.Open(sqlite.Open(db_path), gorm_opts...)

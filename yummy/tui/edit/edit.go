@@ -29,6 +29,8 @@ type EditModel struct {
 	isNew     bool
 	err       error
 	state     EditState
+	width     int
+	height    int
 }
 
 func New(cookbook *db.CookBook, recipe *recipes.RecipeRaw) *EditModel {
@@ -554,4 +556,15 @@ func generateIngredientFields(ingredients []recipes.Ingredient) []huh.Field {
 	}
 
 	return fields
+}
+
+// SetSize sets the width and height of the model
+func (m *EditModel) SetSize(width, height int) {
+	m.width = width
+	m.height = height
+}
+
+// GetSize returns the current width and height of the model
+func (m *EditModel) GetSize() (width, height int) {
+	return m.width, m.height
 }

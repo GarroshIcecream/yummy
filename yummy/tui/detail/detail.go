@@ -2,7 +2,6 @@ package detail
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	db "github.com/GarroshIcecream/yummy/yummy/db"
@@ -12,7 +11,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
-	"golang.org/x/term"
 )
 
 type DetailModel struct {
@@ -22,8 +20,8 @@ type DetailModel struct {
 	err            error
 	scrollPosition int
 	renderer       *glamour.TermRenderer
-	windowHeight   int
-	windowWidth    int
+	width          int
+	height         int
 }
 
 func New(cookbook *db.CookBook) *DetailModel {
@@ -33,18 +31,12 @@ func New(cookbook *db.CookBook) *DetailModel {
 		glamour.WithWordWrap(0),
 	)
 
-	windowWidth, windowHeight, err := term.GetSize(int(os.Stdout.Fd()))
-	if err != nil {
-		windowWidth = ui.DefaultViewportWidth
-		windowHeight = ui.DefaultViewportHeight
-	}
-
 	model := &DetailModel{
 		cookbook:       cookbook,
 		renderer:       renderer,
 		scrollPosition: 0,
-		windowHeight:   windowHeight,
-		windowWidth:    windowWidth,
+		width:          ui.DefaultViewportWidth,
+		height:         ui.DefaultViewportHeight,
 	}
 
 	return model
@@ -85,26 +77,6 @@ func (m *DetailModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// 			m.scrollDown(3)
 	// 		}
 	// 	}
-
-	case tea.WindowSizeMsg:
-		m.windowHeight = msg.Height
-		m.windowWidth = msg.Width
-
-		if m.windowWidth > 0 && m.CurrentRecipe != nil {
-			renderer, err := glamour.NewTermRenderer(
-				glamour.WithAutoStyle(),
-				glamour.WithWordWrap(m.windowWidth-4),
-				glamour.WithEmoji(),
-			)
-			if err == nil {
-				m.renderer = renderer
-				markdown := recipes.FormatRecipeContent(m.CurrentRecipe)
-				content, err := m.renderer.Render(markdown)
-				if err == nil {
-					m.content = content
-				}
-			}
-		}
 	}
 
 	cmds = append(cmds, cmd)
@@ -169,12 +141,8 @@ func (m *DetailModel) FetchRecipe(recipe_id uint) ui.LoadRecipeMsg {
 	}
 
 	markdown := recipes.FormatRecipeContent(recipe)
-	content, err := m.renderer.Render(markdown)
-	if err != nil {
-		return ui.LoadRecipeMsg{Recipe: nil, Content: "", Err: err}
-	}
 
-	return ui.LoadRecipeMsg{Recipe: recipe, Content: content, Err: nil}
+	return ui.LoadRecipeMsg{Recipe: recipe, Content: markdown, Err: nil}
 }
 
 func (m *DetailModel) ScrollUp(amount int) {
@@ -188,7 +156,7 @@ func (m *DetailModel) ScrollDown(amount int) {
 }
 
 func (m *DetailModel) getViewportHeight() int {
-	return max(0, m.windowHeight-4)
+	return max(0, m.height-4)
 }
 
 func (m *DetailModel) headerView() string {
@@ -220,8 +188,33 @@ func (m *DetailModel) footerView() string {
 	info := styles.InfoStyle.Render(fmt.Sprintf("%.0f%%", scrollPercent*100))
 	nav := styles.InfoStyle.Render("ESC: Back | q: Quit")
 
-	availableWidth := max(0, m.windowWidth-lipgloss.Width(info)-lipgloss.Width(nav)-2)
+	availableWidth := max(0, m.width-lipgloss.Width(info)-lipgloss.Width(nav)-2)
 	line := strings.Repeat("─", availableWidth)
 
 	return lipgloss.JoinHorizontal(lipgloss.Center, line, nav, " ", info)
+}
+
+func (m *DetailModel) SetSize(width, height int) {
+	m.width = width
+	m.height = height
+	
+	if m.width > 0 && m.CurrentRecipe != nil {
+		renderer, err := glamour.NewTermRenderer(
+			glamour.WithAutoStyle(),
+			glamour.WithWordWrap(m.width-4),
+			glamour.WithEmoji(),
+		)
+		if err == nil {
+			m.renderer = renderer
+			markdown := recipes.FormatRecipeContent(m.CurrentRecipe)
+			content, err := m.renderer.Render(markdown)
+			if err == nil {
+				m.content = content
+			}
+		}
+	}
+}
+
+func (m *DetailModel) GetSize() (width, height int) {
+	return m.width, m.height
 }

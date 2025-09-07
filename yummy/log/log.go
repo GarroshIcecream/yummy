@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"runtime/debug"
 	"sync"
 	"sync/atomic"
@@ -17,7 +18,8 @@ var (
 	initialized atomic.Bool
 )
 
-func Setup(logFile string, debug bool) {
+func Setup(logfiledir string, debug bool) {
+	logFile := filepath.Join(logfiledir, "logs","debug.log")
 	initOnce.Do(func() {
 		logRotator := &lumberjack.Logger{
 			Filename:   logFile,
@@ -32,7 +34,6 @@ func Setup(logFile string, debug bool) {
 			level = slog.LevelDebug
 		}
 		logger := slog.NewJSONHandler(logRotator, &slog.HandlerOptions{
-
 			Level:     level,
 			AddSource: true,
 		})

@@ -13,6 +13,8 @@ type ListModel struct {
 	cookbook   *db.CookBook
 	err        error
 	RecipeList list.Model
+	width      int
+	height     int
 }
 
 func New(cookbook *db.CookBook) *ListModel {
@@ -113,4 +115,19 @@ func (m *ListModel) RefreshRecipeList() tea.Cmd {
 	cmd := m.RecipeList.SetItems(items)
 
 	return cmd
+}
+
+// SetSize sets the width and height of the model
+func (m *ListModel) SetSize(width, height int) {
+	m.width = width
+	m.height = height
+	if m.RecipeList.Width() != 0 || m.RecipeList.Height() != 0 {
+		h, v := styles.DocStyle.GetFrameSize()
+		m.RecipeList.SetSize(width-h, height-v)
+	}
+}
+
+// GetSize returns the current width and height of the model
+func (m *ListModel) GetSize() (width, height int) {
+	return m.width, m.height
 }

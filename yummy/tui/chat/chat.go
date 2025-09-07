@@ -32,6 +32,8 @@ type ChatModel struct {
 	loading          bool
 	windowWidth      int
 	windowHeight     int
+	width            int
+	height           int
 }
 
 func New(cookbook *db.CookBook) *ChatModel {
@@ -260,4 +262,23 @@ func (m *ChatModel) View() string {
 	input := m.textarea.View()
 
 	return fmt.Sprintf("\n%s\n\n%s\n%s", title, chat, input)
+}
+
+// SetSize sets the width and height of the model
+func (m *ChatModel) SetSize(width, height int) {
+	m.width = width
+	m.height = height
+	m.windowWidth = width
+	m.windowHeight = height
+	
+	// Update viewport and textarea sizes
+	m.viewport.Width = width
+	m.viewport.Height = height - 4 // Reserve space for input
+	
+	m.textarea.SetWidth(width)
+}
+
+// GetSize returns the current width and height of the model
+func (m *ChatModel) GetSize() (width, height int) {
+	return m.width, m.height
 }

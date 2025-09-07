@@ -5,10 +5,13 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 
+	db "github.com/GarroshIcecream/yummy/yummy/db"
+	log "github.com/GarroshIcecream/yummy/yummy/log"
 	tui "github.com/GarroshIcecream/yummy/yummy/tui"
 	"github.com/GarroshIcecream/yummy/yummy/version"
-	tea "github.com/charmbracelet/bubbletea/v2"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/fang"
 	"github.com/spf13/cobra"
 )
@@ -44,16 +47,14 @@ yummy -v
 		if err != nil {
 			return err
 		}
-		defer app.Shutdown()
 
-		// Set up the TUI.
 		program := tea.NewProgram(
-			tui.New(app),
+			app,
 			tea.WithAltScreen(),
+			tea.WithMouseCellMotion(),
+			tea.WithMouseAllMotion(),
 			tea.WithContext(cmd.Context()),
 		)
-
-		go app.Subscribe(program)
 
 		if _, err := program.Run(); err != nil {
 			slog.Error("TUI run error", "error", err)
@@ -74,8 +75,25 @@ func Execute() {
 	}
 }
 
-func setupApp(cmd *cobra.Command) (*app.App, error) {
-	debug, _ := cmd.Flags().GetBool("debug")
+func ResolveCwd(cmd *cobra.Command) (string, error) {
+	cwd, _ := cmd.Flags().GetString("cwd")
+	if cwd != "" {
+		err := os.Chdir(cwd)
+		if err != nil {
+			return "", fmt.Errorf("failed to change directory: %v", err)
+		}
+		return cwd, nil
+	}
+
+	cwd, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("failed to get user home directory: %v", err)
+	}
+	return cwd, nil
+}
+
+func setupApp(cmd *cobra.Command) (*tui.Manager, error) {
+	// debug, _ := cmd.Flags().GetBool("debug")
 	ctx := cmd.Context()
 
 	cwd, err := ResolveCwd(cmd)
@@ -83,26 +101,29 @@ func setupApp(cmd *cobra.Command) (*app.App, error) {
 		return nil, err
 	}
 
-	cfg, err := config.Init(cwd, debug)
+	// cfg, err := config.Init(cwd, debug)
+	// if err != nil {
+	// 	return nil, err
+	// }
+
+	datadir := filepath.Join(cwd, ".yummy")
+	if err := os.MkdirAll(datadir, 0755); err != nil {
+		slog.Error("Error creating database directory", "error", err)
+	}
+
+	// setup log
+	log.Setup(datadir, true)
+	
+	conn, err := db.NewCookBook(datadir)
 	if err != nil {
 		return nil, err
 	}
 
-	if cfg.Permissions == nil {
-		cfg.Permissions = &config.Permissions{}
-	}
-	cfg.Permissions.SkipRequests = yolo
-
-	conn, err := db.Connect(ctx, cfg.Options.DataDirectory)
+	tuiInstance, err := tui.New(conn, ctx)
 	if err != nil {
+		slog.Error("Failed to create tui instance", "error", err)
 		return nil, err
 	}
 
-	appInstance, err := app.New(ctx, conn, cfg)
-	if err != nil {
-		slog.Error("Failed to create app instance", "error", err)
-		return nil, err
-	}
-
-	return appInstance, nil
+	return tuiInstance, nil
 }
