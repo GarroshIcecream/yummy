@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	db "github.com/GarroshIcecream/yummy/yummy/db"
 	"github.com/GarroshIcecream/yummy/yummy/ui"
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
@@ -11,6 +12,7 @@ import (
 )
 
 type MainMenuModel struct {
+	cookbook    *db.CookBook
 	items       []menuItem
 	selected    int
 	width       int
@@ -34,29 +36,30 @@ type menuItem struct {
 	icon        string
 }
 
-func New() *MainMenuModel {
+func New(cookbook *db.CookBook) *MainMenuModel {
 	items := []menuItem{
 		{
-			title:       "Go to Cookbook List View",
-			description: "View your saved recipes",
+			title:       "Browse Your Cookbook",
+			description: "Explore your personal collection of saved recipes",
 			state:       ui.SessionStateList,
 			icon:        "📚",
 		},
 		{
-			title:       "Fetch Random Recipe",
-			description: "Get a random recipe from the web",
+			title:       "Discover Random Recipe",
+			description: "Get inspired with a surprise recipe from the web",
 			state:       ui.SessionStateDetail,
 			icon:        "🎲",
 		},
 		{
-			title:       "Chat with AI Assistant",
-			description: "Ask questions about cooking and recipes",
+			title:       "AI Cooking Assistant",
+			description: "Chat with our AI for cooking tips and recipe advice",
 			state:       ui.SessionStateChat,
 			icon:        "🤖",
 		},
 	}
 
 	return &MainMenuModel{
+		cookbook: cookbook,
 		items:    items,
 		selected: 0,
 		keyMap:   defaultKeyMap(),
@@ -94,6 +97,7 @@ func (m *MainMenuModel) Init() tea.Cmd {
 }
 
 func (m *MainMenuModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
 	switch msg := msg.(type) {
 
 	case tea.KeyMsg:
@@ -102,24 +106,32 @@ func (m *MainMenuModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.selected > 0 {
 				m.selected--
 			}
-			return m, nil
 
 		case key.Matches(msg, m.keyMap.Down):
 			if m.selected < len(m.items)-1 {
 				m.selected++
 			}
-			return m, nil
 
 		case key.Matches(msg, m.keyMap.Enter):
 			if len(m.items) > 0 {
 				selectedItem := m.items[m.selected]
-				return m, ui.SendSessionStateMsg(selectedItem.state)
+				cmds = append(cmds, ui.SendSessionStateMsg(selectedItem.state))
+				
+				// If the selected item is the detail state, we need to get a random recipe
+				if selectedItem.state == ui.SessionStateDetail {
+					recipe, err := m.cookbook.RandomRecipe()
+					if err == nil {
+						cmds = append(cmds, ui.SendRecipeSelectedMsg(recipe.ID))
+					}
+				}
 			}
-			return m, nil
+
+		case key.Matches(msg, m.keyMap.Help):
+			m.showHelp = !m.showHelp
 		}
 	}
 
-	return m, nil
+	return m, tea.Sequence(cmds...)
 }
 
 func (m *MainMenuModel) View() string {
@@ -129,9 +141,32 @@ func (m *MainMenuModel) View() string {
 
 	var content strings.Builder
 
+	// Add decorative top border with purple theme
+	topBorder := strings.Repeat("═", m.width-4)
+	content.WriteString(lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#9370DB")).
+		Render("╔" + topBorder + "╗"))
+	content.WriteString("\n")
+
 	// Title
 	title := m.renderTitle()
 	content.WriteString(title)
+	content.WriteString("\n\n")
+
+	// Add decorative separator with purple theme
+	separator := strings.Repeat("─", m.width-4)
+	content.WriteString(lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#9370DB")).
+		Render("├" + separator + "┤"))
+	content.WriteString("\n\n")
+
+	// Welcome message with purple theme
+	welcomeMsg := "🌟 Welcome to your culinary journey! Choose an option below to get started:"
+	welcomeStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#DDA0DD")).
+		Italic(true).
+		Padding(1, 0)
+	content.WriteString(welcomeStyle.Render(welcomeMsg))
 	content.WriteString("\n\n")
 
 	// Menu items
@@ -144,25 +179,57 @@ func (m *MainMenuModel) View() string {
 		content.WriteString(m.renderHelp())
 	}
 
-	// Center the content
+	// Add decorative bottom border with purple theme
+	content.WriteString("\n")
+	content.WriteString(lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#9370DB")).
+		Render("╚" + topBorder + "╝"))
+
+	// Center the content with purple gradient styling
 	style := lipgloss.NewStyle().
 		Width(m.width).
 		Height(m.height).
-		Align(lipgloss.Center, lipgloss.Center)
+		Align(lipgloss.Center, lipgloss.Center).
+		Background(lipgloss.Color("#1A0B2E")).
+		Padding(1, 2)
 
 	return style.Render(content.String())
 }
 
 func (m *MainMenuModel) renderTitle() string {
-	titleStyle := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color("#FF6B6B")).
-		Background(lipgloss.Color("#1a1a1a")).
-		Padding(1, 3).
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("#FF6B6B"))
+	// ASCII Logo
+	logo := `
+    ██╗   ██╗██╗   ██╗███╗   ███╗███╗   ███╗██╗   ██╗
+    ╚██╗ ██╔╝██║   ██║████╗ ████║████╗ ████║╚██╗ ██╔╝
+     ╚████╔╝ ██║   ██║██╔████╔██║██╔████╔██║ ╚████╔╝ 
+      ╚██╔╝  ██║   ██║██║╚██╔╝██║██║╚██╔╝██║  ╚██╔╝  
+       ██║   ╚██████╔╝██║ ╚═╝ ██║██║ ╚═╝ ██║   ██║   
+       ╚═╝    ╚═════╝ ╚═╝     ╚═╝╚═╝     ╚═╝   ╚═╝`
 
-	return titleStyle.Render("🍳 Yummy Recipe Manager")
+	// Logo styling with purple gradient effect
+	logoStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#B19CD9")).
+		Bold(true)
+
+	// Subtitle
+	subtitle := "🍳 Your Personal Culinary Companion 🍳"
+	subtitleStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#DDA0DD")).
+		Italic(true).
+		Padding(1, 0)
+
+	// Combine all elements
+	content := logoStyle.Render(logo) + "\n" + subtitleStyle.Render(subtitle)
+	
+	// Add decorative border around the entire title with purple theme
+	finalStyle := lipgloss.NewStyle().
+		Border(lipgloss.DoubleBorder()).
+		BorderForeground(lipgloss.Color("#9370DB")).
+		Background(lipgloss.Color("#2D1B3D")).
+		Padding(1, 2).
+		Margin(1, 0)
+
+	return finalStyle.Render(content)
 }
 
 func (m *MainMenuModel) renderMenuItems() string {
@@ -181,39 +248,40 @@ func (m *MainMenuModel) renderMenuItems() string {
 func (m *MainMenuModel) renderMenuItem(item menuItem, isSelected bool) string {
 	var content strings.Builder
 
-	// Bullet point with icon
-	bullet := "•"
+	// Enhanced bullet point with animation effect
+	bullet := "○"
 	if isSelected {
-		bullet = "▶"
+		bullet = "●"
 	}
 
 	bulletStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#FF6B6B")).
+		Foreground(lipgloss.Color("#9370DB")).
 		Bold(isSelected)
 
 	content.WriteString(bulletStyle.Render(bullet))
 	content.WriteString(" ")
 
-	// Icon
+	// Enhanced icon with purple glow effect
 	iconStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#98FB98"))
+		Foreground(lipgloss.Color("#DDA0DD")).
+		Bold(isSelected)
 
 	content.WriteString(iconStyle.Render(item.icon))
 	content.WriteString(" ")
 
-	// Title
+	// Enhanced title with purple typography
 	titleStyle := lipgloss.NewStyle().
 		Bold(isSelected).
-		Foreground(lipgloss.Color("#FFFFFF"))
+		Foreground(lipgloss.Color("#E6E6FA"))
 
 	content.WriteString(titleStyle.Render(item.title))
 	content.WriteString("\n")
 
-	// Description
+	// Enhanced description with purple theme
 	descStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#87CEEB")).
+		Foreground(lipgloss.Color("#B19CD9")).
 		Italic(true).
-		PaddingLeft(3)
+		PaddingLeft(4)
 
 	content.WriteString(descStyle.Render(item.description))
 
@@ -222,37 +290,53 @@ func (m *MainMenuModel) renderMenuItem(item menuItem, isSelected bool) string {
 
 func (m *MainMenuModel) getItemStyle(isSelected bool) lipgloss.Style {
 	style := lipgloss.NewStyle().
-		Padding(1, 2).
-		Margin(0, 1)
+		Padding(1, 3).
+		Margin(0, 2)
 
 	if isSelected {
 		style = style.
-			Background(lipgloss.Color("#2a2a2a")).
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("#FF6B6B"))
+			Background(lipgloss.Color("#4B0082")).
+			Border(lipgloss.DoubleBorder()).
+			BorderForeground(lipgloss.Color("#9370DB")).
+			Foreground(lipgloss.Color("#E6E6FA"))
+	} else {
+		style = style.
+			Background(lipgloss.Color("#2D1B3D")).
+			Foreground(lipgloss.Color("#B19CD9"))
 	}
 
 	return style
 }
 
 func (m *MainMenuModel) renderHelp() string {
-	helpStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#87CEEB")).
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("#87CEEB")).
-		Padding(1, 2)
+	// Enhanced help section with purple theme
+	helpHeaderStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#9370DB")).
+		Bold(true).
+		PaddingBottom(1)
+
+	helpContentStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#DDA0DD")).
+		PaddingLeft(2)
+
+	helpBorderStyle := lipgloss.NewStyle().
+		Border(lipgloss.DoubleBorder()).
+		BorderForeground(lipgloss.Color("#9370DB")).
+		Background(lipgloss.Color("#2D1B3D")).
+		Padding(1, 2).
+		Margin(1, 0)
 
 	helpText := fmt.Sprintf(
-		"Navigation:\n%s • %s • %s • %s",
-		m.keyMap.Up.Help().Key,
-		m.keyMap.Down.Help().Key,
-		m.keyMap.Enter.Help().Key,
-		m.keyMap.Quit.Help().Key,
+		"%s\n%s • %s • %s • %s",
+		helpHeaderStyle.Render("🎮 Navigation Controls"),
+		helpContentStyle.Render(m.keyMap.Up.Help().Key),
+		helpContentStyle.Render(m.keyMap.Down.Help().Key),
+		helpContentStyle.Render(m.keyMap.Enter.Help().Key),
+		helpContentStyle.Render(m.keyMap.Quit.Help().Key),
 	)
 
-	return helpStyle.Render(helpText)
+	return helpBorderStyle.Render(helpText)
 }
-
 // SetSize sets the width and height of the model
 func (m *MainMenuModel) SetSize(width, height int) {
 	m.width = width

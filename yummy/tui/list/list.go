@@ -126,8 +126,8 @@ func (m *ListModel) SetSize(width, height int) {
 		m.RecipeList.SetSize(width-h, height-v)
 	}
 }
-
 // GetSize returns the current width and height of the model
 func (m *ListModel) GetSize() (width, height int) {
 	return m.width, m.height
 }
+

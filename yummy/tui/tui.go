@@ -35,7 +35,7 @@ func New(cookbook *db.CookBook, ctx context.Context) (*Manager, error) {
 	keymaps := DefaultKeyMap()
 	
 	models := map[ui.SessionState]TUIModel{
-		ui.SessionStateMainMenu: main_menu.New(),
+		ui.SessionStateMainMenu: main_menu.New(cookbook),
 		ui.SessionStateList:     yummy_list.New(cookbook),
 		ui.SessionStateDetail:   detail.New(cookbook),
 		ui.SessionStateEdit:     edit.New(cookbook, nil),
@@ -80,7 +80,6 @@ func (m *Manager) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		for _, model := range m.models {
 			model.SetSize(msg.Width, msg.Height)
 		}
-		return m, nil
 
 	case tea.KeyMsg:
 		switch {
@@ -112,12 +111,10 @@ func (m *Manager) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if listModel, ok := m.models[ui.SessionStateList].(*yummy_list.ListModel); ok {
 					if listModel.RecipeList.FilterState() != list.Filtering {
 						m.SetCurrentSessionState(m.PreviousSessionState)
-						return m, nil
 					}
 				}
 			} else {
 				m.SetCurrentSessionState(m.PreviousSessionState)
-				return m, nil
 			}
 		case key.Matches(msg, m.keyMap.Add):
 			if m.CurrentSessionState == ui.SessionStateList {

@@ -34,10 +34,40 @@ func NewCookBook(db_path string, gorm_opts ...gorm.Option) (*CookBook, error) {
 	return &CookBook{conn: db_con}, nil
 }
 
-func (c *CookBook) RandomRecipe() Recipe {
+// RandomRecipe returns a random recipe from the database
+func (c *CookBook) RandomRecipe() (Recipe, error) {
 	var recipe Recipe
-	c.conn.Take(&recipe)
-	return recipe
+	result := c.conn.Order("RANDOM()").Take(&recipe)
+	return recipe, result.Error
+}
+
+// RandomFullRecipe returns a random complete recipe with all related data
+func (c *CookBook) RandomFullRecipe() (*recipe.RecipeRaw, error) {
+	// First get a random recipe ID
+	recipe, err := c.RandomRecipe()
+	if err != nil {
+		return nil, err
+	}
+	
+	// Then get the full recipe using the existing method
+	return c.GetFullRecipe(recipe.ID)
+}
+
+// HasRecipes checks if there are any recipes in the database
+func (c *CookBook) HasRecipes() (bool, error) {
+	result, err := c.RecipeCount()
+	if err != nil {
+		return false, err
+	}
+
+	return result > 0, nil
+}
+
+// RecipeCount returns the total number of recipes in the database
+func (c *CookBook) RecipeCount() (int64, error) {
+	var count int64
+	result := c.conn.Model(&Recipe{}).Count(&count)
+	return count, result.Error
 }
 
 func (c *CookBook) DeleteRecipe(recipeID uint) error {
