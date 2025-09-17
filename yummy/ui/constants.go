@@ -21,7 +21,7 @@ const (
 	TextAreaHeight      = 10
 	// Better models for function calling: llama3.1:8b, llama3.1:70b, codellama:7b, codellama:13b, llama3.2:3b
 	// Note: Smaller models like gemma3:1b may not support function calling well
-	LlamaModel   = "gemma3n:latest"
+	LlamaModel   = "gemma3:4b"
 	Temperature  = 0.3
 	SystemPrompt = `
 	You are a cooking assistant with web scraping capabilities. You will be given questions about cooking, recipes and ingredients. 

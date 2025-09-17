@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/PuerkitoBio/goquery"
+	"github.com/google/uuid"
 	"github.com/tmc/langchaingo/llms"
 )
 
@@ -20,29 +21,32 @@ type ScrapeResult struct {
 // Scraper handles web scraping operations
 type ScraperTool struct {
 	client *http.Client
+	id     string
+	name   string
+	description string
 }
 
 func (s ScraperTool) Call(ctx context.Context, input string) (string, error) {
-	return ExecuteScrapeWebsite(input).Content, nil
+	return s.ExecuteScrapeWebsite(input).Content, nil
 }
 
 func (s ScraperTool) Name() string {
-	return "scrape_website"
+	return s.name
 }
 
 func (s ScraperTool) Description() string {
-	return "Scrape content from a website URL to extract recipe information. Use this when you need to get recipe details from a specific website."
+	return s.description
 }
 
 // executeScrapeWebsite executes the scraping tool to extract content from a given URL.
 // It marshals the tool call to extract the URL, validates the URL, and then uses the scraper to scrape the content.
 // The function returns a ToolResult containing the tool name, content, or an error if the operation fails.
-func ExecuteScrapeWebsite(url string) llms.ToolCallResponse {
+func (s ScraperTool) ExecuteScrapeWebsite(url string) llms.ToolCallResponse {
 	// Validate URL is not empty
 	if url == "" {
 		return llms.ToolCallResponse{
-			ToolCallID: "1",
-			Name:       "scrape_website",
+			ToolCallID: s.id,
+			Name:       s.name,
 			Content:    "url is empty",
 		}
 	}
@@ -57,15 +61,15 @@ func ExecuteScrapeWebsite(url string) llms.ToolCallResponse {
 	result, err := scraper.ScrapeWebsite(url)
 	if err != nil {
 		return llms.ToolCallResponse{
-			ToolCallID: "1",
-			Name:       "scrape_website",
+			ToolCallID: s.id,
+			Name:       s.name,
 			Content:    fmt.Sprintf("failed to scrape %s: %v", url, err),
 		}
 	}
 
 	return llms.ToolCallResponse{
-		ToolCallID: "1",
-		Name:       "scrape_website",
+		ToolCallID: s.id,
+		Name:       s.name,
 		Content:    fmt.Sprintf("Successfully scraped content from %s:\n\n%s", url, result.Content),
 	}
 }
@@ -76,6 +80,9 @@ func NewScraperTool() *ScraperTool {
 		client: &http.Client{
 			Timeout: 10 * time.Second,
 		},
+		id:     uuid.New().String(),
+		name:   "scrape_website",
+		description: "Scrape content from a website URL to extract recipe information. Use this when you need to get recipe details from a specific website.",
 	}
 }
 

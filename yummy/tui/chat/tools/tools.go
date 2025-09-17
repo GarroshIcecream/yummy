@@ -19,12 +19,10 @@ func NewToolManager() *ToolManager {
 		scraper: NewScraperTool(),
 	}
 
-	// Register the scraping tool
 	scrapeTool := NewScraperTool()
 
 	tm.RegisterTool(scrapeTool)
 
-	// Debug: Log the registered tool
 	log.Printf("Registered tool: %+v", scrapeTool)
 
 	return tm
