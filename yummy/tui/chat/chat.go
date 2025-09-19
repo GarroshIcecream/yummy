@@ -211,7 +211,7 @@ func (m *ChatModel) renderSidebar() string {
 	sidebar.WriteString(styles.SidebarContentStyle.Render("• ↑/↓: Scroll messages"))
 
 	// Create a dynamic sidebar style based on the current width
-	sidebarStyle := styles.SidebarStyle.Copy().Width(m.sidebarWidth - 4) // Account for padding
+	sidebarStyle := styles.SidebarStyle.Width(m.sidebarWidth - 4)
 	return sidebarStyle.Render(sidebar.String())
 }
 

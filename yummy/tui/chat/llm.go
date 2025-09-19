@@ -281,7 +281,10 @@ func (l *LLMService) GenerateResponse(conversation []llms.MessageContent) Respon
 		"input": input,
 	})
 
-	chains.Run(context.Background(), l.agent.Chain, conversation)
+	_, chainErr := chains.Run(context.Background(), l.agent.Chain, conversation)
+	if chainErr != nil {
+		log.Printf("chains.Run error: %v", chainErr)
+	}
 
 	log.Printf("GenerateResponse: answer = %s", answer)
 
