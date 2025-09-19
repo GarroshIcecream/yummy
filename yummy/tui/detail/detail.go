@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/GarroshIcecream/yummy/yummy/config"
 	db "github.com/GarroshIcecream/yummy/yummy/db"
 	recipes "github.com/GarroshIcecream/yummy/yummy/recipe"
 	styles "github.com/GarroshIcecream/yummy/yummy/tui/styles"
@@ -22,9 +23,10 @@ type DetailModel struct {
 	renderer       *glamour.TermRenderer
 	width          int
 	height         int
+	keyMap         config.KeyMap
 }
 
-func New(cookbook *db.CookBook) *DetailModel {
+func New(cookbook *db.CookBook, keymaps config.KeyMap) *DetailModel {
 	renderer, _ := glamour.NewTermRenderer(
 		glamour.WithAutoStyle(),
 		glamour.WithEmoji(),
@@ -37,6 +39,7 @@ func New(cookbook *db.CookBook) *DetailModel {
 		scrollPosition: 0,
 		width:          ui.DefaultViewportWidth,
 		height:         ui.DefaultViewportHeight,
+		keyMap:         keymaps,
 	}
 
 	return model
@@ -62,21 +65,21 @@ func (m *DetailModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.content = msg.Content
 		m.err = msg.Err
 
-	// case tea.KeyMsg:
-	// 	switch {
-	// 	case key.Matches(msg, keys.Keys.Edit):
-	// 		cmds = append(cmds, ui.SendSessionStateMsg(ui.SessionStateEdit))
-	// 		cmds = append(cmds, ui.SendEditRecipeMsg(m.CurrentRecipe.ID))
-	// 	}
-	// case tea.MouseMsg:
-	// 	if msg.Action == tea.MouseActionPress {
-	// 		switch msg.Button {
-	// 		case tea.MouseButtonWheelUp:
-	// 			m.scrollUp(3)
-	// 		case tea.MouseButtonWheelDown:
-	// 			m.scrollDown(3)
-	// 		}
-	// 	}
+		// case tea.KeyMsg:
+		// 	switch {
+		// 	case key.Matches(msg, keys.Keys.Edit):
+		// 		cmds = append(cmds, ui.SendSessionStateMsg(ui.SessionStateEdit))
+		// 		cmds = append(cmds, ui.SendEditRecipeMsg(m.CurrentRecipe.ID))
+		// 	}
+		// case tea.MouseMsg:
+		// 	if msg.Action == tea.MouseActionPress {
+		// 		switch msg.Button {
+		// 		case tea.MouseButtonWheelUp:
+		// 			m.scrollUp(3)
+		// 		case tea.MouseButtonWheelDown:
+		// 			m.scrollDown(3)
+		// 		}
+		// 	}
 	}
 
 	cmds = append(cmds, cmd)
@@ -197,7 +200,7 @@ func (m *DetailModel) footerView() string {
 func (m *DetailModel) SetSize(width, height int) {
 	m.width = width
 	m.height = height
-	
+
 	if m.width > 0 && m.CurrentRecipe != nil {
 		renderer, err := glamour.NewTermRenderer(
 			glamour.WithAutoStyle(),

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/GarroshIcecream/yummy/yummy/config"
 	db "github.com/GarroshIcecream/yummy/yummy/db"
 	recipes "github.com/GarroshIcecream/yummy/yummy/recipe"
 	ui "github.com/GarroshIcecream/yummy/yummy/ui"
@@ -31,9 +32,10 @@ type EditModel struct {
 	state     EditState
 	width     int
 	height    int
+	keyMap    config.KeyMap
 }
 
-func New(cookbook *db.CookBook, recipe *recipes.RecipeRaw) *EditModel {
+func New(cookbook *db.CookBook, keymaps config.KeyMap, recipe *recipes.RecipeRaw) *EditModel {
 	var ingredients []recipes.Ingredient
 	if recipe != nil {
 		ingredients = recipe.Ingredients
@@ -161,6 +163,7 @@ func New(cookbook *db.CookBook, recipe *recipes.RecipeRaw) *EditModel {
 
 	return &EditModel{
 		cookbook: cookbook,
+		keyMap:   keymaps,
 		form:     form,
 		recipe:   recipe,
 		isNew:    recipe == nil,

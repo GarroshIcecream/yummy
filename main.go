@@ -12,6 +12,6 @@ func main() {
 	defer log.RecoverPanic("main", func() {
 		slog.Error("Application terminated due to unhandled panic")
 	})
-	
+
 	cmd.Execute()
 }

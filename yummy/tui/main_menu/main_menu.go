@@ -1,32 +1,31 @@
 package main_menu
 
 import (
+	"crypto/rand"
 	"fmt"
+	"math/big"
 	"strings"
 
+	"github.com/GarroshIcecream/yummy/yummy/config"
 	db "github.com/GarroshIcecream/yummy/yummy/db"
 	"github.com/GarroshIcecream/yummy/yummy/ui"
 	"github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
 
 type MainMenuModel struct {
-	cookbook    *db.CookBook
-	items       []menuItem
-	selected    int
-	width       int
-	height      int
-	keyMap      KeyMap
-	showHelp    bool
-}
-
-type KeyMap struct {
-	Up     key.Binding
-	Down   key.Binding
-	Enter  key.Binding
-	Help   key.Binding
-	Quit   key.Binding
+	cookbook   *db.CookBook
+	items      []menuItem
+	selected   int
+	width      int
+	height     int
+	keyMap     config.KeyMap
+	showHelp   bool
+	spinner    spinner.Model
+	isLoading  bool
+	loadingMsg string
 }
 
 type menuItem struct {
@@ -36,7 +35,7 @@ type menuItem struct {
 	icon        string
 }
 
-func New(cookbook *db.CookBook) *MainMenuModel {
+func New(cookbook *db.CookBook, keymaps config.KeyMap) *MainMenuModel {
 	items := []menuItem{
 		{
 			title:       "Browse Your Cookbook",
@@ -58,47 +57,46 @@ func New(cookbook *db.CookBook) *MainMenuModel {
 		},
 	}
 
-	return &MainMenuModel{
-		cookbook: cookbook,
-		items:    items,
-		selected: 0,
-		keyMap:   defaultKeyMap(),
-		showHelp: false,
-	}
-}
+	// Initialize spinner with a nice style
+	spinnerModel := spinner.New()
+	spinnerModel.Spinner = spinner.Dot
+	spinnerModel.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("#9370DB"))
 
-func defaultKeyMap() KeyMap {
-	return KeyMap{
-		Up: key.NewBinding(
-			key.WithKeys("k", "up"),
-			key.WithHelp("↑/k", "move up"),
-		),
-		Down: key.NewBinding(
-			key.WithKeys("j", "down"),
-			key.WithHelp("↓/j", "move down"),
-		),
-		Enter: key.NewBinding(
-			key.WithKeys("enter", " "),
-			key.WithHelp("enter/space", "select"),
-		),
-		Help: key.NewBinding(
-			key.WithKeys("?", "h"),
-			key.WithHelp("?/h", "toggle help"),
-		),
-		Quit: key.NewBinding(
-			key.WithKeys("ctrl+c"),
-			key.WithHelp("ctrl+c", "quit"),
-		),
+	// Pick a random loading message once
+	loadingMessages := []string{
+		"🍳 Cooking up something delicious...",
+		"✨ Adding flavor to your experience...",
+		"🌟 Preparing your culinary journey...",
+		"🎯 Almost ready to serve...",
+	}
+	randomItem, _ := rand.Int(rand.Reader, big.NewInt(int64(len(loadingMessages))))
+	loadingMsg := loadingMessages[randomItem.Int64()]
+
+	return &MainMenuModel{
+		cookbook:   cookbook,
+		items:      items,
+		selected:   0,
+		keyMap:     keymaps,
+		showHelp:   false,
+		spinner:    spinnerModel,
+		isLoading:  true,
+		loadingMsg: loadingMsg,
 	}
 }
 
 func (m *MainMenuModel) Init() tea.Cmd {
-	return nil
+	return m.spinner.Tick
 }
 
 func (m *MainMenuModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
+	var cmd tea.Cmd
+
 	switch msg := msg.(type) {
+
+	case spinner.TickMsg:
+		m.spinner, cmd = m.spinner.Update(msg)
+		cmds = append(cmds, cmd)
 
 	case tea.KeyMsg:
 		switch {
@@ -116,8 +114,7 @@ func (m *MainMenuModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if len(m.items) > 0 {
 				selectedItem := m.items[m.selected]
 				cmds = append(cmds, ui.SendSessionStateMsg(selectedItem.state))
-				
-				// If the selected item is the detail state, we need to get a random recipe
+
 				if selectedItem.state == ui.SessionStateDetail {
 					recipe, err := m.cookbook.RandomRecipe()
 					if err == nil {
@@ -131,18 +128,23 @@ func (m *MainMenuModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
+	if m.width > 0 && m.height > 0 {
+		m.isLoading = false
+	}
+
 	return m, tea.Sequence(cmds...)
 }
 
 func (m *MainMenuModel) View() string {
-	if m.width == 0 {
-		return "Loading..."
+	if m.isLoading {
+		return m.spinner.View() + " " + m.loadingMsg
 	}
 
 	var content strings.Builder
 
 	// Add decorative top border with purple theme
-	topBorder := strings.Repeat("═", m.width-4)
+	contentWidth := 80 // Fixed width for better centering
+	topBorder := strings.Repeat("═", contentWidth)
 	content.WriteString(lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#9370DB")).
 		Render("╔" + topBorder + "╗"))
@@ -154,7 +156,7 @@ func (m *MainMenuModel) View() string {
 	content.WriteString("\n\n")
 
 	// Add decorative separator with purple theme
-	separator := strings.Repeat("─", m.width-4)
+	separator := strings.Repeat("─", contentWidth)
 	content.WriteString(lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#9370DB")).
 		Render("├" + separator + "┤"))
@@ -220,12 +222,12 @@ func (m *MainMenuModel) renderTitle() string {
 
 	// Combine all elements
 	content := logoStyle.Render(logo) + "\n" + subtitleStyle.Render(subtitle)
-	
+
 	// Add decorative border around the entire title with purple theme
 	finalStyle := lipgloss.NewStyle().
 		Border(lipgloss.DoubleBorder()).
 		BorderForeground(lipgloss.Color("#9370DB")).
-		Background(lipgloss.Color("#2D1B3D")).
+		Align(lipgloss.Center).
 		Padding(1, 2).
 		Margin(1, 0)
 
@@ -236,9 +238,15 @@ func (m *MainMenuModel) renderMenuItems() string {
 	var items strings.Builder
 
 	for i, item := range m.items {
-		itemStyle := m.getItemStyle(i == m.selected)
-		itemContent := m.renderMenuItem(item, i == m.selected)
-		items.WriteString(itemStyle.Render(itemContent))
+		isSelected := i == m.selected
+		itemContent := m.renderMenuItem(item, isSelected)
+		if isSelected {
+			itemContent = lipgloss.NewStyle().
+				Border(lipgloss.DoubleBorder()).
+				BorderForeground(lipgloss.Color("#9370DB")).
+				Render(itemContent)
+		}
+		items.WriteString(itemContent)
 		items.WriteString("\n")
 	}
 
@@ -247,19 +255,6 @@ func (m *MainMenuModel) renderMenuItems() string {
 
 func (m *MainMenuModel) renderMenuItem(item menuItem, isSelected bool) string {
 	var content strings.Builder
-
-	// Enhanced bullet point with animation effect
-	bullet := "○"
-	if isSelected {
-		bullet = "●"
-	}
-
-	bulletStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#9370DB")).
-		Bold(isSelected)
-
-	content.WriteString(bulletStyle.Render(bullet))
-	content.WriteString(" ")
 
 	// Enhanced icon with purple glow effect
 	iconStyle := lipgloss.NewStyle().
@@ -286,26 +281,6 @@ func (m *MainMenuModel) renderMenuItem(item menuItem, isSelected bool) string {
 	content.WriteString(descStyle.Render(item.description))
 
 	return content.String()
-}
-
-func (m *MainMenuModel) getItemStyle(isSelected bool) lipgloss.Style {
-	style := lipgloss.NewStyle().
-		Padding(1, 3).
-		Margin(0, 2)
-
-	if isSelected {
-		style = style.
-			Background(lipgloss.Color("#4B0082")).
-			Border(lipgloss.DoubleBorder()).
-			BorderForeground(lipgloss.Color("#9370DB")).
-			Foreground(lipgloss.Color("#E6E6FA"))
-	} else {
-		style = style.
-			Background(lipgloss.Color("#2D1B3D")).
-			Foreground(lipgloss.Color("#B19CD9"))
-	}
-
-	return style
 }
 
 func (m *MainMenuModel) renderHelp() string {
@@ -337,6 +312,7 @@ func (m *MainMenuModel) renderHelp() string {
 
 	return helpBorderStyle.Render(helpText)
 }
+
 // SetSize sets the width and height of the model
 func (m *MainMenuModel) SetSize(width, height int) {
 	m.width = width

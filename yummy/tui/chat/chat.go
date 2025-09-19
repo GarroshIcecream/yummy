@@ -16,6 +16,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/tmc/langchaingo/llms"
 
+	"github.com/GarroshIcecream/yummy/yummy/config"
 	db "github.com/GarroshIcecream/yummy/yummy/db"
 	styles "github.com/GarroshIcecream/yummy/yummy/tui/styles"
 	ui "github.com/GarroshIcecream/yummy/yummy/ui"
@@ -23,6 +24,7 @@ import (
 
 type ChatModel struct {
 	cookbook         *db.CookBook
+	keyMap           config.KeyMap
 	viewport         viewport.Model
 	textarea         textarea.Model
 	spinner          spinner.Model
@@ -40,7 +42,7 @@ type ChatModel struct {
 	ollamaStatus     map[string]interface{}
 }
 
-func New(cookbook *db.CookBook) *ChatModel {
+func New(cookbook *db.CookBook, keymaps config.KeyMap) *ChatModel {
 	llmService, err := NewLLMService()
 	if err != nil {
 		log.Printf("Warning: LLM service initialization failed: %v", err)
@@ -113,6 +115,7 @@ func New(cookbook *db.CookBook) *ChatModel {
 	// Initialize the chat model
 	chatModel := &ChatModel{
 		cookbook:         cookbook,
+		keyMap:           keymaps,
 		textarea:         ta,
 		viewport:         vp,
 		spinner:          s,
@@ -141,7 +144,7 @@ func (m *ChatModel) Init() tea.Cmd {
 // renderSidebar renders the sidebar with usage, model info, tools, and health status
 func (m *ChatModel) renderSidebar() string {
 	var sidebar strings.Builder
-	
+
 	// Model Information
 	sidebar.WriteString(styles.SidebarSectionStyle.Render("Model"))
 	sidebar.WriteString("\n")
@@ -149,7 +152,7 @@ func (m *ChatModel) renderSidebar() string {
 	sidebar.WriteString("\n")
 	sidebar.WriteString(styles.SidebarContentStyle.Render("• Thinking On"))
 	sidebar.WriteString("\n\n")
-	
+
 	// Usage Statistics
 	sidebar.WriteString(styles.SidebarSectionStyle.Render("Usage"))
 	sidebar.WriteString("\n")
@@ -157,11 +160,11 @@ func (m *ChatModel) renderSidebar() string {
 	usagePercent := (m.messageCount * 5) % 100 // Simple calculation for demo
 	sidebar.WriteString(styles.SidebarContentStyle.Render(fmt.Sprintf("%d%% (%dK) $%.2f", usagePercent, m.tokenCount/1000, float64(m.tokenCount)*0.0001)))
 	sidebar.WriteString("\n\n")
-	
+
 	// Ollama Health Status
 	sidebar.WriteString(styles.SidebarSectionStyle.Render("Ollama Status"))
 	sidebar.WriteString("\n")
-	
+
 	status := m.ollamaStatus
 	if status["functional"].(bool) && status["model_available"].(bool) {
 		sidebar.WriteString(styles.SidebarSuccessStyle.Render("✅ Service Healthy"))
@@ -175,7 +178,7 @@ func (m *ChatModel) renderSidebar() string {
 		}
 	}
 	sidebar.WriteString("\n\n")
-	
+
 	// Available Tools
 	sidebar.WriteString(styles.SidebarSectionStyle.Render("Available Tools"))
 	sidebar.WriteString("\n")
@@ -189,7 +192,7 @@ func (m *ChatModel) renderSidebar() string {
 		sidebar.WriteString(styles.SidebarContentStyle.Render("• No tools available"))
 	}
 	sidebar.WriteString("\n\n")
-	
+
 	// Session Stats
 	sidebar.WriteString(styles.SidebarSectionStyle.Render("Session Stats"))
 	sidebar.WriteString("\n")
@@ -197,7 +200,7 @@ func (m *ChatModel) renderSidebar() string {
 	sidebar.WriteString("\n")
 	sidebar.WriteString(styles.SidebarContentStyle.Render(fmt.Sprintf("• Tokens: %d", m.tokenCount)))
 	sidebar.WriteString("\n\n")
-	
+
 	// Controls
 	sidebar.WriteString(styles.SidebarSectionStyle.Render("Controls"))
 	sidebar.WriteString("\n")
@@ -206,7 +209,7 @@ func (m *ChatModel) renderSidebar() string {
 	sidebar.WriteString(styles.SidebarContentStyle.Render("• Ctrl+C: Exit"))
 	sidebar.WriteString("\n")
 	sidebar.WriteString(styles.SidebarContentStyle.Render("• ↑/↓: Scroll messages"))
-	
+
 	// Create a dynamic sidebar style based on the current width
 	sidebarStyle := styles.SidebarStyle.Copy().Width(m.sidebarWidth - 4) // Account for padding
 	return sidebarStyle.Render(sidebar.String())
@@ -348,13 +351,13 @@ func (m *ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			contentWidth = 20 // Minimum content width
 		}
 
-	// Set viewport dimensions with better scrolling
-	m.viewport.Width = contentWidth
-	m.viewport.Height = viewportHeight
-	m.viewport.YPosition = 0 // Reset scroll position
+		// Set viewport dimensions with better scrolling
+		m.viewport.Width = contentWidth
+		m.viewport.Height = viewportHeight
+		m.viewport.YPosition = 0 // Reset scroll position
 
-	// Set textarea width to match viewport width
-	m.textarea.SetWidth(contentWidth)
+		// Set textarea width to match viewport width
+		m.textarea.SetWidth(contentWidth)
 
 		// Update markdown renderer word wrap to match content width
 		// Account for additional message styling (headers, borders, etc.)
@@ -427,16 +430,16 @@ func (m *ChatModel) View() string {
 
 	// Render sidebar
 	sidebar := m.renderSidebar()
-	
+
 	// Render chat viewport with proper styling
 	chat := styles.ChatStyle.Render(m.viewport.View())
-	
+
 	// Render input with consistent spacing
 	input := m.textarea.View()
 
 	// Create the main content area (chat + input)
 	mainContent := lipgloss.JoinVertical(lipgloss.Left, chat, input)
-	
+
 	// Create the layout with sidebar and main content
 	layout := lipgloss.JoinHorizontal(lipgloss.Top, sidebar, mainContent)
 
@@ -450,7 +453,7 @@ func (m *ChatModel) SetSize(width, height int) {
 	m.height = height
 	m.windowWidth = width
 	m.windowHeight = height
-	
+
 	// Calculate sidebar width (30% of total width, minimum 25, maximum 40)
 	// But ensure we don't take too much space on small screens
 	if width < 80 {
@@ -463,30 +466,30 @@ func (m *ChatModel) SetSize(width, height int) {
 			m.sidebarWidth = 40
 		}
 	}
-	
+
 	// Calculate available space for components (same logic as WindowSizeMsg)
 	titleHeight := 3   // Space for title with margins
 	inputHeight := 6   // Space for textarea with margins and borders
 	borderPadding := 4 // Space for chat border and padding
-	
+
 	// Calculate viewport height dynamically
 	viewportHeight := height - titleHeight - inputHeight - borderPadding
 	if viewportHeight < 8 {
 		viewportHeight = 8 // Minimum viewport height
 	}
-	
+
 	// Calculate content width accounting for sidebar and chat border/padding
 	contentWidth := width - m.sidebarWidth - 8
 	if contentWidth < 20 {
 		contentWidth = 20 // Minimum content width
 	}
-	
+
 	// Update viewport and textarea sizes with consistent calculations
 	m.viewport.Width = contentWidth
 	m.viewport.Height = viewportHeight
 	m.viewport.YPosition = 0 // Reset scroll position
 	m.textarea.SetWidth(contentWidth)
-	
+
 	// Update markdown renderer word wrap
 	markdownWidth := contentWidth - 8
 	if markdownWidth > 0 {

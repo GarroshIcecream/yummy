@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 
+	"github.com/GarroshIcecream/yummy/yummy/config"
 	db "github.com/GarroshIcecream/yummy/yummy/db"
 	chat "github.com/GarroshIcecream/yummy/yummy/tui/chat"
 	detail "github.com/GarroshIcecream/yummy/yummy/tui/detail"
@@ -23,32 +24,32 @@ type TUIModel interface {
 }
 
 type Manager struct {
-	CurrentSessionState ui.SessionState
+	CurrentSessionState  ui.SessionState
 	PreviousSessionState ui.SessionState
-	models       map[ui.SessionState]TUIModel
-	Cookbook     *db.CookBook
-	keyMap       KeyMap
-	Ctx          context.Context
+	models               map[ui.SessionState]TUIModel
+	Cookbook             *db.CookBook
+	keyMap               config.KeyMap
+	Ctx                  context.Context
 }
 
 func New(cookbook *db.CookBook, ctx context.Context) (*Manager, error) {
-	keymaps := DefaultKeyMap()
-	
+	keymaps := config.DefaultKeyMap()
+
 	models := map[ui.SessionState]TUIModel{
-		ui.SessionStateMainMenu: main_menu.New(cookbook),
-		ui.SessionStateList:     yummy_list.New(cookbook),
-		ui.SessionStateDetail:   detail.New(cookbook),
-		ui.SessionStateEdit:     edit.New(cookbook, nil),
-		ui.SessionStateChat:     chat.New(cookbook),
+		ui.SessionStateMainMenu: main_menu.New(cookbook, keymaps),
+		ui.SessionStateList:     yummy_list.New(cookbook, keymaps),
+		ui.SessionStateDetail:   detail.New(cookbook, keymaps),
+		ui.SessionStateEdit:     edit.New(cookbook, keymaps, nil),
+		ui.SessionStateChat:     chat.New(cookbook, keymaps),
 	}
-	
+
 	manager := Manager{
-		Cookbook:     cookbook,
-		keyMap:       keymaps,
-		models:       models,
-		CurrentSessionState: ui.SessionStateMainMenu,
+		Cookbook:             cookbook,
+		keyMap:               keymaps,
+		models:               models,
+		CurrentSessionState:  ui.SessionStateMainMenu,
 		PreviousSessionState: ui.SessionStateMainMenu,
-		Ctx:          ctx,
+		Ctx:                  ctx,
 	}
 
 	return &manager, nil

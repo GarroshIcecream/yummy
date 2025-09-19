@@ -3,8 +3,10 @@ package list
 import (
 	"fmt"
 
+	"github.com/GarroshIcecream/yummy/yummy/config"
 	db "github.com/GarroshIcecream/yummy/yummy/db"
 	styles "github.com/GarroshIcecream/yummy/yummy/tui/styles"
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -15,9 +17,10 @@ type ListModel struct {
 	RecipeList list.Model
 	width      int
 	height     int
+	keyMap     config.KeyMap
 }
 
-func New(cookbook *db.CookBook) *ListModel {
+func New(cookbook *db.CookBook, keymaps config.KeyMap) *ListModel {
 	recipes, err := cookbook.AllRecipes()
 
 	var items []list.Item
@@ -32,16 +35,17 @@ func New(cookbook *db.CookBook) *ListModel {
 	l = styles.ApplyListStyles(l)
 	l.Title = "📚 My Cookbook"
 	l.SetStatusBarItemName("recipe", "recipes")
-	// l.AdditionalShortHelpKeys = func() []key.Binding {
-	// 	return []key.Binding{keys.Keys.Add, keys.Keys.Delete}
-	// }
+	l.AdditionalShortHelpKeys = func() []key.Binding {
+		return []key.Binding{keymaps.Add, keymaps.Delete}
+	}
 
 	// l.AdditionalFullHelpKeys = func() []key.Binding {
-	// 	return []key.Binding{keys.Keys.Add, keys.Keys.Delete}
+	// 	return []key.Binding{keymaps.Add, keymaps.Delete}
 	// }
 
 	return &ListModel{
 		cookbook:   cookbook,
+		keyMap:     keymaps,
 		err:        err,
 		RecipeList: l,
 	}
@@ -126,8 +130,8 @@ func (m *ListModel) SetSize(width, height int) {
 		m.RecipeList.SetSize(width-h, height-v)
 	}
 }
+
 // GetSize returns the current width and height of the model
 func (m *ListModel) GetSize() (width, height int) {
 	return m.width, m.height
 }
-

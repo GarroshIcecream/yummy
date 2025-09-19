@@ -113,7 +113,7 @@ func setupApp(cmd *cobra.Command) (*tui.Manager, error) {
 
 	// setup log
 	log.Setup(datadir, true)
-	
+
 	conn, err := db.NewCookBook(datadir)
 	if err != nil {
 		return nil, err
