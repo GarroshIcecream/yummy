@@ -52,7 +52,9 @@ jobs:
     - name: Create checksums
       run: |
         cd dist
+        ls -la
         sha256sum *.tar.gz *.zip > checksums.txt
+        cat checksums.txt
 
     - name: Create Release
       uses: softprops/action-gh-release@v1

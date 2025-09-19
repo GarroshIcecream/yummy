@@ -73,7 +73,7 @@ build-all: clean
 .PHONY: release
 release: build-all
 	cd $(DIST_DIR) && \
-	for file in *; do \
+	for file in $(BINARY_NAME)-*; do \
 		if [[ $$file == *"linux"* ]]; then \
 			tar -czf $$file.tar.gz $$file; \
 		elif [[ $$file == *"darwin"* ]]; then \
