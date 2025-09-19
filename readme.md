@@ -1,79 +1,100 @@
-# Yummy
+# Yummy — Your Command-Line Recipe Companion
 
-![RecipeMaster Logo](https://via.placeholder.com/150)
+<div align="center">
+  <img src="./assets/yummy_logo.svg" alt="Yummy Logo" />
+  
+  [![Go Version](https://img.shields.io/badge/Go-1.24.3-blue.svg)](https://golang.org/)
+  [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+  [![Development Status](https://img.shields.io/badge/status-in%20development-orange.svg)](https://github.com/GarroshIcecream/yummy)
+  [![Go Report Card](https://goreportcard.com/badge/github.com/GarroshIcecream/yummy)](https://goreportcard.com/report/github.com/GarroshIcecream/yummy)
+  [![Build Status](https://img.shields.io/badge/build-passing-brightgreen.svg)](https://github.com/GarroshIcecream/yummy)
+  [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
+  [![GitHub stars](https://img.shields.io/github/stars/GarroshIcecream/yummy.svg?style=social&label=Star)](https://github.com/GarroshIcecream/yummy)
+</div>
 
-**yummy** is a powerful command-line interface (CLI) tool designed to help you manage your recipes effortlessly. With yummy, you can store, view, categorize, and export your recipes using a beautiful interface powered by [Bubble Tea](https://github.com/charmbracelet/bubbletea).
+> A fast, delightful command-line application for managing recipes. Built with care and powered by Bubble Tea, Yummy brings a beautiful terminal-first experience to every home cook, developer, and recipe curator.
 
-## Features
+## ✨ Why Yummy Stands Out
 
-- **Store Recipes**: Easily add new recipes with details like name, ingredients, instructions, and cooking time.
-- **View Recipes**: Browse through your collection of recipes or search for specific ones.
-- **Categorize Recipes**: Organize your recipes into categories for better management.
-- **Export Recipes**: Export your recipes to various formats like JSON or CSV.
-- **Beautiful Interface**: Enjoy a user-friendly interface thanks to Bubble Tea and other dependencies.
+- **🎨 Polished Terminal UI**: A modern, accessible TUI built with Bubble Tea that feels intuitive and responsive
+- **⚡ Lightweight & Fast**: Zero bloat, instant startup, and smooth navigation across large recipe collections
+- **💾 Portable Storage**: Recipes saved locally in simple, exportable formats (JSON/CSV), making backups and sharing effortless
+- **🔄 Focus on Workflow**: Quick commands for adding, searching, categorizing and exporting recipes — spend less time managing and more time cooking
+- **🔧 Extensible Design**: Modular internal packages (recipe, tui, db, tools) make it easy to extend features or integrate with other tools
 
-## Installation
+## 🚀 Core Features
 
-To install yummy, you need to have Go installed on your machine. Follow these steps:
+- **Recipe Management**: Add, edit, and organize recipes with ingredient lists, measures, instructions, and metadata
+- **Powerful Search**: Quick search and categorization to find the recipe you need
+- **Export Options**: Export collections to JSON or CSV for sharing or migration
+- **Clean TUI**: Navigable interface with list/detail views, editable forms, and status indicators
+- **Developer Friendly**: Small codebase with clear package boundaries — ideal for contributors and experimentation
 
-1. **Clone the Repository**:
-   ```sh
-   git clone https://github.com/yourusername/yummy.git
-   cd yummy
-   ```
+## 📦 Installation
 
-2. **Build the Project**:
-   ```sh
-   go build -o yummy
-   ```
+### From Source
 
-3. **Run the CLI Tool**:
-   ```sh
-   ./yummy
-   ```
+```bash
+# Clone the repository
+git clone https://github.com/GarroshIcecream/yummy.git
+cd yummy
 
-## Usage
+# Build the application
+go build -o yummy
 
-yummy provides a simple and intuitive command-line interface. Here are some examples of how to use it:
+# Run it
+./yummy
+```
 
-- **Add a New Recipe**:
-  ```sh
-  ./yummy add --name \"Pancakes\" --ingredients \"Flour, Milk, Eggs\" --instructions \"Mix and cook\" --time 15
-  ```
+### Using Go Install
 
-- **View All Recipes**:
-  ```sh
-  ./yummy view
-  ```
+```bash
+go install github.com/GarroshIcecream/yummy@latest
+```
 
-- **Categorize a Recipe**:
-  ```sh
-  ./yummy categorize --name \"Pancakes\" --category \"Breakfast\"
-  ```
+## 🛠️ Development
 
-- **Export Recipes**:
-  ```sh
-  ./yummy export --format json
-  ```
+### Prerequisites
 
-## Dependencies
+- Go 1.24.3 or later
+- Git
 
-RecipeMe leverages the following dependencies to provide a seamless experience:
+### Development Workflow
 
-- [Bubble Tea](https://github.com/charmbracelet/bubbletea): For building the beautiful CLI interface.
+```bash
+# Run all tests
+go test ./...
 
-## Contributing
+# Run a single package test
+go test ./yummy/recipe -run TestName
 
-Contributions are welcome! If you have any ideas, suggestions, or bug reports, please open an issue or submit a pull request.
+# Format & fix imports
+gofmt -w . && goimports -w .
 
-## License
+# Lint (recommended)
+golangci-lint run
+```
 
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+## 🤝 Contributing
 
-## Contact
+Contributions are warmly welcomed! The project favors small, well-documented pull requests that improve UX, add tests, or refine the TUI. Please open issues for larger proposals so we can align on design.
 
-If you have any questions or need further assistance, feel free to reach out to us at [ad.pesek13@gmail.com](mailto:ad.pesek13@gmail.com).
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 📧 Contact
+
+Questions, ideas, or recipes to share? Email [garroshicecream@gmail.com](mailto:garroshicecream@gmail.com)
 
 ---
 
-**Happy cooking with yummy!** 🍳🍴
+<div align="center">
+  <strong>Cook boldly. Ship deliciousness.</strong>
+</div>

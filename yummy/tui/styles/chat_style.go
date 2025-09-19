@@ -3,8 +3,6 @@ package styles
 import "github.com/charmbracelet/lipgloss"
 
 var (
-	highlight = lipgloss.AdaptiveColor{Light: "#874BFD", Dark: "#7D56F4"}
-
 	// TitleStyle defines the styling for the application title
 	ChatTitleStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#ff6b9d")).
@@ -36,59 +34,59 @@ var (
 			Foreground(lipgloss.Color("#ffffff"))
 
 	SidebarHeaderStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#ff6b9d")).
-			Bold(true).
-			Align(lipgloss.Center).
-			Margin(0, 0, 2, 0).
-			Background(lipgloss.Color("#2a2a2a")).
-			Padding(1, 2)
+				Foreground(lipgloss.Color("#ff6b9d")).
+				Bold(true).
+				Align(lipgloss.Center).
+				Margin(0, 0, 2, 0).
+				Background(lipgloss.Color("#2a2a2a")).
+				Padding(1, 2)
 
 	SidebarSectionStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#ffffff")).
-			Bold(true).
-			Margin(0, 0, 1, 0).
-			Border(lipgloss.NormalBorder()).
-			BorderForeground(lipgloss.Color("#333333")).
-			BorderTop(false).
-			BorderLeft(false).
-			BorderRight(false).
-			Padding(0, 0, 1, 0)
+				Foreground(lipgloss.Color("#ffffff")).
+				Bold(true).
+				Margin(0, 0, 1, 0).
+				Border(lipgloss.NormalBorder()).
+				BorderForeground(lipgloss.Color("#333333")).
+				BorderTop(false).
+				BorderLeft(false).
+				BorderRight(false).
+				Padding(0, 0, 1, 0)
 
 	SidebarContentStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#cccccc")).
-			Margin(0, 0, 0, 2)
+				Foreground(lipgloss.Color("#cccccc")).
+				Margin(0, 0, 0, 2)
 
 	SidebarSuccessStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#4ECDC4")).
-			Bold(true)
+				Foreground(lipgloss.Color("#4ECDC4")).
+				Bold(true)
 
 	SidebarErrorStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#ff6b6b")).
-			Bold(true)
+				Foreground(lipgloss.Color("#ff6b6b")).
+				Bold(true)
 
 	// User message styles - Simple text only
 	UserMessageStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#ff6b9d")).
-			Bold(true).
-			Align(lipgloss.Right).
-			Margin(0, 0, 0, 2)
+				Foreground(lipgloss.Color("#ff6b9d")).
+				Bold(true).
+				Align(lipgloss.Right).
+				Margin(0, 0, 0, 2)
 
 	UserContentStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#ffffff")).
-			Align(lipgloss.Right).
-			Margin(0, 0, 0, 2)
+				Foreground(lipgloss.Color("#ffffff")).
+				Align(lipgloss.Right).
+				Margin(0, 0, 0, 2)
 
 	// Assistant message styles - Simple text only
 	AssistantMessageStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#4ECDC4")).
-			Bold(true).
-			Align(lipgloss.Left).
-			Margin(0, 2, 0, 0)
+				Foreground(lipgloss.Color("#4ECDC4")).
+				Bold(true).
+				Align(lipgloss.Left).
+				Margin(0, 2, 0, 0)
 
 	AssistantContentStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#ffffff")).
-			Align(lipgloss.Left).
-			Margin(0, 2, 0, 0)
+				Foreground(lipgloss.Color("#ffffff")).
+				Align(lipgloss.Left).
+				Margin(0, 2, 0, 0)
 
 	// Legacy styles for backward compatibility
 	UserStyle = lipgloss.NewStyle().

@@ -48,7 +48,7 @@ func (c *CookBook) RandomFullRecipe() (*recipe.RecipeRaw, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Then get the full recipe using the existing method
 	return c.GetFullRecipe(recipe.ID)
 }

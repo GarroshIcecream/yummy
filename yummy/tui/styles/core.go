@@ -36,9 +36,84 @@ var IngredientStyle = lipgloss.NewStyle().
 var DocStyle = lipgloss.NewStyle().
 	Margin(1, 2)
 
+var DetailContentStyle = lipgloss.NewStyle().
+	Padding(1, 2).
+	Margin(0, 1)
+
+var DetailHeaderStyle = lipgloss.NewStyle().
+	Bold(true).
+	Foreground(lipgloss.Color("#FFFFFF")).
+	Background(lipgloss.Color("#FF6B6B")).
+	Padding(0, 4).
+	MarginBottom(0)
+
+var DetailFooterStyle = lipgloss.NewStyle().
+	Foreground(lipgloss.Color("#87CEEB")).
+	Padding(0, 1).
+	MarginTop(1)
+
+var ScrollBarStyle = lipgloss.NewStyle().
+	Foreground(lipgloss.Color("#87CEEB"))
+
+var LoadingStyle = lipgloss.NewStyle().
+	Foreground(lipgloss.Color("#FFB6B6")).
+	Italic(true)
+
 var InstructionStyle = lipgloss.NewStyle().
 	Foreground(lipgloss.Color("#F0E68C")).
 	PaddingLeft(2)
+
+// Status line styles - Modern theme with better colors
+var WarningStyle = lipgloss.NewStyle().
+	Foreground(lipgloss.Color("#F0E68C")).
+	Background(lipgloss.Color("#2a2a2a")).
+	Padding(0, 1)
+
+var SuccessStyle = lipgloss.NewStyle().
+	Foreground(lipgloss.Color("#4ECDC4")).
+	Background(lipgloss.Color("#2a2a2a")).
+	Padding(0, 1)
+
+var HelpStyle = lipgloss.NewStyle().
+	Foreground(lipgloss.Color("#FFB6B6")).
+	Background(lipgloss.Color("#2a2a2a")).
+	Padding(0, 1)
+
+var StatusLineStyle = lipgloss.NewStyle().
+	Foreground(lipgloss.Color("#FFB6B6")).
+	Background(lipgloss.Color("#2a2a2a")).
+	Padding(0, 1)
+
+// Neovim/Vim-style status line components - Enhanced with theme colors
+var StatusLineLeftStyle = lipgloss.NewStyle().
+	Foreground(lipgloss.Color("#FFB6B6")).
+	Background(lipgloss.Color("#1a1a1a")).
+	Padding(0, 1)
+
+var StatusLineRightStyle = lipgloss.NewStyle().
+	Foreground(lipgloss.Color("#FFB6B6")).
+	Background(lipgloss.Color("#1a1a1a")).
+	Padding(0, 1)
+
+var StatusLineModeStyle = lipgloss.NewStyle().
+	Foreground(lipgloss.Color("#000000")).
+	Background(lipgloss.Color("#FF6B6B")).
+	Bold(true).
+	Padding(0, 1)
+
+var StatusLineFileStyle = lipgloss.NewStyle().
+	Foreground(lipgloss.Color("#87CEEB")).
+	Background(lipgloss.Color("#1a1a1a")).
+	Padding(0, 1)
+
+var StatusLineInfoStyle = lipgloss.NewStyle().
+	Foreground(lipgloss.Color("#4ECDC4")).
+	Background(lipgloss.Color("#1a1a1a")).
+	Padding(0, 1)
+
+var StatusLineSeparatorStyle = lipgloss.NewStyle().
+	Foreground(lipgloss.Color("#FFB6B6")).
+	Background(lipgloss.Color("#1a1a1a"))
 
 var PunkyStyle = list.Styles{
 	TitleBar:     lipgloss.NewStyle().Foreground(lipgloss.Color("205")).Background(lipgloss.Color("black")).Bold(true).Padding(1, 2),

@@ -1,40 +1,44 @@
-# CRUSH.md
+Build & Test
 
-## Build, Lint, and Test Commands
-- Build the project: `go build ./...`
-- Run tests: `go test ./...`
-- Run a single test: `go test -run TestFunctionName ./path/to/package`
-- Lint the code: `golint ./...`
+- Build binary (project root):
+  go build ./...
 
-## Code Style Guidelines
+- Run all tests:
+  go test ./...
 
-### Imports
-- Group imports by standard library, external packages, and local packages.
-- Use all relevant imports, avoiding unnecessary ones.
+- Run a single test (package-level):
+  go test ./yummy/recipe -run TestName
 
-### Formatting
-- Adhere to Go standard formatting (use `gofmt` or `go fmt`).
-- Maintain a consistent style across all files.
+- Run a single test by fully-qualified package path:
+  go test github.com/your/module/path/yummy/recipe -run TestName
 
-### Types
-- Prefer the use of interface types where possible for flexibility.
-- Keep types and functions small and focused.
+- Quick vet/static checks:
+  go vet ./...
+  go list -f '{{.Dir}}' ./... | xargs -n1 go vet
 
-### Naming Conventions
-- Use camelCase for variables and functions, and PascalCase for types.
-- Ensure names are descriptive and convey intent.
+- Formatting & imports:
+  gofmt -w .
+  goimports -w .   # if installed
 
-### Error Handling
-- Always handle errors returned by functions.
-- Use `fmt.Errorf` for wrapping errors with additional context.
+- Linting (recommended):
+  golangci-lint run  # if golangci-lint is installed/configured
 
-### Comments
-- Write comments for complex logic, explaining why something is done rather than what.
-- Avoid comments that state the obvious.
+Code style guidelines
 
-## Cursor and Copilot Rules
-_No rules found._  
+- Formatting: always run gofmt (or gofmt via editor) and goimports before committing.
+- Imports: group standard library first, blank line, then external modules. Keep imports minimal.
+- Naming: Use camelCase for variables, PascalCase for exported identifiers. Avoid stuttering (package name repeated in type name).
+- Error handling: return wrapped errors using fmt.Errorf("...: %w", err) when adding context. Check errors immediately after calls.
+- Types: prefer small, focused structs. Use interfaces only for behaviour that will be mocked or have multiple implementations.
+- Logging: use the project logger (yummy/log) if available; otherwise keep logs minimal and structured.
+- Tests: keep tests hermetic, avoid network/file system side effects. Use t.Run for subtests. Name tests TestBehaviour_Condition or TestFunction_Scenario.
+- Concurrency: prefer context.Context for cancellation and timeouts. Avoid sharing mutable state between goroutines.
+- Comments: keep comments short and factual. Public types/functions must have doc comments starting with the identifier.
+- Error messages: user-facing messages should be lower-case, no trailing punctuation. Internal logs may be more verbose.
 
-# Additional Notes
-- Ensure to keep dependencies updated to minimize security vulnerabilities.
-- Follow best practices for concurrent programming when dealing with goroutines and channels.
+Repo-specific notes
+
+- No .cursor or Copilot instruction files were found; there are no special cursor/copilot rules to include.
+- If you add environment variables, create a .env in the project root with placeholders and document them here.
+
+If you want, I can add repository-specific lint config (golangci-lint) or run the test suite and lint checks now.

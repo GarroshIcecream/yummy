@@ -158,11 +158,11 @@ Note: The model download requires internet connection and sufficient disk space`
 // GetOllamaServiceStatus returns a detailed status of the Ollama service
 func GetOllamaServiceStatus() map[string]interface{} {
 	status := map[string]interface{}{
-		"installed": false,
-		"running":   false,
-		"functional": false,
+		"installed":       false,
+		"running":         false,
+		"functional":      false,
 		"model_available": false,
-		"errors": []string{},
+		"errors":          []string{},
 	}
 
 	// Check if ollama command exists

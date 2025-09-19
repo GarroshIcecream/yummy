@@ -30,6 +30,12 @@ type LoadRecipeMsg struct {
 	Err      error
 }
 
+type StatusInfoMsg struct {
+	Msg  string
+	Type int
+	TTL  int
+}
+
 func SendRecipeSelectedMsg(recipe_id uint) tea.Cmd {
 	return tui.CmdHandler(RecipeSelectedMsg{RecipeID: recipe_id})
 }
@@ -40,4 +46,16 @@ func SendSessionStateMsg(session_state SessionState) tea.Cmd {
 
 func SendEditRecipeMsg(recipe_id uint) tea.Cmd {
 	return tui.CmdHandler(EditRecipeMsg{RecipeID: recipe_id})
+}
+
+func SendLoadRecipeMsg(msg LoadRecipeMsg) tea.Cmd {
+	return tui.CmdHandler(msg)
+}
+
+func SendStatusInfoMsg(msg string, msgType int, ttl int) tea.Cmd {
+	return tui.CmdHandler(StatusInfoMsg{
+		Msg:  msg,
+		Type: msgType,
+		TTL:  ttl,
+	})
 }

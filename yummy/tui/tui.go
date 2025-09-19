@@ -2,7 +2,9 @@ package tui
 
 import (
 	"context"
+	"fmt"
 	"log"
+	"strings"
 
 	"github.com/GarroshIcecream/yummy/yummy/config"
 	db "github.com/GarroshIcecream/yummy/yummy/db"
@@ -11,10 +13,12 @@ import (
 	edit "github.com/GarroshIcecream/yummy/yummy/tui/edit"
 	yummy_list "github.com/GarroshIcecream/yummy/yummy/tui/list"
 	main_menu "github.com/GarroshIcecream/yummy/yummy/tui/main_menu"
+	status "github.com/GarroshIcecream/yummy/yummy/tui/status"
 	ui "github.com/GarroshIcecream/yummy/yummy/ui"
 	"github.com/charmbracelet/bubbles/key"
 	list "github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 type TUIModel interface {
@@ -30,6 +34,9 @@ type Manager struct {
 	Cookbook             *db.CookBook
 	keyMap               config.KeyMap
 	Ctx                  context.Context
+	statusLine           *status.StatusLine
+	width                int
+	height               int
 }
 
 func New(cookbook *db.CookBook, ctx context.Context) (*Manager, error) {
@@ -50,6 +57,9 @@ func New(cookbook *db.CookBook, ctx context.Context) (*Manager, error) {
 		CurrentSessionState:  ui.SessionStateMainMenu,
 		PreviousSessionState: ui.SessionStateMainMenu,
 		Ctx:                  ctx,
+		statusLine:           status.New(ui.DefaultViewportWidth, ui.DefaultViewportHeight),
+		width:                ui.DefaultViewportWidth,
+		height:               ui.DefaultViewportHeight,
 	}
 
 	return &manager, nil
@@ -78,8 +88,11 @@ func (m *Manager) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.SetCurrentSessionState(msg.SessionState)
 
 	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		m.height = msg.Height
+		m.statusLine.SetSize(msg.Width, 1)
 		for _, model := range m.models {
-			model.SetSize(msg.Width, msg.Height)
+			model.SetSize(msg.Width, msg.Height-1) // Reserve space for status line
 		}
 
 	case tea.KeyMsg:
@@ -151,8 +164,49 @@ func (m *Manager) Init() tea.Cmd {
 }
 
 func (m Manager) View() string {
+	var content string
 	if currentModel, exists := m.models[m.CurrentSessionState]; exists {
-		return currentModel.View()
+		content = currentModel.View()
 	}
-	return ""
+
+	// Create status line info
+	statusInfo := m.createStatusInfo()
+	statusLine := m.statusLine.Render(statusInfo)
+
+	// Combine content and status line (status line already has proper styling)
+	return lipgloss.JoinVertical(lipgloss.Left, content, statusLine)
+}
+
+func (m *Manager) createStatusInfo() status.StatusInfo {
+	additionalInfo := make(map[string]interface{})
+
+	// Add specific information based on current session state
+	switch m.CurrentSessionState {
+	case ui.SessionStateList:
+		if listModel, ok := m.models[ui.SessionStateList].(*yummy_list.ListModel); ok {
+			additionalInfo["count"] = len(listModel.RecipeList.Items())
+		}
+
+	case ui.SessionStateDetail:
+		if detailModel, ok := m.models[ui.SessionStateDetail].(*detail.DetailModel); ok {
+			if detailModel.CurrentRecipe != nil {
+				recipeName := detailModel.CurrentRecipe.Name
+				recipeID := detailModel.CurrentRecipe.ID
+				author := detailModel.CurrentRecipe.Author
+				if author != "" {
+					author = fmt.Sprintf("(by %s)", author)
+				}
+				additionalInfo["recipe_name"] = strings.Join([]string{fmt.Sprintf("(#%d)", recipeID), recipeName, author}, " ")
+			}
+			// Add scroll position info
+			additionalInfo["scroll_pos"] = detailModel.GetScrollPosition()
+			additionalInfo["total_lines"] = detailModel.GetContentHeight()
+		}
+
+	case ui.SessionStateEdit:
+		// Edit model doesn't expose recipe name directly, so we'll use a generic name
+		additionalInfo["recipe_name"] = "Edit Recipe"
+	}
+
+	return status.CreateStatusInfo(m.CurrentSessionState, additionalInfo)
 }

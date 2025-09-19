@@ -240,14 +240,38 @@ func (m *MainMenuModel) renderMenuItems() string {
 	for i, item := range m.items {
 		isSelected := i == m.selected
 		itemContent := m.renderMenuItem(item, isSelected)
+
+		menuItemWidth := 60
+		var itemContentStyled string
 		if isSelected {
-			itemContent = lipgloss.NewStyle().
+			zeldaArrow := "▶"
+			arrowStyle := lipgloss.NewStyle().
+				Foreground(lipgloss.Color("#FFD700")).
+				Bold(true)
+			itemContent = arrowStyle.Render(zeldaArrow) + " " + itemContent
+			itemContentStyled = lipgloss.NewStyle().
 				Border(lipgloss.DoubleBorder()).
+				BorderForeground(lipgloss.Color("#FFD700")).
+				Width(menuItemWidth).
+				Align(lipgloss.Center).
+				Render(itemContent)
+		} else {
+			itemContent = "  " + itemContent
+			itemContentStyled = lipgloss.NewStyle().
+				Border(lipgloss.NormalBorder()).
 				BorderForeground(lipgloss.Color("#9370DB")).
+				Width(menuItemWidth).
+				Align(lipgloss.Center).
 				Render(itemContent)
 		}
-		items.WriteString(itemContent)
-		items.WriteString("\n")
+
+		items.WriteString(itemContentStyled)
+
+		if i < len(m.items)-1 {
+			items.WriteString("\n\n")
+		} else {
+			items.WriteString("\n")
+		}
 	}
 
 	return items.String()
@@ -256,27 +280,49 @@ func (m *MainMenuModel) renderMenuItems() string {
 func (m *MainMenuModel) renderMenuItem(item menuItem, isSelected bool) string {
 	var content strings.Builder
 
-	// Enhanced icon with purple glow effect
+	// Enhanced icon with conditional styling
+	var iconColor string
+	if isSelected {
+		iconColor = "#FFD700" // Golden color for selected
+	} else {
+		iconColor = "#DDA0DD" // Purple for unselected
+	}
+
 	iconStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#DDA0DD")).
+		Foreground(lipgloss.Color(iconColor)).
 		Bold(isSelected)
 
 	content.WriteString(iconStyle.Render(item.icon))
 	content.WriteString(" ")
 
-	// Enhanced title with purple typography
+	// Enhanced title with conditional styling
+	var titleColor string
+	if isSelected {
+		titleColor = "#FFD700" // Golden color for selected
+	} else {
+		titleColor = "#E6E6FA" // Light purple for unselected
+	}
+
 	titleStyle := lipgloss.NewStyle().
 		Bold(isSelected).
-		Foreground(lipgloss.Color("#E6E6FA"))
+		Foreground(lipgloss.Color(titleColor))
 
 	content.WriteString(titleStyle.Render(item.title))
 	content.WriteString("\n")
 
-	// Enhanced description with purple theme
+	// Enhanced description with conditional styling
+	var descColor string
+	if isSelected {
+		descColor = "#FFA500" // Orange for selected description
+	} else {
+		descColor = "#B19CD9" // Purple for unselected
+	}
+
 	descStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#B19CD9")).
+		Foreground(lipgloss.Color(descColor)).
 		Italic(true).
-		PaddingLeft(4)
+		PaddingLeft(4).
+		PaddingBottom(1)
 
 	content.WriteString(descStyle.Render(item.description))
 

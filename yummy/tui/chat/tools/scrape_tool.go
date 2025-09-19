@@ -20,9 +20,9 @@ type ScrapeResult struct {
 
 // Scraper handles web scraping operations
 type ScraperTool struct {
-	client *http.Client
-	id     string
-	name   string
+	client      *http.Client
+	id          string
+	name        string
 	description string
 }
 
@@ -80,8 +80,8 @@ func NewScraperTool() *ScraperTool {
 		client: &http.Client{
 			Timeout: 10 * time.Second,
 		},
-		id:     uuid.New().String(),
-		name:   "scrape_website",
+		id:          uuid.New().String(),
+		name:        "scrape_website",
 		description: "Scrape content from a website URL to extract recipe information. Use this when you need to get recipe details from a specific website.",
 	}
 }

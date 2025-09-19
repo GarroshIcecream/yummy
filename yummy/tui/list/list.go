@@ -5,7 +5,9 @@ import (
 
 	"github.com/GarroshIcecream/yummy/yummy/config"
 	db "github.com/GarroshIcecream/yummy/yummy/db"
+	"github.com/GarroshIcecream/yummy/yummy/recipe"
 	styles "github.com/GarroshIcecream/yummy/yummy/tui/styles"
+	"github.com/GarroshIcecream/yummy/yummy/ui"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
@@ -39,9 +41,9 @@ func New(cookbook *db.CookBook, keymaps config.KeyMap) *ListModel {
 		return []key.Binding{keymaps.Add, keymaps.Delete}
 	}
 
-	// l.AdditionalFullHelpKeys = func() []key.Binding {
-	// 	return []key.Binding{keymaps.Add, keymaps.Delete}
-	// }
+	l.AdditionalFullHelpKeys = func() []key.Binding {
+		return []key.Binding{keymaps.Add, keymaps.Delete}
+	}
 
 	return &ListModel{
 		cookbook:   cookbook,
@@ -62,28 +64,29 @@ func (m *ListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	)
 
 	switch msg := msg.(type) {
-	// case tea.KeyMsg:
-	// 	switch {
-	// 	case key.Matches(msg, keys.Keys.Delete):
-	// 		if m.RecipeList.FilterState() != list.Filtering {
-	// 			if i, ok := m.RecipeList.SelectedItem().(recipe.RecipeWithDescription); ok {
-	// 				if err := m.cookbook.DeleteRecipe(i.RecipeID); err != nil {
-	// 					m.err = err
-	// 					return m, nil
-	// 				}
 
-	// 				m.RefreshRecipeList()
-	// 				return m, nil
-	// 			}
-	// 		}
-	// 	case key.Matches(msg, keys.Keys.Enter):
-	// 		if m.RecipeList.FilterState() != list.Filtering {
-	// 			if i, ok := m.RecipeList.SelectedItem().(recipe.RecipeWithDescription); ok {
-	// 				cmds = append(cmds, ui.SendSessionStateMsg(ui.SessionStateDetail))
-	// 				cmds = append(cmds, ui.SendRecipeSelectedMsg(i.RecipeID))
-	// 			}
-	// 		}
-	// 	}
+	case tea.KeyMsg:
+		switch {
+		case key.Matches(msg, m.keyMap.Delete):
+			if m.RecipeList.FilterState() != list.Filtering {
+				if i, ok := m.RecipeList.SelectedItem().(recipe.RecipeWithDescription); ok {
+					if err := m.cookbook.DeleteRecipe(i.RecipeID); err != nil {
+						m.err = err
+						return m, nil
+					}
+
+					cmd = m.RefreshRecipeList()
+					cmds = append(cmds, cmd)
+				}
+			}
+		case key.Matches(msg, m.keyMap.Enter):
+			if m.RecipeList.FilterState() != list.Filtering {
+				if i, ok := m.RecipeList.SelectedItem().(recipe.RecipeWithDescription); ok {
+					cmds = append(cmds, ui.SendSessionStateMsg(ui.SessionStateDetail))
+					cmds = append(cmds, ui.SendRecipeSelectedMsg(i.RecipeID))
+				}
+			}
+		}
 
 	case tea.WindowSizeMsg:
 		h, v := styles.DocStyle.GetFrameSize()

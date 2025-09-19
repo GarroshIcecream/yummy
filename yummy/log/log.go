@@ -19,7 +19,7 @@ var (
 )
 
 func Setup(logfiledir string, debug bool) {
-	logFile := filepath.Join(logfiledir, "logs","debug.log")
+	logFile := filepath.Join(logfiledir, "logs", "debug.log")
 	initOnce.Do(func() {
 		logRotator := &lumberjack.Logger{
 			Filename:   logFile,

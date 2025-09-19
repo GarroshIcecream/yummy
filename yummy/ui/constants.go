@@ -10,10 +10,22 @@ const (
 	SessionStateChat
 )
 
+type StatusMode string
+
+const (
+	StatusModeMenu   StatusMode = "MENU"
+	StatusModeList   StatusMode = "COOKBOOK"
+	StatusModeEdit   StatusMode = "EDIT"
+	StatusModeChat   StatusMode = "CHAT"
+	StatusModeRecipe StatusMode = "RECIPE"
+)
+
 const (
 	// Viewport dimensions
 	DefaultViewportHeight = 30
 	DefaultViewportWidth  = 80
+	DefaultScrollSpeed    = 3
+	DefaultMoveSpeed      = 1
 
 	// Text area configuration
 	TextAreaPlaceholder = "Ask anything about cooking, recipes, ingredients, or anything else you want to know about food... 🍳 "
