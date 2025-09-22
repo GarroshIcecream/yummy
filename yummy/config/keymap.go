@@ -14,16 +14,17 @@ type KeyMap struct {
 	Enter  key.Binding
 	Help   key.Binding
 	Edit   key.Binding
+	StateSelector key.Binding
 }
 
 func (k KeyMap) ShortHelp() []key.Binding {
-	return []key.Binding{k.Help, k.Quit}
+	return []key.Binding{k.Help, k.StateSelector, k.Quit}
 }
 
 func (k KeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{k.Up, k.Down},   // first column
-		{k.Help, k.Quit}, // second column
+		{k.Help, k.StateSelector, k.Quit}, // second column
 	}
 }
 
@@ -72,6 +73,10 @@ func DefaultKeyMap() KeyMap {
 		Delete: key.NewBinding(
 			key.WithKeys("x"),
 			key.WithHelp("x", "delete recipe"),
+		),
+		StateSelector: key.NewBinding(
+			key.WithKeys("s"),
+			key.WithHelp("s", "select state"),
 		),
 	}
 }

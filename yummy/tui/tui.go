@@ -13,6 +13,7 @@ import (
 	edit "github.com/GarroshIcecream/yummy/yummy/tui/edit"
 	yummy_list "github.com/GarroshIcecream/yummy/yummy/tui/list"
 	main_menu "github.com/GarroshIcecream/yummy/yummy/tui/main_menu"
+	state_selector "github.com/GarroshIcecream/yummy/yummy/tui/state_selector"
 	status "github.com/GarroshIcecream/yummy/yummy/tui/status"
 	ui "github.com/GarroshIcecream/yummy/yummy/ui"
 	"github.com/charmbracelet/bubbles/key"
@@ -50,6 +51,7 @@ func New(cookbook *db.CookBook, ctx context.Context) (*Manager, error) {
 		ui.SessionStateDetail:   detail.New(cookbook, keymaps),
 		ui.SessionStateEdit:     edit.New(cookbook, keymaps, nil),
 		ui.SessionStateChat:     chat.New(cookbook, keymaps),
+		ui.SessionStateStateSelector: state_selector.New(),
 	}
 
 	manager := Manager{
@@ -132,10 +134,12 @@ func (m *Manager) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if listModel, ok := m.models[ui.SessionStateList].(*yummy_list.ListModel); ok {
 					if listModel.RecipeList.FilterState() != list.Filtering {
 						m.SetCurrentSessionState(m.PreviousSessionState)
+						return m, nil
 					}
 				}
 			} else {
 				m.SetCurrentSessionState(m.PreviousSessionState)
+				return m, nil
 			}
 		case key.Matches(msg, m.keyMap.Add):
 			if m.CurrentSessionState == ui.SessionStateList {
@@ -145,6 +149,9 @@ func (m *Manager) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 				}
 			}
+		case key.Matches(msg, m.keyMap.StateSelector):
+			m.SetCurrentSessionState(ui.SessionStateStateSelector)
+			return m, nil
 		}
 	}
 
@@ -176,13 +183,14 @@ func (m Manager) View() string {
 		content = currentModel.View()
 	}
 
-	if m.GetModelState(m.CurrentSessionState) == ui.ModelStateLoading {
-		return lipgloss.JoinVertical(lipgloss.Left, content)
-	} else {
+	// Render status line if not loading
+	if m.GetModelState(m.CurrentSessionState) != ui.ModelStateLoading {
 		statusInfo := m.createStatusInfo()
 		statusLine := m.statusLine.Render(statusInfo)
-		return lipgloss.JoinVertical(lipgloss.Left, content, statusLine)
+		content = lipgloss.JoinVertical(lipgloss.Left, content, statusLine)
 	}
+
+	return content
 }
 
 func (m *Manager) createStatusInfo() status.StatusInfo {
@@ -214,6 +222,10 @@ func (m *Manager) createStatusInfo() status.StatusInfo {
 	case ui.SessionStateEdit:
 		// Edit model doesn't expose recipe name directly, so we'll use a generic name
 		additionalInfo["recipe_name"] = "Edit Recipe"
+
+	case ui.SessionStateStateSelector:
+		selectedState := m.models[ui.SessionStateStateSelector].(*state_selector.StateSelectorDialogCmp).GetSelectedStateName()
+		additionalInfo["state_selected"] = selectedState
 	}
 
 	return status.CreateStatusInfo(m.CurrentSessionState, additionalInfo)

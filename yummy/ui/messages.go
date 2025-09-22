@@ -30,10 +30,16 @@ type LoadRecipeMsg struct {
 	Err      error
 }
 
+type CloseDialogMsg struct{}
+
 type StatusInfoMsg struct {
 	Msg  string
 	Type int
 	TTL  int
+}
+
+func SendCloseDialogMsg() tea.Cmd {
+	return tui.CmdHandler(CloseDialogMsg{})
 }
 
 func SendRecipeSelectedMsg(recipe_id uint) tea.Cmd {

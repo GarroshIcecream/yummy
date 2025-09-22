@@ -8,6 +8,17 @@ const (
 	SessionStateDetail
 	SessionStateEdit
 	SessionStateChat
+	SessionStateStateSelector
+)
+
+type StateNames string
+
+const (
+	StateNameMainMenu StateNames = "Main Menu"
+	StateNameList     StateNames = "Recipe List"
+	StateNameDetail   StateNames = "Recipe Detail"
+	StateNameEdit     StateNames = "Edit Recipe"
+	StateNameChat     StateNames = "Chat Assistant"
 )
 
 type ModelState int
@@ -21,11 +32,12 @@ const (
 type StatusMode string
 
 const (
-	StatusModeMenu   StatusMode = "MENU"
-	StatusModeList   StatusMode = "COOKBOOK"
-	StatusModeEdit   StatusMode = "EDIT"
-	StatusModeChat   StatusMode = "CHAT"
-	StatusModeRecipe StatusMode = "RECIPE"
+	StatusModeMenu          StatusMode = "MENU"
+	StatusModeList          StatusMode = "COOKBOOK"
+	StatusModeEdit          StatusMode = "EDIT"
+	StatusModeChat          StatusMode = "CHAT"
+	StatusModeRecipe        StatusMode = "RECIPE"
+	StatusModeStateSelector StatusMode = "DIALOG"
 )
 
 // Mein menu constants

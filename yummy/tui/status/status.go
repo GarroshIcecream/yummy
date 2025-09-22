@@ -17,7 +17,7 @@ type StatusLine struct {
 // this sucks as we need to think of some other fields that are applicable to us
 type StatusInfo struct {
 	Mode        ui.StatusMode
-	FileName    string
+	FileName    ui.StateNames
 	FileInfo    string
 	Position    string
 	LineCount   int
@@ -79,7 +79,7 @@ func (s *StatusLine) renderLeftSide(info StatusInfo) string {
 		if info.ReadOnly {
 			fileName += " [RO]"
 		}
-		fileText := styles.StatusLineFileStyle.Render(fileName)
+		fileText := styles.StatusLineFileStyle.Render(string(fileName))
 		parts = append(parts, fileText)
 	}
 
@@ -109,12 +109,12 @@ func CreateStatusInfo(sessionState ui.SessionState, additionalInfo map[string]in
 	switch sessionState {
 	case ui.SessionStateMainMenu:
 		info.Mode = ui.StatusModeMenu
-		info.FileName = "Main Menu"
+		info.FileName = ui.StateNameMainMenu
 		info.FileInfo = "Ready"
 
 	case ui.SessionStateList:
 		info.Mode = ui.StatusModeList
-		info.FileName = "Recipe List"
+		info.FileName = ui.StateNameList
 		if count, ok := additionalInfo["count"].(int); ok {
 			info.FileInfo = fmt.Sprintf("%d recipes", count)
 		} else {
@@ -124,9 +124,9 @@ func CreateStatusInfo(sessionState ui.SessionState, additionalInfo map[string]in
 	case ui.SessionStateDetail:
 		info.Mode = ui.StatusModeRecipe
 		if recipeName, ok := additionalInfo["recipe_name"].(string); ok {
-			info.FileName = recipeName
+			info.FileName = ui.StateNames(recipeName)
 		} else {
-			info.FileName = "Recipe Details"
+			info.FileName = ui.StateNameDetail
 		}
 		if scrollPos, ok := additionalInfo["scroll_pos"].(int); ok {
 			if totalLines, ok := additionalInfo["total_lines"].(int); ok {
@@ -140,17 +140,26 @@ func CreateStatusInfo(sessionState ui.SessionState, additionalInfo map[string]in
 	case ui.SessionStateEdit:
 		info.Mode = ui.StatusModeEdit
 		if recipeName, ok := additionalInfo["recipe_name"].(string); ok {
-			info.FileName = recipeName
+			info.FileName = ui.StateNames(recipeName)
 		} else {
-			info.FileName = "Edit Recipe"
+			info.FileName = ui.StateNameEdit
 		}
 		info.Modified = true
 		info.FileInfo = "Modified"
 
 	case ui.SessionStateChat:
 		info.Mode = ui.StatusModeChat
-		info.FileName = "AI Assistant"
+		info.FileName = ui.StateNameChat
 		info.FileInfo = "Chat Mode"
+
+	case ui.SessionStateStateSelector:
+		info.Mode = ui.StatusModeStateSelector
+		if stateSelected, ok := additionalInfo["state_selected"].(string); ok {
+			info.FileName = ui.StateNames(stateSelected)
+		} else {
+			info.FileName = ui.StateNameMainMenu
+		}
+		info.FileInfo = "State Selector"
 	}
 
 	return info
