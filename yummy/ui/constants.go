@@ -10,6 +10,14 @@ const (
 	SessionStateChat
 )
 
+type ModelState int
+
+const (
+	ModelStateLoading ModelState = iota
+	ModelStateLoaded
+	ModelStateError
+)
+
 type StatusMode string
 
 const (
@@ -18,6 +26,17 @@ const (
 	StatusModeEdit   StatusMode = "EDIT"
 	StatusModeChat   StatusMode = "CHAT"
 	StatusModeRecipe StatusMode = "RECIPE"
+)
+
+// Mein menu constants
+const (
+	MenuItemWidth        = 60
+	MainMenuContentWidth = 80
+)
+
+const (
+	StatusLineHeight  = 1
+	StatusLinePadding = 2
 )
 
 const (

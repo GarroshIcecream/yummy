@@ -5,99 +5,65 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
-    inputs:
-      version:
-        description: 'Version to release (e.g., v1.0.0)'
-        required: true
-        default: 'v1.0.0'
+
+permissions:
+  contents: write
+  packages: write
 
 jobs:
   release:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      packages: write
-    
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: '1.24.3'
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
 
-    - name: Get version
-      id: version
-      run: |
-        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-          echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
-        else
-          echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-        fi
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v5
+        with:
+          distribution: goreleaser
+          version: latest
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Run tests
-      run: make test
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-    - name: Build for all platforms
-      run: make build-all
-      env:
-        VERSION: ${{ steps.version.outputs.version }}
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
 
-    - name: Create release archives
-      run: make release
+      - name: Run tests
+        run: go test -v ./...
 
-    - name: Create checksums
-      run: |
-        cd dist
-        ls -la
-        sha256sum *.tar.gz *.zip > checksums.txt
-        cat checksums.txt
+      - name: Build
+        run: go build -v ./...
 
-    - name: Create Release
-      uses: softprops/action-gh-release@v1
-      with:
-        tag_name: ${{ steps.version.outputs.version }}
-        name: Yummy ${{ steps.version.outputs.version }}
-        body: |
-          ## 🍳 What's New in ${{ steps.version.outputs.version }}
-          
-          ### Features
-          - ✨ New features and improvements
-          - 🐛 Bug fixes and stability improvements
-          - 📚 Updated documentation
-          
-          ### Installation
-          
-          **Download for your platform:**
-          
-          - **Linux (AMD64)**: `yummy-linux-amd64.tar.gz`
-          - **Linux (ARM64)**: `yummy-linux-arm64.tar.gz`
-          - **Windows (AMD64)**: `yummy-windows-amd64.zip`
-          - **Windows (ARM64)**: `yummy-windows-arm64.zip`
-          - **macOS (Intel)**: `yummy-darwin-amd64.tar.gz`
-          - **macOS (Apple Silicon)**: `yummy-darwin-arm64.tar.gz`
-          
-          **Quick install with Go:**
-          ```bash
-          go install github.com/GarroshIcecream/yummy@${{ steps.version.outputs.version }}
-          ```
-          
-          ### Verification
-          Download the `checksums.txt` file and verify your download:
-          ```bash
-          sha256sum -c checksums.txt
-          ```
-          
-          ---
-          *Cook boldly. Ship deliciousness.* 🚀
-        files: |
-          dist/*.tar.gz
-          dist/*.zip
-          dist/checksums.txt
-        draft: false
-        prerelease: false
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v5
+        with:
+          distribution: goreleaser
+          version: latest
+          args: build --snapshot --clean

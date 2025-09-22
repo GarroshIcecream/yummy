@@ -17,6 +17,7 @@ type ListModel struct {
 	cookbook   *db.CookBook
 	err        error
 	RecipeList list.Model
+	modelState ui.ModelState
 	width      int
 	height     int
 	keyMap     config.KeyMap
@@ -48,6 +49,7 @@ func New(cookbook *db.CookBook, keymaps config.KeyMap) *ListModel {
 	return &ListModel{
 		cookbook:   cookbook,
 		keyMap:     keymaps,
+		modelState: ui.ModelStateLoaded,
 		err:        err,
 		RecipeList: l,
 	}
@@ -137,4 +139,8 @@ func (m *ListModel) SetSize(width, height int) {
 // GetSize returns the current width and height of the model
 func (m *ListModel) GetSize() (width, height int) {
 	return m.width, m.height
+}
+
+func (m *ListModel) GetModelState() ui.ModelState {
+	return m.modelState
 }

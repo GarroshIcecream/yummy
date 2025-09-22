@@ -1,0 +1,180 @@
+project_name: yummy
+before:
+  hooks:
+    - go mod tidy
+    - go test ./...
+    - go clean -cache
+    - rm -rf dist/
+
+builds:
+  - id: yummy
+    binary: yummy
+    main: .
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X github.com/GarroshIcecream/yummy/yummy/version.Version={{.Version}}
+      - -X github.com/GarroshIcecream/yummy/yummy/version.BuildTime={{.CommitTimestamp}}
+      - -X github.com/GarroshIcecream/yummy/yummy/version.GitCommit={{.FullCommit}}
+    flags:
+      - -trimpath
+      - -buildvcs=true
+    tags:
+      - netgo
+    env:
+      - CGO_ENABLED=0
+
+archives:
+  - id: yummy-archive
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        format: zip
+      - goos: linux
+        format: tar.gz
+      - goos: darwin
+        format: tar.gz
+    files:
+      - assets/yummy_logo.svg
+      - readme.md
+      - LICENSE
+    format: tar.gz
+
+checksum:
+  name_template: 'checksums.txt'
+  algorithm: sha256
+
+release:
+  github:
+    owner: GarroshIcecream
+    name: yummy
+  
+  header: |
+    ## 🍳 Yummy Recipe Manager {{ .Version }}
+    
+    A terminal-based cookbook manager and recipe assistant built with Go and Bubble Tea.
+    
+    ### What's New
+    - Check the changelog for detailed changes
+    
+    ### Installation
+    Download the appropriate binary for your platform and extract it to a directory in your PATH.
+    
+  footer: |
+    ### Support
+    - Report issues: [GitHub Issues](https://github.com/GarroshIcecream/yummy/issues)
+    - Documentation: [README](https://github.com/GarroshIcecream/yummy#readme)
+    
+    ### Development
+    Built with ❤️ using Go and [Bubble Tea](https://github.com/charmbracelet/bubbletea)
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^ci:'
+      - '^build:'
+      - '^chore:'
+
+# Snapcraft configuration (optional)
+snapcrafts:
+  - id: yummy-snap
+    name_template: "{{ .ProjectName }}"
+    summary: "Terminal-based cookbook manager and recipe assistant"
+    description: |
+      Yummy is a beautiful terminal-based cookbook manager and recipe assistant.
+      It helps you organize your recipes, scrape recipes from websites, and provides
+      an AI-powered chat interface for cooking assistance.
+    grade: stable
+    confinement: strict
+    base: core20
+    license: MIT
+    # App icon
+    icon: assets/yummy_logo.svg
+    # Plugs for file system access
+    plugs:
+      home: null
+      network: null
+      removable-media: null
+
+# Homebrew Casks
+homebrew_casks:
+  - name: yummy
+    # Binary name inside the cask
+    binary: yummy
+    # Repository configuration
+    repository:
+      owner: GarroshIcecream
+      name: yummy
+      branch: master
+    # Cask metadata
+    description: "Terminal-based cookbook manager and recipe assistant"
+    homepage: "https://github.com/GarroshIcecream/yummy"
+    license: "MIT"
+    # Skip upload if no new version
+    skip_upload: auto
+    # Post-install hook to handle macOS quarantine
+    hooks:
+      post:
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/yummy"]
+          end
+    # Caveats for users
+    caveats: |
+      Yummy is a terminal-based application. Run 'yummy --help' to get started.
+      
+      Note: On macOS, you may need to allow the application to run in System Preferences > Security & Privacy.
+
+# Scoop manifest (optional)
+scoops:
+  - name: yummy
+    description: "Terminal-based cookbook manager and recipe assistant"
+    homepage: "https://github.com/GarroshIcecream/yummy"
+    license: "MIT"
+    skip_upload: auto
+    # Persist data directory
+    persist:
+      - ".yummy"
+
+# Docker configuration (optional)
+dockers:
+  - id: yummy-docker
+    image_templates:
+      - "ghcr.io/garroshicecream/yummy:{{ .Version }}"
+      - "ghcr.io/garroshicecream/yummy:latest"
+    dockerfile: Dockerfile
+    use: buildx
+    build_flag_templates:
+      - --platform=linux/amd64
+      - --platform=linux/arm64
+    extra_files:
+      - assets/yummy_logo.svg
+      - readme.md
+      - LICENSE
+
+# Announce configuration
+announce:
+  skip: "{{gt .Patch 0}}" # Skip for patch releases
+  twitter:
+    enabled: true
+    message_template: |
+      🍳 Yummy Recipe Manager {{ .Version }} is out! 
+      
+      A beautiful terminal-based cookbook manager and recipe assistant.
+      
+      Download: {{ .URL }}
+      
+      #golang #terminal #cooking #recipes
+
+# Metadata
+metadata:
+  mod_timestamp: "{{ .CommitTimestamp }}"

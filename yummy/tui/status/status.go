@@ -51,7 +51,7 @@ func (s *StatusLine) Render(info StatusInfo) string {
 
 	leftWidth := lipgloss.Width(leftStyled)
 	rightWidth := lipgloss.Width(rightStyled)
-	spaceWidth := s.width - leftWidth - rightWidth - 2
+	spaceWidth := s.width - leftWidth - rightWidth - ui.StatusLinePadding
 
 	emptySpace := ""
 	if spaceWidth > 0 {

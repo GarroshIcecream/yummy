@@ -23,6 +23,7 @@ import (
 
 type TUIModel interface {
 	tea.Model
+	GetModelState() ui.ModelState
 	SetSize(width, height int)
 	GetSize() (width, height int)
 }
@@ -33,6 +34,7 @@ type Manager struct {
 	models               map[ui.SessionState]TUIModel
 	Cookbook             *db.CookBook
 	keyMap               config.KeyMap
+	ModelState           ui.ModelState
 	Ctx                  context.Context
 	statusLine           *status.StatusLine
 	width                int
@@ -57,9 +59,10 @@ func New(cookbook *db.CookBook, ctx context.Context) (*Manager, error) {
 		CurrentSessionState:  ui.SessionStateMainMenu,
 		PreviousSessionState: ui.SessionStateMainMenu,
 		Ctx:                  ctx,
-		statusLine:           status.New(ui.DefaultViewportWidth, ui.DefaultViewportHeight),
-		width:                ui.DefaultViewportWidth,
+		statusLine:           status.New(ui.MainMenuContentWidth, ui.StatusLineHeight),
+		width:                ui.MainMenuContentWidth,
 		height:               ui.DefaultViewportHeight,
+		ModelState:           ui.ModelStateLoaded,
 	}
 
 	return &manager, nil
@@ -78,6 +81,10 @@ func (m *Manager) GetModel(state ui.SessionState) TUIModel {
 	return m.models[state]
 }
 
+func (m *Manager) GetModelState(state ui.SessionState) ui.ModelState {
+	return m.models[state].GetModelState()
+}
+
 func (m *Manager) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	var cmds []tea.Cmd
@@ -90,9 +97,9 @@ func (m *Manager) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		m.statusLine.SetSize(msg.Width, 1)
+		m.statusLine.SetSize(msg.Width, ui.StatusLineHeight)
 		for _, model := range m.models {
-			model.SetSize(msg.Width, msg.Height-1) // Reserve space for status line
+			model.SetSize(msg.Width, msg.Height-ui.StatusLineHeight)
 		}
 
 	case tea.KeyMsg:
@@ -102,13 +109,13 @@ func (m *Manager) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keyMap.Up):
 			if m.CurrentSessionState == ui.SessionStateDetail {
 				if detailModel, ok := m.models[ui.SessionStateDetail].(*detail.DetailModel); ok {
-					detailModel.ScrollUp(3)
+					detailModel.ScrollUp(ui.DefaultScrollSpeed)
 				}
 			}
 		case key.Matches(msg, m.keyMap.Down):
 			if m.CurrentSessionState == ui.SessionStateDetail {
 				if detailModel, ok := m.models[ui.SessionStateDetail].(*detail.DetailModel); ok {
-					detailModel.ScrollDown(3)
+					detailModel.ScrollDown(ui.DefaultScrollSpeed)
 				}
 			}
 
@@ -169,12 +176,13 @@ func (m Manager) View() string {
 		content = currentModel.View()
 	}
 
-	// Create status line info
-	statusInfo := m.createStatusInfo()
-	statusLine := m.statusLine.Render(statusInfo)
-
-	// Combine content and status line (status line already has proper styling)
-	return lipgloss.JoinVertical(lipgloss.Left, content, statusLine)
+	if m.GetModelState(m.CurrentSessionState) == ui.ModelStateLoading {
+		return lipgloss.JoinVertical(lipgloss.Left, content)
+	} else {
+		statusInfo := m.createStatusInfo()
+		statusLine := m.statusLine.Render(statusInfo)
+		return lipgloss.JoinVertical(lipgloss.Left, content, statusLine)
+	}
 }
 
 func (m *Manager) createStatusInfo() status.StatusInfo {

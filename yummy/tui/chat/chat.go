@@ -40,6 +40,7 @@ type ChatModel struct {
 	messageCount     int
 	tokenCount       int
 	ollamaStatus     map[string]interface{}
+	modelState       ui.ModelState
 }
 
 func New(cookbook *db.CookBook, keymaps config.KeyMap) *ChatModel {
@@ -123,6 +124,7 @@ func New(cookbook *db.CookBook, keymaps config.KeyMap) *ChatModel {
 		llmService:       llmService,
 		markdownRenderer: markdownRenderer,
 		loading:          false,
+		modelState:       ui.ModelStateLoaded,
 		sidebarWidth:     30, // Default sidebar width
 		messageCount:     0,
 		tokenCount:       0,
@@ -503,4 +505,8 @@ func (m *ChatModel) SetSize(width, height int) {
 // GetSize returns the current width and height of the model
 func (m *ChatModel) GetSize() (width, height int) {
 	return m.width, m.height
+}
+
+func (m *ChatModel) GetModelState() ui.ModelState {
+	return m.modelState
 }

@@ -1,0 +1,71 @@
+{
+  "name": "Spaghetti Carbonara",
+  "description": "A classic Italian pasta dish with eggs, cheese, and pancetta. Rich and creamy without any cream!",
+  "author": "Chef Mario",
+  "cook_time": "15m",
+  "prep_time": "10m",
+  "total_time": "25m",
+  "quantity": "4 servings",
+  "url": "https://example.com/carbonara",
+  "ingredients": [
+    {
+      "amount": "1",
+      "unit": "lb",
+      "name": "spaghetti",
+      "details": "dried"
+    },
+    {
+      "amount": "6",
+      "unit": "slices",
+      "name": "pancetta",
+      "details": "diced"
+    },
+    {
+      "amount": "4",
+      "unit": "large",
+      "name": "eggs",
+      "details": "room temperature"
+    },
+    {
+      "amount": "1",
+      "unit": "cup",
+      "name": "Pecorino Romano cheese",
+      "details": "grated"
+    },
+    {
+      "amount": "4",
+      "unit": "cloves",
+      "name": "garlic",
+      "details": "minced"
+    },
+    {
+      "amount": "1/2",
+      "unit": "tsp",
+      "name": "black pepper",
+      "details": "freshly ground"
+    },
+    {
+      "amount": "1/4",
+      "unit": "cup",
+      "name": "parsley",
+      "details": "chopped"
+    }
+  ],
+  "instructions": [
+    "Bring a large pot of salted water to boil and cook spaghetti according to package directions.",
+    "Meanwhile, cook pancetta in a large skillet over medium heat until crispy, about 5-7 minutes.",
+    "Add garlic to the pancetta and cook for 1 minute until fragrant.",
+    "In a bowl, whisk together eggs, cheese, and black pepper.",
+    "Drain pasta, reserving 1 cup of pasta water.",
+    "Add hot pasta to the skillet with pancetta and toss to combine.",
+    "Remove from heat and quickly stir in egg mixture, tossing constantly.",
+    "Add pasta water gradually until sauce is creamy and coats the pasta.",
+    "Garnish with parsley and additional cheese before serving."
+  ],
+  "categories": [
+    "pasta",
+    "italian",
+    "dinner",
+    "quick"
+  ]
+}

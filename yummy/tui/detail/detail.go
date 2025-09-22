@@ -24,6 +24,7 @@ type DetailModel struct {
 	width          int
 	height         int
 	keyMap         config.KeyMap
+	modelState     ui.ModelState
 }
 
 func New(cookbook *db.CookBook, keymaps config.KeyMap) *DetailModel {
@@ -40,6 +41,7 @@ func New(cookbook *db.CookBook, keymaps config.KeyMap) *DetailModel {
 		width:          ui.DefaultViewportWidth,
 		height:         ui.DefaultViewportHeight,
 		keyMap:         keymaps,
+		modelState:     ui.ModelStateLoaded,
 	}
 
 	return model
@@ -174,14 +176,12 @@ func (m *DetailModel) refreshContent() {
 		return
 	}
 
-	// Create a new renderer with current width
 	renderer, err := glamour.NewTermRenderer(
 		glamour.WithAutoStyle(),
-		glamour.WithWordWrap(max(40, m.width-4)), // Ensure minimum width
+		glamour.WithWordWrap(max(40, m.width-4)),
 		glamour.WithEmoji(),
 	)
 	if err != nil {
-		// Fallback to existing renderer if creation fails
 		return
 	}
 
@@ -190,9 +190,12 @@ func (m *DetailModel) refreshContent() {
 	content, err := m.renderer.Render(markdown)
 	if err == nil {
 		m.content = content
-		// Reset scroll position when content changes
 		m.scrollPosition = 0
 	}
+}
+
+func (m *DetailModel) GetModelState() ui.ModelState {
+	return m.modelState
 }
 
 func (m *DetailModel) GetSize() (width, height int) {

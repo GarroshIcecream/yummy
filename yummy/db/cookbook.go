@@ -270,6 +270,104 @@ func (c *CookBook) SaveScrapedRecipe(recipeRaw *recipe.RecipeRaw) (uint, error) 
 	return recipe.ID, nil
 }
 
+// UpdateRecipe updates an existing recipe in the database
+func (c *CookBook) UpdateRecipe(recipeRaw *recipe.RecipeRaw) error {
+	if recipeRaw.ID == 0 {
+		return fmt.Errorf("recipe ID is required for update")
+	}
+
+	tx := c.conn.Begin()
+	if tx.Error != nil {
+		return fmt.Errorf("failed to start transaction: %w", tx.Error)
+	}
+
+	// Update the base recipe
+	if err := tx.Model(&Recipe{}).Where("id = ?", recipeRaw.ID).Update("recipe_name", recipeRaw.Name).Error; err != nil {
+		tx.Rollback()
+		return fmt.Errorf("failed to update recipe: %w", err)
+	}
+
+	// Update metadata
+	metadata := RecipeMetadata{
+		Description: recipeRaw.Description,
+		Author:      recipeRaw.Author,
+		CookTime:    recipeRaw.CookTime,
+		PrepTime:    recipeRaw.PrepTime,
+		TotalTime:   recipeRaw.TotalTime,
+		Quantity:    recipeRaw.Quantity,
+		URL:         recipeRaw.URL,
+	}
+	if err := tx.Model(&RecipeMetadata{}).Where("recipe_id = ?", recipeRaw.ID).Updates(metadata).Error; err != nil {
+		tx.Rollback()
+		return fmt.Errorf("failed to update recipe metadata: %w", err)
+	}
+
+	// Delete existing ingredients
+	if err := tx.Unscoped().Delete(&Ingredients{}, "recipe_id = ?", recipeRaw.ID).Error; err != nil {
+		tx.Rollback()
+		return fmt.Errorf("failed to delete existing ingredients: %w", err)
+	}
+
+	// Add new ingredients
+	for _, ingredient := range recipeRaw.Ingredients {
+		ing := Ingredients{
+			RecipeID:       recipeRaw.ID,
+			IngredientName: ingredient.Name,
+			Detail:         ingredient.Details,
+			Amount:         ingredient.Amount,
+			Unit:           ingredient.Unit,
+		}
+		if err := tx.Create(&ing).Error; err != nil {
+			tx.Rollback()
+			return fmt.Errorf("failed to create ingredient: %w", err)
+		}
+	}
+
+	// Delete existing instructions
+	if err := tx.Unscoped().Delete(&Instructions{}, "recipe_id = ?", recipeRaw.ID).Error; err != nil {
+		tx.Rollback()
+		return fmt.Errorf("failed to delete existing instructions: %w", err)
+	}
+
+	// Add new instructions
+	for i, instruction := range recipeRaw.Instructions {
+		inst := Instructions{
+			RecipeID:    recipeRaw.ID,
+			Step:        i + 1,
+			Description: instruction,
+		}
+		if err := tx.Create(&inst).Error; err != nil {
+			tx.Rollback()
+			return fmt.Errorf("failed to create instruction: %w", err)
+		}
+	}
+
+	// Delete existing categories
+	if err := tx.Unscoped().Delete(&Category{}, "recipe_id = ?", recipeRaw.ID).Error; err != nil {
+		tx.Rollback()
+		return fmt.Errorf("failed to delete existing categories: %w", err)
+	}
+
+	// Add new categories
+	for _, categoryName := range recipeRaw.Categories {
+		category := Category{
+			RecipeID:     recipeRaw.ID,
+			CategoryName: categoryName,
+		}
+		if err := tx.Create(&category).Error; err != nil {
+			tx.Rollback()
+			return fmt.Errorf("failed to create category: %w", err)
+		}
+	}
+
+	// Commit the transaction
+	if err := tx.Commit().Error; err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return nil
+}
+
 // GetFullRecipe retrieves a complete recipe with all its related data
 func (c *CookBook) GetFullRecipe(recipeID uint) (*recipe.RecipeRaw, error) {
 	// Get the base recipe

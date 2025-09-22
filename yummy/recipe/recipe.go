@@ -1,7 +1,12 @@
 package recipe
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -170,4 +175,281 @@ func FormatRecipeContent(recipe *RecipeRaw) string {
 	s.WriteString("-----------------------------------\n")
 
 	return s.String()
+}
+
+// parseMarkdownRecipe parses a markdown recipe file
+func ParseMarkdownRecipe(filePath string, customName string) (*RecipeRaw, error) {
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read file: %v", err)
+	}
+
+	text := string(content)
+	recipeData := &RecipeRaw{
+		Ingredients:  []Ingredient{},
+		Instructions: []string{},
+		Categories:   []string{},
+	}
+
+	// Parse recipe name
+	if customName != "" {
+		recipeData.Name = customName
+	} else {
+		nameMatch := regexp.MustCompile(`(?m)^# 🍳 (.+)$`).FindStringSubmatch(text)
+		if len(nameMatch) > 1 {
+			recipeData.Name = strings.TrimSpace(nameMatch[1])
+		} else {
+			baseName := filepath.Base(filePath)
+			recipeData.Name = strings.TrimSuffix(baseName, filepath.Ext(baseName))
+		}
+	}
+
+	// Parse description
+	descMatch := regexp.MustCompile(`💭 \*About this recipe:\*\n> (.+?)\n`).FindStringSubmatch(text)
+	if len(descMatch) > 1 {
+		recipeData.Description = strings.TrimSpace(descMatch[1])
+	}
+
+	// Parse metadata table
+	parseMetadataTable(text, recipeData)
+
+	// Parse ingredients
+	parseIngredients(text, recipeData)
+
+	// Parse instructions
+	parseInstructions(text, recipeData)
+
+	// Parse categories
+	parseCategories(text, recipeData)
+
+	// Parse source URL
+	parseSourceURL(text, recipeData)
+
+	return recipeData, nil
+}
+
+// parseJSONRecipe parses a JSON recipe file
+func ParseJSONRecipe(filePath string, customName string) (*RecipeRaw, error) {
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read file: %v", err)
+	}
+
+	var jsonRecipe struct {
+		Name        string `json:"name"`
+		Description string `json:"description"`
+		Author      string `json:"author"`
+		CookTime    string `json:"cook_time"`
+		PrepTime    string `json:"prep_time"`
+		TotalTime   string `json:"total_time"`
+		Quantity    string `json:"quantity"`
+		URL         string `json:"url"`
+		Ingredients []struct {
+			Amount  string `json:"amount"`
+			Unit    string `json:"unit"`
+			Name    string `json:"name"`
+			Details string `json:"details"`
+		} `json:"ingredients"`
+		Instructions []string `json:"instructions"`
+		Categories   []string `json:"categories"`
+	}
+
+	if err := json.Unmarshal(content, &jsonRecipe); err != nil {
+		return nil, fmt.Errorf("failed to parse JSON: %v", err)
+	}
+
+	recipeData := &RecipeRaw{
+		Name:         jsonRecipe.Name,
+		Description:  jsonRecipe.Description,
+		Author:       jsonRecipe.Author,
+		Quantity:     jsonRecipe.Quantity,
+		URL:          jsonRecipe.URL,
+		Ingredients:  []Ingredient{},
+		Instructions: jsonRecipe.Instructions,
+		Categories:   jsonRecipe.Categories,
+	}
+
+	// Override name if custom name provided
+	if customName != "" {
+		recipeData.Name = customName
+	}
+
+	// Parse time durations
+	recipeData.CookTime = parseDuration(jsonRecipe.CookTime)
+	recipeData.PrepTime = parseDuration(jsonRecipe.PrepTime)
+	recipeData.TotalTime = parseDuration(jsonRecipe.TotalTime)
+
+	// Convert ingredients
+	for _, ing := range jsonRecipe.Ingredients {
+		recipeData.Ingredients = append(recipeData.Ingredients, Ingredient{
+			Amount:  ing.Amount,
+			Unit:    ing.Unit,
+			Name:    ing.Name,
+			Details: ing.Details,
+		})
+	}
+
+	return recipeData, nil
+}
+
+// parseMetadataTable extracts metadata from the markdown table
+func parseMetadataTable(text string, recipeData *RecipeRaw) {
+	// Parse author
+	authorMatch := regexp.MustCompile(`👨‍🍳 Recipe By\s*\|\s*(.+?)\s*\|`).FindStringSubmatch(text)
+	if len(authorMatch) > 1 {
+		recipeData.Author = strings.TrimSpace(authorMatch[1])
+	}
+
+	// Parse servings
+	servingsMatch := regexp.MustCompile(`🍽️ Servings\s*\|\s*(.+?)\s*\|`).FindStringSubmatch(text)
+	if len(servingsMatch) > 1 {
+		recipeData.Quantity = strings.TrimSpace(servingsMatch[1])
+	}
+
+	// Parse times
+	totalTimeMatch := regexp.MustCompile(`⏱️ Total Time\s*\|\s*(.+?)\s*\|`).FindStringSubmatch(text)
+	if len(totalTimeMatch) > 1 {
+		recipeData.TotalTime = parseDuration(strings.TrimSpace(totalTimeMatch[1]))
+	}
+
+	prepTimeMatch := regexp.MustCompile(`🔪 Prep Time\s*\|\s*(.+?)\s*\|`).FindStringSubmatch(text)
+	if len(prepTimeMatch) > 1 {
+		recipeData.PrepTime = parseDuration(strings.TrimSpace(prepTimeMatch[1]))
+	}
+
+	cookTimeMatch := regexp.MustCompile(`🔥 Cook Time\s*\|\s*(.+?)\s*\|`).FindStringSubmatch(text)
+	if len(cookTimeMatch) > 1 {
+		recipeData.CookTime = parseDuration(strings.TrimSpace(cookTimeMatch[1]))
+	}
+}
+
+// parseIngredients extracts ingredients from the markdown
+func parseIngredients(text string, recipeData *RecipeRaw) {
+	// Find the ingredients section
+	ingredientsStart := strings.Index(text, "## 🥘 Ingredients")
+	if ingredientsStart == -1 {
+		return
+	}
+
+	// Find the end of ingredients section (next ## or end of text)
+	ingredientsEnd := strings.Index(text[ingredientsStart:], "\n## ")
+	if ingredientsEnd == -1 {
+		ingredientsEnd = len(text)
+	} else {
+		ingredientsEnd += ingredientsStart
+	}
+
+	ingredientsSection := text[ingredientsStart:ingredientsEnd]
+
+	// Parse each ingredient line
+	lines := strings.Split(ingredientsSection, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "• ") {
+			ingredientText := strings.TrimPrefix(line, "• ")
+			ingredient := ParseIngredient(ingredientText)
+			recipeData.Ingredients = append(recipeData.Ingredients, ingredient)
+		}
+	}
+}
+
+// parseInstructions extracts instructions from the markdown
+func parseInstructions(text string, recipeData *RecipeRaw) {
+	// Find the instructions section
+	instructionsStart := strings.Index(text, "## 👩‍🍳 Cooking Instructions")
+	if instructionsStart == -1 {
+		return
+	}
+
+	// Find the end of instructions section
+	instructionsEnd := strings.Index(text[instructionsStart:], "\n## ")
+	if instructionsEnd == -1 {
+		instructionsEnd = len(text)
+	} else {
+		instructionsEnd += instructionsStart
+	}
+
+	instructionsSection := text[instructionsStart:instructionsEnd]
+
+	// Parse numbered instructions
+	lines := strings.Split(instructionsSection, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		// Match numbered list items (1. 2. etc.)
+		if match := regexp.MustCompile(`^\d+\.\s*(.+)$`).FindStringSubmatch(line); len(match) > 1 {
+			recipeData.Instructions = append(recipeData.Instructions, strings.TrimSpace(match[1]))
+		}
+	}
+}
+
+// parseCategories extracts categories from the markdown
+func parseCategories(text string, recipeData *RecipeRaw) {
+	// Find the categories section
+	categoriesStart := strings.Index(text, "## 🏷️ Recipe Type")
+	if categoriesStart == -1 {
+		return
+	}
+
+	// Find the end of categories section
+	categoriesEnd := strings.Index(text[categoriesStart:], "\n## ")
+	if categoriesEnd == -1 {
+		categoriesEnd = len(text)
+	} else {
+		categoriesEnd += categoriesStart
+	}
+
+	categoriesSection := text[categoriesStart:categoriesEnd]
+
+	// Extract categories from backticks
+	re := regexp.MustCompile("`([^`]+)`")
+	matches := re.FindAllStringSubmatch(categoriesSection, -1)
+	for _, match := range matches {
+		if len(match) > 1 {
+			recipeData.Categories = append(recipeData.Categories, strings.TrimSpace(match[1]))
+		}
+	}
+}
+
+// parseSourceURL extracts the source URL from the markdown
+func parseSourceURL(text string, recipeData *RecipeRaw) {
+	urlMatch := regexp.MustCompile(`🔗 \[View Original Recipe\]\((.+?)\)`).FindStringSubmatch(text)
+	if len(urlMatch) > 1 {
+		recipeData.URL = strings.TrimSpace(urlMatch[1])
+	}
+}
+
+// parseDuration parses a duration string into time.Duration
+func parseDuration(durationStr string) time.Duration {
+	if durationStr == "" || durationStr == "N/A" {
+		return 0
+	}
+
+	// Handle common duration formats
+	durationStr = strings.ToLower(strings.TrimSpace(durationStr))
+
+	// Try to parse as Go duration first
+	if duration, err := time.ParseDuration(durationStr); err == nil {
+		return duration
+	}
+
+	// Handle "X hours Y minutes" format
+	if match := regexp.MustCompile(`(\d+)\s*hours?\s*(\d+)\s*minutes?`).FindStringSubmatch(durationStr); len(match) > 2 {
+		hours, _ := strconv.Atoi(match[1])
+		minutes, _ := strconv.Atoi(match[2])
+		return time.Duration(hours)*time.Hour + time.Duration(minutes)*time.Minute
+	}
+
+	// Handle "X hours" format
+	if match := regexp.MustCompile(`(\d+)\s*hours?`).FindStringSubmatch(durationStr); len(match) > 1 {
+		hours, _ := strconv.Atoi(match[1])
+		return time.Duration(hours) * time.Hour
+	}
+
+	// Handle "X minutes" format
+	if match := regexp.MustCompile(`(\d+)\s*minutes?`).FindStringSubmatch(durationStr); len(match) > 1 {
+		minutes, _ := strconv.Atoi(match[1])
+		return time.Duration(minutes) * time.Minute
+	}
+
+	return 0
 }
