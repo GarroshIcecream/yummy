@@ -8,6 +8,7 @@ import (
 
 	"github.com/GarroshIcecream/yummy/yummy/config"
 	db "github.com/GarroshIcecream/yummy/yummy/db"
+	"github.com/GarroshIcecream/yummy/yummy/recipe"
 	chat "github.com/GarroshIcecream/yummy/yummy/tui/chat"
 	detail "github.com/GarroshIcecream/yummy/yummy/tui/detail"
 	edit "github.com/GarroshIcecream/yummy/yummy/tui/edit"
@@ -201,6 +202,7 @@ func (m *Manager) createStatusInfo() status.StatusInfo {
 	case ui.SessionStateList:
 		if listModel, ok := m.models[ui.SessionStateList].(*yummy_list.ListModel); ok {
 			additionalInfo["count"] = len(listModel.RecipeList.Items())
+			additionalInfo["selected_item"] = listModel.RecipeList.SelectedItem().(recipe.RecipeWithDescription).Title()
 		}
 
 	case ui.SessionStateDetail:

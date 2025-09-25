@@ -75,8 +75,8 @@ func DefaultKeyMap() KeyMap {
 			key.WithHelp("x", "delete recipe"),
 		),
 		StateSelector: key.NewBinding(
-			key.WithKeys("s"),
-			key.WithHelp("s", "select state"),
+			key.WithKeys("ctrl+s"),
+			key.WithHelp("ctrl+s", "select state"),
 		),
 	}
 }

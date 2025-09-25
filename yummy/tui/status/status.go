@@ -115,6 +115,11 @@ func CreateStatusInfo(sessionState ui.SessionState, additionalInfo map[string]in
 	case ui.SessionStateList:
 		info.Mode = ui.StatusModeList
 		info.FileName = ui.StateNameList
+		if selectedItem, ok := additionalInfo["selected_item"].(string); ok {
+			info.FileName = ui.StateNames(selectedItem)
+		} else {
+			info.FileName = ui.StateNameList
+		}
 		if count, ok := additionalInfo["count"].(int); ok {
 			info.FileInfo = fmt.Sprintf("%d recipes", count)
 		} else {

@@ -1,7 +1,6 @@
 package chat
 
 import (
-	"fmt"
 	"log"
 	"os"
 	"strings"
@@ -19,6 +18,7 @@ import (
 	"github.com/GarroshIcecream/yummy/yummy/config"
 	db "github.com/GarroshIcecream/yummy/yummy/db"
 	styles "github.com/GarroshIcecream/yummy/yummy/tui/styles"
+	"github.com/GarroshIcecream/yummy/yummy/tui/utils"
 	ui "github.com/GarroshIcecream/yummy/yummy/ui"
 )
 
@@ -39,7 +39,7 @@ type ChatModel struct {
 	sidebarWidth     int
 	messageCount     int
 	tokenCount       int
-	ollamaStatus     map[string]interface{}
+	ollamaStatus     OllamaServiceStatus
 	modelState       ui.ModelState
 }
 
@@ -47,8 +47,6 @@ func New(cookbook *db.CookBook, keymaps config.KeyMap) *ChatModel {
 	llmService, err := NewLLMService()
 	if err != nil {
 		log.Printf("Warning: LLM service initialization failed: %v", err)
-		// Continue without LLM service - user can still use the chat interface
-		// but won't get AI responses until Ollama is properly configured
 	}
 
 	windowWidth, windowHeight, err := term.GetSize(int(os.Stdout.Fd()))
@@ -57,9 +55,15 @@ func New(cookbook *db.CookBook, keymaps config.KeyMap) *ChatModel {
 		windowHeight = ui.DefaultViewportHeight
 	}
 
+	// Calculate markdown width accounting for message formatting
+	markdownWidth := windowWidth - 8 // Reserve space for message formatting
+	if markdownWidth < 20 {
+		markdownWidth = 20
+	}
+	
 	markdownRenderer, err := glamour.NewTermRenderer(
 		glamour.WithAutoStyle(),
-		glamour.WithWordWrap(windowWidth),
+		glamour.WithWordWrap(markdownWidth),
 	)
 	if err != nil {
 		log.Printf("Error creating markdown renderer: %v", err)
@@ -76,7 +80,7 @@ func New(cookbook *db.CookBook, keymaps config.KeyMap) *ChatModel {
 			},
 		}
 		// Add a welcome message from the assistant
-		conversation = AppendMessage(conversation, llms.ChatMessageTypeAI, "Hello! I'm your cooking assistant. How can I help you today?")
+		conversation = AppendMessage(conversation, llms.ChatMessageTypeAI, ui.WelcomeMessage)
 	}
 
 	ta := textarea.New()
@@ -84,7 +88,6 @@ func New(cookbook *db.CookBook, keymaps config.KeyMap) *ChatModel {
 	ta.Focus()
 
 	ta.CharLimit = ui.TextAreaMaxChar
-	// Calculate content width accounting for chat border and padding
 	contentWidth := windowWidth - 8
 	if contentWidth < 20 {
 		contentWidth = 20
@@ -123,12 +126,12 @@ func New(cookbook *db.CookBook, keymaps config.KeyMap) *ChatModel {
 		conversation:     conversation,
 		llmService:       llmService,
 		markdownRenderer: markdownRenderer,
-		loading:          false,
 		modelState:       ui.ModelStateLoaded,
-		sidebarWidth:     30, // Default sidebar width
+		sidebarWidth:     ui.SidebarWidth,
 		messageCount:     0,
 		tokenCount:       0,
 		ollamaStatus:     ollamaStatus,
+		loading:          false,
 	}
 
 	// Set initial content in viewport
@@ -140,92 +143,14 @@ func New(cookbook *db.CookBook, keymaps config.KeyMap) *ChatModel {
 }
 
 func (m *ChatModel) Init() tea.Cmd {
-	return nil
-}
-
-// renderSidebar renders the sidebar with usage, model info, tools, and health status
-func (m *ChatModel) renderSidebar() string {
-	var sidebar strings.Builder
-
-	// Model Information
-	sidebar.WriteString(styles.SidebarSectionStyle.Render("Model"))
-	sidebar.WriteString("\n")
-	sidebar.WriteString(styles.SidebarContentStyle.Render(fmt.Sprintf("• %s", ui.LlamaModel)))
-	sidebar.WriteString("\n")
-	sidebar.WriteString(styles.SidebarContentStyle.Render("• Thinking On"))
-	sidebar.WriteString("\n\n")
-
-	// Usage Statistics
-	sidebar.WriteString(styles.SidebarSectionStyle.Render("Usage"))
-	sidebar.WriteString("\n")
-	// Calculate rough percentage based on message count
-	usagePercent := (m.messageCount * 5) % 100 // Simple calculation for demo
-	sidebar.WriteString(styles.SidebarContentStyle.Render(fmt.Sprintf("%d%% (%dK) $%.2f", usagePercent, m.tokenCount/1000, float64(m.tokenCount)*0.0001)))
-	sidebar.WriteString("\n\n")
-
-	// Ollama Health Status
-	sidebar.WriteString(styles.SidebarSectionStyle.Render("Ollama Status"))
-	sidebar.WriteString("\n")
-
-	status := m.ollamaStatus
-	if status["functional"].(bool) && status["model_available"].(bool) {
-		sidebar.WriteString(styles.SidebarSuccessStyle.Render("✅ Service Healthy"))
-	} else {
-		sidebar.WriteString(styles.SidebarErrorStyle.Render("❌ Service Issues"))
-		if errors, ok := status["errors"].([]string); ok && len(errors) > 0 {
-			for _, err := range errors {
-				sidebar.WriteString("\n")
-				sidebar.WriteString(styles.SidebarErrorStyle.Render(fmt.Sprintf("  • %s", err)))
-			}
-		}
-	}
-	sidebar.WriteString("\n\n")
-
-	// Available Tools
-	sidebar.WriteString(styles.SidebarSectionStyle.Render("Available Tools"))
-	sidebar.WriteString("\n")
-	if m.llmService != nil && m.llmService.toolManager != nil {
-		tools := m.llmService.toolManager.GetTools()
-		for _, tool := range tools {
-			sidebar.WriteString(styles.SidebarContentStyle.Render(fmt.Sprintf("• %s", tool.Name())))
-			sidebar.WriteString("\n")
-		}
-	} else {
-		sidebar.WriteString(styles.SidebarContentStyle.Render("• No tools available"))
-	}
-	sidebar.WriteString("\n\n")
-
-	// Session Stats
-	sidebar.WriteString(styles.SidebarSectionStyle.Render("Session Stats"))
-	sidebar.WriteString("\n")
-	sidebar.WriteString(styles.SidebarContentStyle.Render(fmt.Sprintf("• Messages: %d", m.messageCount)))
-	sidebar.WriteString("\n")
-	sidebar.WriteString(styles.SidebarContentStyle.Render(fmt.Sprintf("• Tokens: %d", m.tokenCount)))
-	sidebar.WriteString("\n\n")
-
-	// Controls
-	sidebar.WriteString(styles.SidebarSectionStyle.Render("Controls"))
-	sidebar.WriteString("\n")
-	sidebar.WriteString(styles.SidebarContentStyle.Render("• Enter: Send message"))
-	sidebar.WriteString("\n")
-	sidebar.WriteString(styles.SidebarContentStyle.Render("• Ctrl+C: Exit"))
-	sidebar.WriteString("\n")
-	sidebar.WriteString(styles.SidebarContentStyle.Render("• ↑/↓: Scroll messages"))
-
-	// Create a dynamic sidebar style based on the current width
-	sidebarStyle := styles.SidebarStyle.Width(m.sidebarWidth - 4)
-	return sidebarStyle.Render(sidebar.String())
+	return m.spinner.Tick
 }
 
 func (m *ChatModel) renderConversationAsMarkdown() string {
 	var content strings.Builder
-
-	log.Printf("renderConversationAsMarkdown: conversation length = %d", len(m.conversation))
-
 	for i, message := range m.conversation {
 		// Skip the initial system prompt
 		if i == 0 && message.Role == llms.ChatMessageTypeSystem {
-			log.Printf("Skipping system message at index %d", i)
 			continue
 		}
 
@@ -237,45 +162,88 @@ func (m *ChatModel) renderConversationAsMarkdown() string {
 			}
 		}
 
-		log.Printf("Rendering message %d: role=%s, text=%s", i, message.Role, messageText)
-
-		// Format based on message role with simple text
+		// Format based on message role with markdown rendering
+		var header string
 		switch message.Role {
 		case llms.ChatMessageTypeHuman:
-			// User message - simple text
-			userHeader := styles.UserMessageStyle.Render("👤 You:")
-			userContent := styles.UserContentStyle.Render(messageText)
-			content.WriteString(userHeader + "\n" + userContent)
+			header = styles.UserMessageStyle.Render("👤 You:")
 		case llms.ChatMessageTypeAI:
-			// Assistant message - simple text
-			assistantHeader := styles.AssistantMessageStyle.Render("🤖 Assistant:")
-			assistantContent := styles.AssistantContentStyle.Render(messageText)
-			content.WriteString(assistantHeader + "\n" + assistantContent)
+			header = styles.AssistantMessageStyle.Render("🤖 Assistant:")
+		default:
+			header = ""
 		}
 
-		// Add spacing between messages for better readability
+		// Try to render as markdown, fallback to plain text if it fails\
+		content.WriteString(header + "\n")
+		if rendered, err := m.markdownRenderer.Render(messageText); err == nil {
+				content.WriteString(rendered)
+		} else {
+			wrappedText := m.wrapText(messageText, m.viewport.Width-4)
+			content.WriteString(wrappedText)
+		}
+
 		if i < len(m.conversation)-1 {
-			content.WriteString("\n\n")
+			content.WriteString("\n")
 		}
 	}
 
 	result := content.String()
-	log.Printf("renderConversationAsMarkdown: result length = %d", len(result))
 	return result
+}
+
+// wrapText wraps text to fit within the specified width
+func (m *ChatModel) wrapText(text string, width int) string {
+	if width <= 0 {
+		return text
+	}
+	
+	words := strings.Fields(text)
+	if len(words) == 0 {
+		return text
+	}
+	
+	var lines []string
+	var currentLine string
+	
+	for _, word := range words {
+		// If adding this word would exceed the width, start a new line
+		if len(currentLine)+len(word)+1 > width {
+			if currentLine != "" {
+				lines = append(lines, currentLine)
+				currentLine = word
+			} else {
+				// Word is longer than width, add it anyway
+				lines = append(lines, word)
+			}
+		} else {
+			if currentLine == "" {
+				currentLine = word
+			} else {
+				currentLine += " " + word
+			}
+		}
+	}
+	
+	if currentLine != "" {
+		lines = append(lines, currentLine)
+	}
+	
+	return strings.Join(lines, "\n")
 }
 
 // updateViewportFromConversation renders the conversation and updates the viewport
 func (m *ChatModel) updateViewportFromConversation() {
 	content := m.renderConversationAsMarkdown()
 
-	// Add spinner if loading with simple text
 	if m.loading {
 		if content != "" {
-			content += "\n\n"
+			content += "\n"
 		}
+
 		assistantHeader := styles.AssistantMessageStyle.Render("🤖 Assistant:")
-		loadingContent := styles.AssistantContentStyle.Render(m.spinner.View() + " Thinking...")
-		content += assistantHeader + "\n" + loadingContent
+		content += assistantHeader + "\n"		
+		spinnerText := m.spinner.View() + " Thinking..."
+		content += spinnerText
 	}
 
 	m.viewport.SetContent(content)
@@ -287,36 +255,46 @@ func (m *ChatModel) DisplayUserMessage(userInput string) {
 	// Add user message to conversation
 	m.conversation = AppendMessage(m.conversation, llms.ChatMessageTypeHuman, userInput)
 
-	// Update message count
 	m.messageCount++
-	// Rough token estimation (1 token ≈ 4 characters)
 	m.tokenCount += len(userInput) / 4
-
-	// Debug: Log the conversation
-	log.Printf("DisplayUserMessage: conversation length = %d", len(m.conversation))
-	log.Printf("DisplayUserMessage: user input = %s", userInput)
 
 	// Update viewport from conversation
 	m.updateViewportFromConversation()
 	m.textarea.Reset()
 }
 
+// generateResponseCommand creates a command that generates a response in the background
+func (m *ChatModel) generateResponseCommand() tea.Cmd {
+	return func() tea.Msg {
+		response := m.llmService.GenerateResponse(m.conversation)
+		return ui.ResponseMsg{
+			Content: response.Response,
+			Error:   response.Error,
+		}
+	}
+}
+
 // Update handles all messages and updates the model
 func (m *ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var (
-		tiCmd tea.Cmd
-		vpCmd tea.Cmd
-		spCmd tea.Cmd
-		rsCmd tea.Cmd
+		cmd tea.Cmd
+		cmds []tea.Cmd
 	)
 
-	m.textarea, tiCmd = m.textarea.Update(msg)
-	m.viewport, vpCmd = m.viewport.Update(msg)
-	m.spinner, spCmd = m.spinner.Update(msg)
-
-	// Don't update viewport here - let individual message handlers do it
-
 	switch msg := msg.(type) {
+	case ui.ResponseMsg:
+		if msg.Error != nil {
+			m.messageCount++
+		}
+		m.loading = false
+		m.conversation = AppendMessage(m.conversation, llms.ChatMessageTypeAI, msg.Content)
+		m.updateViewportFromConversation()
+
+	case spinner.TickMsg:
+		m.spinner, cmd = m.spinner.Update(msg)
+		cmds = append(cmds, cmd)
+		m.updateViewportFromConversation()
+	
 	case tea.WindowSizeMsg:
 		// Store window dimensions
 		m.windowWidth = msg.Width
@@ -371,49 +349,28 @@ func (m *ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			)
 		}
 
-	case ResponseMsg:
-		m.loading = false
-		if msg.Error != nil {
-			log.Printf("Error generating response: %v", msg.Error)
-			// Add the error message to the conversation so the user can see it
-			m.conversation = AppendMessage(m.conversation, llms.ChatMessageTypeAI, msg.Content)
-			m.messageCount++
-			m.tokenCount += len(msg.Content) / 4
-			m.updateViewportFromConversation()
-			return m, nil
-		}
-		m.conversation = AppendMessage(m.conversation, llms.ChatMessageTypeAI, msg.Content)
-		m.messageCount++
-		m.tokenCount += len(msg.Content) / 4
-		m.updateViewportFromConversation()
-
 	case tea.KeyMsg:
 		switch msg.Type {
 		case tea.KeyEnter:
 			userInput := strings.TrimSpace(m.textarea.Value())
-			if userInput == "" {
-				return m, nil
-			}
-
-			m.DisplayUserMessage(userInput)
-			m.loading = true
-
-			// create command to generate response with tools
-			rsCmd = func() tea.Msg {
+			if userInput != "" {
+				m.DisplayUserMessage(userInput)
+				m.loading = true
 				if m.llmService == nil {
-					return ResponseMsg{
-						Content: "LLM service is not available. Please ensure Ollama is installed and the required model is downloaded. See the error message above for setup instructions.",
-						Error:   fmt.Errorf("llm service not initialized"),
-					}
+					cmds = append(cmds, utils.CmdHandler(ui.SendEmptyResponseMsg()))
+				} else {
+					cmds = append(cmds, m.generateResponseCommand())
 				}
-				return m.llmService.GenerateResponse(m.conversation)
 			}
 		}
 	}
 
-	m.updateViewportFromConversation()
+	m.textarea, cmd = m.textarea.Update(msg)
+	cmds = append(cmds, cmd)
+	m.viewport, cmd = m.viewport.Update(msg)
+	cmds = append(cmds, cmd)
 
-	return m, tea.Batch(tiCmd, vpCmd, spCmd, rsCmd)
+	return m, tea.Batch(cmds...)
 }
 
 // View renders the model
@@ -430,23 +387,14 @@ func (m *ChatModel) View() string {
 		}
 	}
 
-	// Render sidebar
-	sidebar := m.renderSidebar()
-
-	// Render chat viewport with proper styling
+	sidebar := RenderSidebar(m.messageCount, m.tokenCount, m.ollamaStatus, m.llmService, m.sidebarWidth, m.viewport.Height)
 	chat := styles.ChatStyle.Render(m.viewport.View())
-
-	// Render input with consistent spacing
 	input := m.textarea.View()
-
-	// Create the main content area (chat + input)
 	mainContent := lipgloss.JoinVertical(lipgloss.Left, chat, input)
+	chatLayout := lipgloss.JoinHorizontal(lipgloss.Top, sidebar, mainContent)
+	layout := lipgloss.JoinVertical(lipgloss.Left, title, chatLayout)
 
-	// Create the layout with sidebar and main content
-	layout := lipgloss.JoinHorizontal(lipgloss.Top, sidebar, mainContent)
-
-	// Return with title and layout
-	return fmt.Sprintf("\n%s\n\n%s", title, layout)
+	return layout
 }
 
 // SetSize sets the width and height of the model

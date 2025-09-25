@@ -1,6 +1,9 @@
 package state_selector
 
 import (
+	"fmt"
+	"strconv"
+
 	config "github.com/GarroshIcecream/yummy/yummy/config"
 	"github.com/GarroshIcecream/yummy/yummy/tui/styles"
 	"github.com/GarroshIcecream/yummy/yummy/ui"
@@ -63,6 +66,22 @@ func (s *StateSelectorDialogCmp) Init() tea.Cmd {
 	return nil
 }
 
+
+func (s *StateSelectorDialogCmp) GetStateIndexFromNumberKey(msg tea.KeyMsg) *int {
+	keyStr := msg.String()
+	i, err := strconv.Atoi(keyStr)
+    if err != nil {
+        return nil
+    }
+	
+	if i >= 1 && i <= len(s.states) {
+		s.selectedIndex = i - 1
+		return &s.selectedIndex
+	}
+
+	return nil
+}
+
 // Update handles keyboard input for the state selector dialog.
 func (s *StateSelectorDialogCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var (
@@ -87,7 +106,14 @@ func (s *StateSelectorDialogCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			} else {
 				s.selectedIndex = 0
 			}
-		
+		// Handle number keys for direct state selection
+		case s.GetStateIndexFromNumberKey(msg) != nil:
+			s.selectedIndex = *s.GetStateIndexFromNumberKey(msg)
+			selectedState := s.states[s.selectedIndex]
+			cmds = append(cmds, tea.Batch(
+				ui.SendSessionStateMsg(selectedState),
+				ui.SendCloseDialogMsg(),
+			))
 		case key.Matches(msg, s.keymap.Enter):
 			selectedState := s.states[s.selectedIndex]
 			cmds = append(cmds, tea.Batch(
@@ -122,12 +148,14 @@ func (s *StateSelectorDialogCmp) View() string {
 				Padding(0, 1)
 		}
 		
+		// Add number prefix and emoji
+		numberPrefix := fmt.Sprintf("%d. ", i+1)
 		indicator := "  "
 		if i == s.selectedIndex {
 			indicator = s.emojis[i] + " "
 		}
 		
-		stateItems = append(stateItems, style.Render(indicator+stateName))
+		stateItems = append(stateItems, style.Render(numberPrefix+indicator+stateName))
 	}
 	
 	// Create the dialog box with better styling

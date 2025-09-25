@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"errors"
+
 	recipes "github.com/GarroshIcecream/yummy/yummy/recipe"
 	tui "github.com/GarroshIcecream/yummy/yummy/tui/utils"
 	tea "github.com/charmbracelet/bubbletea"
@@ -38,6 +40,11 @@ type StatusInfoMsg struct {
 	TTL  int
 }
 
+type ResponseMsg struct {
+	Content string
+	Error   error
+}
+
 func SendCloseDialogMsg() tea.Cmd {
 	return tui.CmdHandler(CloseDialogMsg{})
 }
@@ -63,5 +70,20 @@ func SendStatusInfoMsg(msg string, msgType int, ttl int) tea.Cmd {
 		Msg:  msg,
 		Type: msgType,
 		TTL:  ttl,
+	})
+}
+
+func SendEmptyResponseMsg() tea.Cmd {
+	err := errors.New("empty response")
+	return tui.CmdHandler(ResponseMsg{
+		Content: EmptyResponse,
+		Error:   err,
+	})
+}
+
+func SendResponseMsg(response string) tea.Cmd {
+	return tui.CmdHandler(ResponseMsg{
+		Content: response,
+		Error:   nil,
 	})
 }

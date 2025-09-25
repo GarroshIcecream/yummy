@@ -8,10 +8,8 @@ import (
 	"strings"
 	"time"
 
-	tools "github.com/GarroshIcecream/yummy/yummy/tui/chat/tools"
 	ui "github.com/GarroshIcecream/yummy/yummy/ui"
 	"github.com/tmc/langchaingo/agents"
-	"github.com/tmc/langchaingo/chains"
 	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/llms/ollama"
 )
@@ -19,16 +17,24 @@ import (
 // LLMService handles all language model interactions
 type LLMService struct {
 	model       llms.Model
-	agent       agents.ConversationalAgent
-	executor    agents.Executor
+	modelName   string
+	agent       *agents.ConversationalAgent
+	executor    *agents.Executor
 	ctx         context.Context
-	toolManager *tools.ToolManager
+	toolManager *ToolManager
 }
 
-// Message types for the tea program
-type ResponseMsg struct {
-	Content string
-	Error   error
+type OllamaServiceStatus struct {
+	Installed       bool
+	Running         bool
+	Functional      bool
+	ModelAvailable  bool
+	Errors          []string
+}
+
+type LLMResponse struct {
+	Response string
+	Error    error
 }
 
 // CheckOllamaServiceRunning checks if the Ollama service is running and responsive
@@ -156,45 +162,45 @@ Note: The model download requires internet connection and sufficient disk space`
 }
 
 // GetOllamaServiceStatus returns a detailed status of the Ollama service
-func GetOllamaServiceStatus() map[string]interface{} {
-	status := map[string]interface{}{
-		"installed":       false,
-		"running":         false,
-		"functional":      false,
-		"model_available": false,
-		"errors":          []string{},
+func GetOllamaServiceStatus() OllamaServiceStatus {
+	status := OllamaServiceStatus{
+		Installed:       false,
+		Running:         false,
+		Functional:      false,
+		ModelAvailable: false,
+		Errors:          []string{},
 	}
 
 	// Check if ollama command exists
 	_, err := exec.LookPath("ollama")
 	if err != nil {
-		status["errors"] = append(status["errors"].([]string), "ollama command not found in PATH")
+		status.Errors = append(status.Errors, "ollama command not found in PATH")
 		return status
 	}
-	status["installed"] = true
+	status.Installed = true
 
 	// Check if service is running
 	err = CheckOllamaServiceRunning()
 	if err != nil {
-		status["errors"] = append(status["errors"].([]string), err.Error())
+		status.Errors = append(status.Errors, err.Error())
 		return status
 	}
-	status["running"] = true
-	status["functional"] = true
+	status.Running = true
+	status.Functional = true
 
 	// Check if required model is available
 	cmd := exec.Command("ollama", "list")
 	output, err := cmd.Output()
 	if err != nil {
-		status["errors"] = append(status["errors"].([]string), "failed to list models: "+err.Error())
+		status.Errors = append(status.Errors, "failed to list models: "+err.Error())
 		return status
 	}
 
 	modelList := string(output)
 	if strings.Contains(modelList, ui.LlamaModel) {
-		status["model_available"] = true
+		status.ModelAvailable = true
 	} else {
-		status["errors"] = append(status["errors"].([]string), "required model "+ui.LlamaModel+" not found")
+		status.Errors = append(status.Errors, "required model "+ui.LlamaModel+" not found")
 	}
 
 	return status
@@ -207,30 +213,59 @@ func NewLLMService() (*LLMService, error) {
 		return nil, fmt.Errorf("ollama check failed: %w", err)
 	}
 
-	model, err := ollama.New(ollama.WithModel(ui.LlamaModel))
+	modelName := ui.LlamaModel
+	model, err := ollama.New(ollama.WithModel(modelName))
 	if err != nil {
 		return nil, fmt.Errorf("failed to serve LLM model: %w", err)
 	}
 
-	toolManager := tools.NewToolManager()
+	toolManager := NewToolManager()
+	tools := toolManager.GetTools()
 
 	agent := agents.NewConversationalAgent(
 		model,
-		toolManager.GetTools(),
+		tools,
 		agents.WithMaxIterations(3),
 	)
 
 	executor := agents.NewExecutor(agent)
 
 	llmService := &LLMService{
-		agent:       *agent,
-		executor:    *executor,
+		agent:       agent,
+		executor:    executor,
 		model:       model,
+		modelName:   modelName,
 		ctx:         context.Background(),
 		toolManager: toolManager,
 	}
 
 	return llmService, nil
+}
+
+// SetModel sets the model for the LLM service
+func (l *LLMService) SetModelByName(modelName string) error {
+	l.modelName = modelName
+	model, err := ollama.New(ollama.WithModel(modelName))
+	if err != nil {
+		return err
+	}
+	
+	l.setModel(model)
+	return nil
+}
+
+func (l *LLMService) setModel(model llms.Model) {
+	l.model = model
+	l.agent = agents.NewConversationalAgent(
+		l.model,
+		l.toolManager.GetTools(),
+		agents.WithMaxIterations(3),
+	)
+	l.executor = agents.NewExecutor(l.agent)
+}
+
+func (l *LLMService) GetCurrentModel() llms.Model {
+	return l.model
 }
 
 // AppendMessage adds a message to the conversation
@@ -257,14 +292,7 @@ func (l *LLMService) GetSystemPrompt() string {
 }
 
 // GenerateResponse generates a response for the given conversation
-func (l *LLMService) GenerateResponse(conversation []llms.MessageContent) ResponseMsg {
-	// Debug: Log the conversation being sent
-	log.Printf("Conversation length: %d", len(conversation))
-	for i, msg := range conversation {
-		log.Printf("Message %d - Role: %s, Content: %s", i, msg.Role, msg.Parts)
-	}
-
-	// Convert conversation to string for the agent
+func (l *LLMService) GenerateResponse(conversation []llms.MessageContent) *LLMResponse {
 	var input string
 	for _, msg := range conversation {
 		if msg.Role == llms.ChatMessageTypeHuman {
@@ -276,31 +304,28 @@ func (l *LLMService) GenerateResponse(conversation []llms.MessageContent) Respon
 		}
 	}
 
-	// Use the agent executor to generate a response
+	// Use the agent executor to generate a response with tools
 	answer, err := l.executor.Call(context.Background(), map[string]any{
 		"input": input,
 	})
 
-	_, chainErr := chains.Run(context.Background(), l.agent.Chain, conversation)
-	if chainErr != nil {
-		log.Printf("chains.Run error: %v", chainErr)
-	}
-
-	log.Printf("GenerateResponse: answer = %s", answer)
-
-	// if there is an error, return it
 	if err != nil {
-		return ResponseMsg{
-			Content: "",
-			Error:   fmt.Errorf("failed to generate content: %w", err),
+		log.Printf("executor.Call error: %v", err)
+		return &LLMResponse{
+			Response: "",
+			Error:    err,
 		}
 	}
-
-	// Get the answer from the array and convert to string
-	answerStr := fmt.Sprintf("%v", answer["output"])
-
-	return ResponseMsg{
-		Content: answerStr,
-		Error:   nil,
+	
+	if output, ok := answer["output"].(string); ok {
+		return &LLMResponse{
+			Response: output,
+			Error:    nil,
+		}
+	}
+	
+	return &LLMResponse{
+		Response: "",
+		Error:    fmt.Errorf("no response from model"),
 	}
 }

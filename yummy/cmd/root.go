@@ -10,6 +10,7 @@ import (
 	db "github.com/GarroshIcecream/yummy/yummy/db"
 	log "github.com/GarroshIcecream/yummy/yummy/log"
 	tui "github.com/GarroshIcecream/yummy/yummy/tui"
+	"github.com/GarroshIcecream/yummy/yummy/tui/chat"
 	"github.com/GarroshIcecream/yummy/yummy/version"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/fang"
@@ -128,6 +129,13 @@ func setupApp(cmd *cobra.Command) (*tui.Manager, error) {
 	conn, err := db.NewCookBook(datadir)
 	if err != nil {
 		return nil, err
+	}
+
+	// check ollama status
+	ollamaStatus := chat.GetOllamaServiceStatus()
+	if len(ollamaStatus.Errors) > 0 {
+		slog.Error("Ollama service status", "errors", ollamaStatus.Errors)
+		return nil, fmt.Errorf("ollama service status: %v", ollamaStatus.Errors)
 	}
 
 	tuiInstance, err := tui.New(conn, ctx)

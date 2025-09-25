@@ -29,6 +29,21 @@ func (i RecipeWithDescription) FilterValue() string {
 	return fmt.Sprintf("%s - %s", i.RecipeName, i.FormattedDescription)
 }
 
+type RecipeRaw struct {
+	ID           uint
+	Name         string
+	Description  string
+	Author       string
+	CookTime     time.Duration
+	PrepTime     time.Duration
+	TotalTime    time.Duration
+	Quantity     string
+	URL          string
+	Ingredients  []Ingredient
+	Categories   []string
+	Instructions []string
+}
+
 func FormatRecipe(
 	id uint,
 	name string,
@@ -51,21 +66,6 @@ func FormatRecipe(
 		FormattedDescription: fmt.Sprintf("%s - %s", author_fin, desc),
 	}
 
-}
-
-type RecipeRaw struct {
-	ID           uint
-	Name         string
-	Description  string
-	Author       string
-	CookTime     time.Duration
-	PrepTime     time.Duration
-	TotalTime    time.Duration
-	Quantity     string
-	URL          string
-	Ingredients  []Ingredient
-	Categories   []string
-	Instructions []string
 }
 
 func ConstructTableRow(item *RecipeTableItem, first_column_length int, longest_string int) string {
