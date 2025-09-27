@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	recipe "github.com/GarroshIcecream/yummy/yummy/recipe"
+	"github.com/tmc/langchaingo/llms"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
@@ -477,4 +478,68 @@ func (c *CookBook) GetFullRecipe(recipeID uint) (*recipe.RecipeRaw, error) {
 
 	log.Printf("GetFullRecipe completed successfully")
 	return recipeRaw, nil
+}
+
+// CreateSession creates a new chat session and returns the session ID
+func (c *CookBook) CreateSession() (uint, error) {
+	session := SessionHistory{}
+	if err := c.conn.Create(&session).Error; err != nil {
+		return 0, fmt.Errorf("failed to create session: %w", err)
+	}
+	return session.ID, nil
+}
+
+// SaveSessionMessage saves a message to the database
+func (c *CookBook) SaveSessionMessage(sessionID uint, message string, role llms.ChatMessageType, modelName, content string, inputTokens, outputTokens, totalTokens int) error {
+	// Convert ChatMessageType to string for database storage
+	roleStr := string(role)
+
+	sessionMessage := SessionMessage{
+		SessionID:    sessionID,
+		Message:      message,
+		Role:         roleStr,
+		ModelName:    modelName,
+		Content:      content,
+		InputTokens:  inputTokens,
+		OutputTokens: outputTokens,
+		TotalTokens:  totalTokens,
+	}
+
+	if err := c.conn.Create(&sessionMessage).Error; err != nil {
+		return fmt.Errorf("failed to save session message: %w", err)
+	}
+
+	return nil
+}
+
+// GetSessionMessages retrieves all messages for a given session
+func (c *CookBook) GetSessionMessages(sessionID uint) ([]SessionMessage, error) {
+	var messages []SessionMessage
+	if err := c.conn.Where("session_id = ?", sessionID).Order("created_at ASC").Find(&messages).Error; err != nil {
+		return nil, fmt.Errorf("failed to get session messages: %w", err)
+	}
+	return messages, nil
+}
+
+// GetSessionStats returns statistics for a given session
+func (c *CookBook) GetSessionStats(sessionID uint) (messageCount int64, totalInputTokens, totalOutputTokens int64, err error) {
+	var count int64
+	var inputTokens, outputTokens int64
+
+	// Count messages
+	if err := c.conn.Model(&SessionMessage{}).Where("session_id = ?", sessionID).Count(&count).Error; err != nil {
+		return 0, 0, 0, fmt.Errorf("failed to count session messages: %w", err)
+	}
+
+	// Sum input tokens
+	if err := c.conn.Model(&SessionMessage{}).Where("session_id = ?", sessionID).Select("COALESCE(SUM(input_tokens), 0)").Scan(&inputTokens).Error; err != nil {
+		return 0, 0, 0, fmt.Errorf("failed to sum input tokens: %w", err)
+	}
+
+	// Sum output tokens
+	if err := c.conn.Model(&SessionMessage{}).Where("session_id = ?", sessionID).Select("COALESCE(SUM(output_tokens), 0)").Scan(&outputTokens).Error; err != nil {
+		return 0, 0, 0, fmt.Errorf("failed to sum output tokens: %w", err)
+	}
+
+	return count, inputTokens, outputTokens, nil
 }

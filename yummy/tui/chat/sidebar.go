@@ -5,26 +5,24 @@ import (
 	"strings"
 
 	styles "github.com/GarroshIcecream/yummy/yummy/tui/styles"
-	ui "github.com/GarroshIcecream/yummy/yummy/ui"
 )
 
 func RenderSidebar(messageCount int, tokenCount int, ollamaStatus OllamaServiceStatus, llmService *LLMService, sidebarWidth int, sidebarHeight int) string {
 	var sidebar strings.Builder
 
 	// Model Information
-	sidebar.WriteString(styles.SidebarSectionStyle.Render("Model"))
-	sidebar.WriteString("\n")
-	sidebar.WriteString(styles.SidebarContentStyle.Render(fmt.Sprintf("• %s", ui.LlamaModel)))
-	sidebar.WriteString("\n")
-	sidebar.WriteString(styles.SidebarContentStyle.Render("• Thinking On"))
-	sidebar.WriteString("\n\n")
+	if llmService != nil {
+		sidebar.WriteString(styles.SidebarSectionStyle.Render("Model"))
+		sidebar.WriteString("\n")
+		sidebar.WriteString(styles.SidebarContentStyle.Render(fmt.Sprintf("• %s", llmService.modelName)))
+		sidebar.WriteString("\n")
+	}
 
 	// Usage Statistics
 	sidebar.WriteString(styles.SidebarSectionStyle.Render("Usage"))
 	sidebar.WriteString("\n")
 	// Calculate rough percentage based on message count
-	usagePercent := (messageCount * 5) % 100 // Simple calculation for demo
-	sidebar.WriteString(styles.SidebarContentStyle.Render(fmt.Sprintf("%d%% (%dK) $%.2f", usagePercent, tokenCount/1000, float64(tokenCount)*0.0001)))
+	sidebar.WriteString(styles.SidebarContentStyle.Render(fmt.Sprintf("%dK", tokenCount/1000)))
 	sidebar.WriteString("\n\n")
 
 	// Ollama Health Status
@@ -51,7 +49,7 @@ func RenderSidebar(messageCount int, tokenCount int, ollamaStatus OllamaServiceS
 	if llmService != nil && llmService.toolManager != nil {
 		tools := llmService.toolManager.GetTools()
 		for _, tool := range tools {
-			sidebar.WriteString(styles.SidebarContentStyle.Render(fmt.Sprintf("• %s", tool.Name())))
+			sidebar.WriteString(styles.SidebarContentStyle.Render(fmt.Sprintf("• %s", tool.Function.Name)))
 			sidebar.WriteString("\n")
 		}
 	} else {

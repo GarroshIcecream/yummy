@@ -80,4 +80,5 @@ type SessionMessage struct {
 	Content      string
 	InputTokens  int
 	OutputTokens int
+	TotalTokens  int
 }

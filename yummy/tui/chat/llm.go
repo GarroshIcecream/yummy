@@ -11,17 +11,16 @@ import (
 
 	db "github.com/GarroshIcecream/yummy/yummy/db"
 	ui "github.com/GarroshIcecream/yummy/yummy/ui"
-	"github.com/tmc/langchaingo/agents"
 	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/llms/ollama"
 )
 
 // LLMService handles all language model interactions
 type LLMService struct {
-	model        llms.Model
-	modelName    string
-	agent        *agents.ConversationalAgent
-	executor     *agents.Executor
+	model     llms.Model
+	modelName string
+	// agent        *agents.ConversationalAgent
+	// executor     *agents.Executor
 	ollamaStatus *OllamaServiceStatus
 	ctx          context.Context
 	toolManager  *ToolManager
@@ -37,8 +36,11 @@ type OllamaServiceStatus struct {
 }
 
 type LLMResponse struct {
-	Response string
-	Error    error
+	Response         string
+	PromptTokens     int
+	CompletionTokens int
+	TotalTokens      int
+	Error            error
 }
 
 // CheckOllamaServiceRunning checks if the Ollama service is running and responsive
@@ -125,7 +127,7 @@ Start attempt error: %v`, err, startErr)
 	}
 
 	// All checks passed
-	log.Printf("Ollama check passed: model %s is available", ui.LlamaModel)
+	log.Printf("Ollama check passed: model %s is available", ui.DefaultModel)
 	return nil
 }
 
@@ -185,10 +187,10 @@ func GetOllamaServiceStatus() *OllamaServiceStatus {
 		return status
 	}
 
-	if slices.Contains(status.InstalledModels, ui.LlamaModel) {
+	if slices.Contains(status.InstalledModels, ui.DefaultModel) {
 		status.ModelAvailable = true
 	} else {
-		status.Errors = append(status.Errors, "required model "+ui.LlamaModel+" not found")
+		status.Errors = append(status.Errors, "required model "+ui.DefaultModel+" not found")
 	}
 
 	return status
@@ -202,28 +204,29 @@ func NewLLMService(db *db.CookBook) (*LLMService, error) {
 		return nil, fmt.Errorf("ollama check failed: %w", err)
 	}
 
-	modelName := ui.LlamaModel
-	model, err := ollama.New(ollama.WithModel(modelName))
+	toolManager := NewToolManager()
+	modelName := ui.DefaultModel
+	model, err := ollama.New(
+		ollama.WithModel(modelName),
+		ollama.WithSystemPrompt(ui.SystemPrompt),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to serve LLM model: %w", err)
 	}
 
-	toolManager := NewToolManager()
-	tools := toolManager.GetTools()
-
 	ollamaStatus := GetOllamaServiceStatus()
 
-	agent := agents.NewConversationalAgent(
-		model,
-		tools,
-		agents.WithMaxIterations(3),
-	)
+	// agent := agents.NewConversationalAgent(
+	// 	model,
+	// 	tools,
+	// 	agents.WithMaxIterations(3),
+	// )
 
-	executor := agents.NewExecutor(agent)
+	// executor := agents.NewExecutor(agent)
 
 	llmService := &LLMService{
-		agent:        agent,
-		executor:     executor,
+		// agent:        agent,
+		// executor:     executor,
 		model:        model,
 		modelName:    modelName,
 		ollamaStatus: ollamaStatus,
@@ -252,12 +255,12 @@ func (l *LLMService) SetModelByName(modelName string) error {
 
 func (l *LLMService) setModel(model llms.Model) {
 	l.model = model
-	l.agent = agents.NewConversationalAgent(
-		l.model,
-		l.toolManager.GetTools(),
-		agents.WithMaxIterations(3),
-	)
-	l.executor = agents.NewExecutor(l.agent)
+	// l.agent = agents.NewConversationalAgent(
+	// 	l.model,
+	// 	l.toolManager.GetTools(),
+	// 	agents.WithMaxIterations(3),
+	// )
+	// l.executor = agents.NewExecutor(l.agent)
 }
 
 func (l *LLMService) GetCurrentModel() llms.Model {
@@ -274,7 +277,7 @@ func AppendMessage(conversation []llms.MessageContent, role llms.ChatMessageType
 }
 
 // GetChoices extracts the first choice from a completion response
-func GetChoices(completion *llms.ContentResponse) ([]*llms.ContentChoice, error) {
+func ParseChoices(completion *llms.ContentResponse) ([]*llms.ContentChoice, error) {
 	if len(completion.Choices) == 0 {
 		return nil, fmt.Errorf("no response from model")
 	}
@@ -288,40 +291,43 @@ func (l *LLMService) GetSystemPrompt() string {
 }
 
 // GenerateResponse generates a response for the given conversation
-func (l *LLMService) GenerateResponse(conversation []llms.MessageContent) *LLMResponse {
-	var input string
-	for _, msg := range conversation {
-		if msg.Role == llms.ChatMessageTypeHuman {
-			for _, part := range msg.Parts {
-				if textPart, ok := part.(llms.TextContent); ok {
-					input += textPart.Text + " "
-				}
-			}
-		}
-	}
-
-	// Use the agent executor to generate a response with tools
-	answer, err := l.executor.Call(context.Background(), map[string]any{
-		"input": input,
-	})
-
+func (l *LLMService) GenerateResponse(conversation []llms.MessageContent) ui.ResponseMsg {
+	answer, err := l.model.GenerateContent(
+		context.Background(),
+		conversation,
+		llms.WithModel(l.modelName),
+		llms.WithTemperature(ui.Temperature),
+		llms.WithCandidateCount(1),
+		llms.WithTools(l.toolManager.GetTools()),
+	)
 	if err != nil {
-		log.Printf("executor.Call error: %v", err)
-		return &LLMResponse{
-			Response: "",
-			Error:    err,
+		log.Printf("model.GenerateContent error: %v", err)
+		return ui.ResponseMsg{
+			Response:         "",
+			PromptTokens:     0,
+			CompletionTokens: 0,
+			TotalTokens:      0,
+			Error:            err,
 		}
 	}
 
-	if output, ok := answer["output"].(string); ok {
-		return &LLMResponse{
-			Response: output,
-			Error:    nil,
+	if len(answer.Choices) > 0 {
+		output := answer.Choices[0].Content
+		log.Printf("answer: %v", output)
+		return ui.ResponseMsg{
+			Response:         output,
+			PromptTokens:     answer.Choices[0].GenerationInfo["PromptTokens"].(int),
+			CompletionTokens: answer.Choices[0].GenerationInfo["CompletionTokens"].(int),
+			TotalTokens:      answer.Choices[0].GenerationInfo["TotalTokens"].(int),
+			Error:            nil,
 		}
 	}
 
-	return &LLMResponse{
-		Response: "",
-		Error:    fmt.Errorf("no response from model"),
+	return ui.ResponseMsg{
+		Response:         "",
+		PromptTokens:     0,
+		CompletionTokens: 0,
+		TotalTokens:      0,
+		Error:            fmt.Errorf("no response from model"),
 	}
 }

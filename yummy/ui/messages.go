@@ -41,8 +41,11 @@ type StatusInfoMsg struct {
 }
 
 type ResponseMsg struct {
-	Content string
-	Error   error
+	Response         string
+	PromptTokens     int
+	CompletionTokens int
+	TotalTokens      int
+	Error            error
 }
 
 type SetFavouriteMsg struct {
@@ -80,15 +83,21 @@ func SendStatusInfoMsg(msg string, msgType int, ttl int) tea.Cmd {
 func SendEmptyResponseMsg() tea.Cmd {
 	err := errors.New("empty response")
 	return tui.CmdHandler(ResponseMsg{
-		Content: EmptyResponse,
-		Error:   err,
+		Response:         EmptyResponse,
+		PromptTokens:     0,
+		CompletionTokens: 0,
+		TotalTokens:      0,
+		Error:            err,
 	})
 }
 
 func SendResponseMsg(response string) tea.Cmd {
 	return tui.CmdHandler(ResponseMsg{
-		Content: response,
-		Error:   nil,
+		Response:         response,
+		PromptTokens:     0,
+		CompletionTokens: 0,
+		TotalTokens:      0,
+		Error:            nil,
 	})
 }
 

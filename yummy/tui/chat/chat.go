@@ -1,6 +1,7 @@
 package chat
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"strings"
@@ -38,8 +39,11 @@ type ChatModel struct {
 	height           int
 	sidebarWidth     int
 	messageCount     int
-	tokenCount       int
+	InputTokenCount  int
+	OutputTokenCount int
+	TotalTokenCount  int
 	modelState       ui.ModelState
+	sessionID        uint
 }
 
 func New(cookbook *db.CookBook, keymaps config.KeyMap) *ChatModel {
@@ -69,18 +73,7 @@ func New(cookbook *db.CookBook, keymaps config.KeyMap) *ChatModel {
 	}
 
 	conversation := []llms.MessageContent{}
-	if llmService != nil {
-		conversation = []llms.MessageContent{
-			{
-				Role: llms.ChatMessageTypeSystem,
-				Parts: []llms.ContentPart{llms.TextPart(
-					llmService.GetSystemPrompt(),
-				)},
-			},
-		}
-		// Add a welcome message from the assistant
-		conversation = AppendMessage(conversation, llms.ChatMessageTypeAI, ui.WelcomeMessage)
-	}
+	conversation = AppendMessage(conversation, llms.ChatMessageTypeAI, ui.WelcomeMessage)
 
 	ta := textarea.New()
 	ta.Placeholder = ui.TextAreaPlaceholder
@@ -112,6 +105,15 @@ func New(cookbook *db.CookBook, keymaps config.KeyMap) *ChatModel {
 	s.Spinner = spinner.Dot
 	s.Style = styles.SpinnerStyle
 
+	// Create a new session for this chat
+	sessionID, err := cookbook.CreateSession()
+	if err != nil {
+		log.Printf("Warning: Failed to create chat session: %v", err)
+		sessionID = 0 // Use 0 as fallback - messages won't be saved but chat will still work
+	} else {
+		log.Printf("Created new chat session with ID: %d", sessionID)
+	}
+
 	// Initialize the chat model
 	chatModel := &ChatModel{
 		cookbook:         cookbook,
@@ -125,14 +127,13 @@ func New(cookbook *db.CookBook, keymaps config.KeyMap) *ChatModel {
 		modelState:       ui.ModelStateLoaded,
 		sidebarWidth:     ui.SidebarWidth,
 		messageCount:     0,
-		tokenCount:       0,
+		InputTokenCount:  0,
+		OutputTokenCount: 0,
 		loading:          false,
+		sessionID:        sessionID,
 	}
 
-	// Set initial content in viewport
-	if len(conversation) > 1 { // More than just system message
-		chatModel.updateViewportFromConversation()
-	}
+	chatModel.updateViewportFromConversation()
 
 	return chatModel
 }
@@ -144,11 +145,6 @@ func (m *ChatModel) Init() tea.Cmd {
 func (m *ChatModel) renderConversationAsMarkdown() string {
 	var content strings.Builder
 	for i, message := range m.conversation {
-		// Skip the initial system prompt
-		if i == 0 && message.Role == llms.ChatMessageTypeSystem {
-			continue
-		}
-
 		// Get the text content from the message
 		var messageText string
 		for _, part := range message.Parts {
@@ -229,44 +225,68 @@ func (m *ChatModel) wrapText(text string, width int) string {
 // updateViewportFromConversation renders the conversation and updates the viewport
 func (m *ChatModel) updateViewportFromConversation() {
 	content := m.renderConversationAsMarkdown()
-
-	if m.loading {
-		if content != "" {
-			content += "\n"
-		}
-
-		assistantHeader := styles.AssistantMessageStyle.Render("🤖 Assistant:")
-		content += assistantHeader + "\n"
-		spinnerText := m.spinner.View() + " Thinking..."
-		content += spinnerText
-	}
-
 	m.viewport.SetContent(content)
 	m.viewport.GotoBottom()
 }
 
-// DisplayUserMessage adds a user message to the chat display
-func (m *ChatModel) DisplayUserMessage(userInput string) {
-	// Add user message to conversation
-	m.conversation = AppendMessage(m.conversation, llms.ChatMessageTypeHuman, userInput)
+// saveMessageToDatabase saves a message to the database
+// This method handles both user messages and AI responses, storing them in the SessionMessage table
+// with appropriate role, model information, and token counts for analytics
+func (m *ChatModel) saveResponseToDatabase(msg ui.ResponseMsg) {
+	if m.sessionID == 0 {
+		log.Printf("No session ID available, skipping message save")
+		return
+	}
 
-	m.messageCount++
-	m.tokenCount += len(userInput) / 4
-
-	// Update viewport from conversation
-	m.updateViewportFromConversation()
-	m.textarea.Reset()
+	err := m.cookbook.SaveSessionMessage(
+		m.sessionID,
+		msg.Response,
+		llms.ChatMessageTypeAI,
+		m.llmService.modelName,
+		msg.Response,
+		msg.PromptTokens,
+		msg.CompletionTokens,
+		msg.TotalTokens,
+	)
+	if err != nil {
+		log.Printf("Failed to save message to database: %v", err)
+	}
 }
 
-// generateResponseCommand creates a command that generates a response in the background
-func (m *ChatModel) generateResponseCommand() tea.Cmd {
-	return func() tea.Msg {
-		response := m.llmService.GenerateResponse(m.conversation)
-		return ui.ResponseMsg{
-			Content: response.Response,
-			Error:   response.Error,
-		}
+func (m *ChatModel) saveUserMessageToDatabase(userInput string) {
+	err := m.cookbook.SaveSessionMessage(
+		m.sessionID,
+		userInput,
+		llms.ChatMessageTypeHuman,
+		m.llmService.modelName,
+		userInput,
+		0,
+		0,
+		0,
+	)
+	if err != nil {
+		log.Printf("Failed to save user message to database: %v", err)
 	}
+}
+
+// DisplayUserMessage adds a user message to the chat display
+func (m *ChatModel) ProcessUserMessage(userInput string) {
+	m.conversation = AppendMessage(m.conversation, llms.ChatMessageTypeHuman, userInput)
+	m.updateViewportFromConversation()
+	m.textarea.Reset()
+
+	//m.saveUserMessageToDatabase(userInput)
+}
+
+func (m *ChatModel) ProcessResponse(response ui.ResponseMsg) {
+	m.conversation = AppendMessage(m.conversation, llms.ChatMessageTypeAI, response.Response)
+	m.updateViewportFromConversation()
+	m.viewport.GotoBottom()
+
+	m.saveResponseToDatabase(response)
+	m.InputTokenCount += response.PromptTokens
+	m.OutputTokenCount += response.CompletionTokens
+	m.TotalTokenCount += response.TotalTokens
 }
 
 // Update handles all messages and updates the model
@@ -278,17 +298,18 @@ func (m *ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case ui.ResponseMsg:
-		if msg.Error != nil {
-			m.messageCount++
-		}
 		m.loading = false
-		m.conversation = AppendMessage(m.conversation, llms.ChatMessageTypeAI, msg.Content)
-		m.updateViewportFromConversation()
+		if msg.Error != nil {
+			log.Printf("Error generating response: %v", msg.Error)
+		} else {
+			m.messageCount++
+			log.Printf("Processing response: %v", msg)
+			m.ProcessResponse(msg)
+		}
 
 	case spinner.TickMsg:
 		m.spinner, cmd = m.spinner.Update(msg)
 		cmds = append(cmds, cmd)
-		m.updateViewportFromConversation()
 
 	case tea.WindowSizeMsg:
 		// Store window dimensions
@@ -349,12 +370,13 @@ func (m *ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case tea.KeyEnter:
 			userInput := strings.TrimSpace(m.textarea.Value())
 			if userInput != "" {
-				m.DisplayUserMessage(userInput)
 				m.loading = true
+				m.messageCount++
+				m.ProcessUserMessage(userInput)
 				if m.llmService == nil {
 					cmds = append(cmds, utils.CmdHandler(ui.SendEmptyResponseMsg()))
 				} else {
-					cmds = append(cmds, m.generateResponseCommand())
+					cmds = append(cmds, utils.CmdHandler(m.llmService.GenerateResponse(m.conversation)))
 				}
 			}
 		}
@@ -382,7 +404,7 @@ func (m *ChatModel) View() string {
 		}
 	}
 
-	sidebar := RenderSidebar(m.messageCount, m.tokenCount, *m.llmService.ollamaStatus, m.llmService, m.sidebarWidth, m.viewport.Height)
+	sidebar := RenderSidebar(m.messageCount, m.TotalTokenCount, *m.llmService.ollamaStatus, m.llmService, m.sidebarWidth, m.viewport.Height)
 	chat := styles.ChatStyle.Render(m.viewport.View())
 	input := m.textarea.View()
 	mainContent := lipgloss.JoinVertical(lipgloss.Left, chat, input)
@@ -452,4 +474,35 @@ func (m *ChatModel) GetSize() (width, height int) {
 
 func (m *ChatModel) GetModelState() ui.ModelState {
 	return m.modelState
+}
+
+// GetSessionMessages retrieves all messages for the current session
+func (m *ChatModel) GetSessionMessages() ([]db.SessionMessage, error) {
+	if m.sessionID == 0 {
+		return nil, fmt.Errorf("no session ID available")
+	}
+
+	sessionMessages, err := m.cookbook.GetSessionMessages(m.sessionID)
+	if err != nil {
+		return nil, err
+	}
+	return sessionMessages, nil
+}
+
+// GetSessionID returns the current session ID
+func (m *ChatModel) GetSessionID() uint {
+	return m.sessionID
+}
+
+// IsSessionActive returns true if the session is properly initialized
+func (m *ChatModel) IsSessionActive() bool {
+	return m.sessionID > 0
+}
+
+// GetDatabaseSessionStats returns statistics from the database for the current session
+func (m *ChatModel) GetDatabaseSessionStats() (messageCount int64, totalInputTokens, totalOutputTokens int64, err error) {
+	if m.sessionID == 0 {
+		return 0, 0, 0, fmt.Errorf("no session ID available")
+	}
+	return m.cookbook.GetSessionStats(m.sessionID)
 }
