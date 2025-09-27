@@ -1,5 +1,7 @@
 package ui
 
+import "time"
+
 type SessionState int
 
 const (
@@ -49,6 +51,17 @@ const (
 const (
 	StatusLineHeight  = 1
 	StatusLinePadding = 2
+)
+
+// List view constants
+const (
+	ListViewStatusMessageTTL              = 1500 * time.Millisecond
+	ListViewStatusMessageFavouriteSet     = " ⭐️ Favourite set!"
+	ListViewStatusMessageFavouriteRemoved = " ❌ Favourite removed!"
+	ListViewStatusMessageRecipeDeleted    = " ❌ Recipe deleted!"
+	ListTitle                             = "📚 My Cookbook"
+	ListItemNameSingular                  = "recipe"
+	ListItemNamePlural                    = "recipes"
 )
 
 const (

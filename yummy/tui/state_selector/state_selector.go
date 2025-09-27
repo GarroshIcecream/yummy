@@ -56,7 +56,7 @@ func New() *StateSelectorDialogCmp {
 		states:        states,
 		height:        ui.DefaultViewportHeight,
 		width:         ui.DefaultViewportWidth,
-		stateNames:    stateNames,	
+		stateNames:    stateNames,
 		emojis:        emojis,
 		keymap:        config.DefaultKeyMap(),
 	}
@@ -66,14 +66,13 @@ func (s *StateSelectorDialogCmp) Init() tea.Cmd {
 	return nil
 }
 
-
 func (s *StateSelectorDialogCmp) GetStateIndexFromNumberKey(msg tea.KeyMsg) *int {
 	keyStr := msg.String()
 	i, err := strconv.Atoi(keyStr)
-    if err != nil {
-        return nil
-    }
-	
+	if err != nil {
+		return nil
+	}
+
 	if i >= 1 && i <= len(s.states) {
 		s.selectedIndex = i - 1
 		return &s.selectedIndex
@@ -94,13 +93,13 @@ func (s *StateSelectorDialogCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		s.wHeight = msg.Height
 	case tea.KeyMsg:
 		switch {
-		case key.Matches(msg, s.keymap.Up):
+		case key.Matches(msg, s.keymap.CursorUp):
 			if s.selectedIndex > 0 {
 				s.selectedIndex--
 			} else {
 				s.selectedIndex = len(s.states) - 1
 			}
-		case key.Matches(msg, s.keymap.Down):
+		case key.Matches(msg, s.keymap.CursorDown):
 			if s.selectedIndex < len(s.states)-1 {
 				s.selectedIndex++
 			} else {
@@ -124,14 +123,14 @@ func (s *StateSelectorDialogCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmds = append(cmds, ui.SendCloseDialogMsg())
 		}
 	}
-	
+
 	return s, tea.Batch(cmds...)
 }
 
 // View renders the state selector dialog with a list of states.
 func (s *StateSelectorDialogCmp) View() string {
 	title := "🎯 Select State"
-	
+
 	// Create the list of states
 	var stateItems []string
 	for i, stateName := range s.stateNames {
@@ -147,17 +146,17 @@ func (s *StateSelectorDialogCmp) View() string {
 				Foreground(lipgloss.Color("#cccccc")).
 				Padding(0, 1)
 		}
-		
+
 		// Add number prefix and emoji
 		numberPrefix := fmt.Sprintf("%d. ", i+1)
 		indicator := "  "
 		if i == s.selectedIndex {
 			indicator = s.emojis[i] + " "
 		}
-		
+
 		stateItems = append(stateItems, style.Render(numberPrefix+indicator+stateName))
 	}
-	
+
 	// Create the dialog box with better styling
 	content := lipgloss.JoinVertical(lipgloss.Left, stateItems...)
 	fullContent := lipgloss.JoinVertical(

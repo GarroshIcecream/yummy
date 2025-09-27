@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"log"
 	"os/exec"
+	"slices"
 	"strings"
 	"time"
 
+	db "github.com/GarroshIcecream/yummy/yummy/db"
 	ui "github.com/GarroshIcecream/yummy/yummy/ui"
 	"github.com/tmc/langchaingo/agents"
 	"github.com/tmc/langchaingo/llms"
@@ -16,18 +18,20 @@ import (
 
 // LLMService handles all language model interactions
 type LLMService struct {
-	model       llms.Model
-	modelName   string
-	agent       *agents.ConversationalAgent
-	executor    *agents.Executor
-	ctx         context.Context
-	toolManager *ToolManager
+	model        llms.Model
+	modelName    string
+	agent        *agents.ConversationalAgent
+	executor     *agents.Executor
+	ollamaStatus *OllamaServiceStatus
+	ctx          context.Context
+	toolManager  *ToolManager
 }
 
 type OllamaServiceStatus struct {
 	Installed       bool
 	Running         bool
 	Functional      bool
+	InstalledModels []string
 	ModelAvailable  bool
 	Errors          []string
 }
@@ -50,13 +54,6 @@ func CheckOllamaServiceRunning() error {
 	_, err = cmd.Output()
 	if err != nil {
 		return fmt.Errorf("ollama service is not running or not responding")
-	}
-
-	// Try to list models to ensure service is fully functional
-	cmd = exec.Command("ollama", "list")
-	_, err = cmd.Output()
-	if err != nil {
-		return fmt.Errorf("ollama service is running but not fully functional")
 	}
 
 	return nil
@@ -127,47 +124,40 @@ Start attempt error: %v`, err, startErr)
 		log.Printf("Successfully started Ollama service")
 	}
 
-	// Step 2b: Final verification that service is working
-	cmd := exec.Command("ollama", "list")
-	output, err := cmd.Output()
-	if err != nil {
-		return fmt.Errorf(`ollama service is running but not fully functional.
-
-To fix this:
-1. Restart the Ollama service: ollama serve
-2. Check if there are any error messages in the Ollama logs
-3. Make sure you have sufficient disk space
-4. Try running this application again
-
-Error details: %w`, err)
-	}
-
-	// Step 3: Check if the required model is available
-	modelList := string(output)
-	if !strings.Contains(modelList, ui.LlamaModel) {
-		return fmt.Errorf(`required model "%s" is not installed.
-
-To fix this:
-1. Run the following command in your terminal:
-   ollama pull %s
-2. Wait for the download to complete (this may take several minutes)
-3. Try running this application again
-
-Note: The model download requires internet connection and sufficient disk space`, ui.LlamaModel, ui.LlamaModel)
-	}
-
 	// All checks passed
 	log.Printf("Ollama check passed: model %s is available", ui.LlamaModel)
 	return nil
 }
 
+func GetOllamaInstalledModels() ([]string, error) {
+	cmd := exec.Command("ollama", "list")
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, err
+	}
+
+	modelList := make([]string, 0)
+	lines := strings.Split(string(output), "\n")
+	for idx, line := range lines {
+		if idx != 0 {
+			fields := strings.Split(line, " ")
+			if len(fields) > 1 {
+				clean_model := strings.TrimSpace(fields[0])
+				modelList = append(modelList, clean_model)
+			}
+		}
+	}
+	return modelList, nil
+}
+
 // GetOllamaServiceStatus returns a detailed status of the Ollama service
-func GetOllamaServiceStatus() OllamaServiceStatus {
-	status := OllamaServiceStatus{
+func GetOllamaServiceStatus() *OllamaServiceStatus {
+	status := &OllamaServiceStatus{
 		Installed:       false,
 		Running:         false,
 		Functional:      false,
-		ModelAvailable: false,
+		ModelAvailable:  false,
+		InstalledModels: []string{},
 		Errors:          []string{},
 	}
 
@@ -189,15 +179,13 @@ func GetOllamaServiceStatus() OllamaServiceStatus {
 	status.Functional = true
 
 	// Check if required model is available
-	cmd := exec.Command("ollama", "list")
-	output, err := cmd.Output()
+	status.InstalledModels, err = GetOllamaInstalledModels()
 	if err != nil {
-		status.Errors = append(status.Errors, "failed to list models: "+err.Error())
+		status.Errors = append(status.Errors, err.Error())
 		return status
 	}
 
-	modelList := string(output)
-	if strings.Contains(modelList, ui.LlamaModel) {
+	if slices.Contains(status.InstalledModels, ui.LlamaModel) {
 		status.ModelAvailable = true
 	} else {
 		status.Errors = append(status.Errors, "required model "+ui.LlamaModel+" not found")
@@ -207,7 +195,8 @@ func GetOllamaServiceStatus() OllamaServiceStatus {
 }
 
 // NewLLMService creates a new LLM service instance
-func NewLLMService() (*LLMService, error) {
+func NewLLMService(db *db.CookBook) (*LLMService, error) {
+	ctx := context.Background()
 	// Check if Ollama is available before attempting to create the model
 	if err := CheckOllamaAvailable(); err != nil {
 		return nil, fmt.Errorf("ollama check failed: %w", err)
@@ -222,6 +211,8 @@ func NewLLMService() (*LLMService, error) {
 	toolManager := NewToolManager()
 	tools := toolManager.GetTools()
 
+	ollamaStatus := GetOllamaServiceStatus()
+
 	agent := agents.NewConversationalAgent(
 		model,
 		tools,
@@ -231,12 +222,13 @@ func NewLLMService() (*LLMService, error) {
 	executor := agents.NewExecutor(agent)
 
 	llmService := &LLMService{
-		agent:       agent,
-		executor:    executor,
-		model:       model,
-		modelName:   modelName,
-		ctx:         context.Background(),
-		toolManager: toolManager,
+		agent:        agent,
+		executor:     executor,
+		model:        model,
+		modelName:    modelName,
+		ollamaStatus: ollamaStatus,
+		ctx:          ctx,
+		toolManager:  toolManager,
 	}
 
 	return llmService, nil
@@ -244,12 +236,16 @@ func NewLLMService() (*LLMService, error) {
 
 // SetModel sets the model for the LLM service
 func (l *LLMService) SetModelByName(modelName string) error {
+	if !slices.Contains(l.ollamaStatus.InstalledModels, modelName) {
+		return fmt.Errorf("model %s is not installed", modelName)
+	}
+
 	l.modelName = modelName
 	model, err := ollama.New(ollama.WithModel(modelName))
 	if err != nil {
 		return err
 	}
-	
+
 	l.setModel(model)
 	return nil
 }
@@ -316,14 +312,14 @@ func (l *LLMService) GenerateResponse(conversation []llms.MessageContent) *LLMRe
 			Error:    err,
 		}
 	}
-	
+
 	if output, ok := answer["output"].(string); ok {
 		return &LLMResponse{
 			Response: output,
 			Error:    nil,
 		}
 	}
-	
+
 	return &LLMResponse{
 		Response: "",
 		Error:    fmt.Errorf("no response from model"),

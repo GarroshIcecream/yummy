@@ -25,3 +25,9 @@ func CmdHandler(msg tea.Msg) tea.Cmd {
 		return msg
 	}
 }
+
+func CmdHandlerFunc(fn func() tea.Msg) tea.Cmd {
+	return func() tea.Msg {
+		return fn()
+	}
+}

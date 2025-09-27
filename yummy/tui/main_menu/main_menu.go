@@ -100,12 +100,12 @@ func (m *MainMenuModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		switch {
-		case key.Matches(msg, m.keyMap.Up):
+		case key.Matches(msg, m.keyMap.CursorUp):
 			if m.selected > 0 {
 				m.selected--
 			}
 
-		case key.Matches(msg, m.keyMap.Down):
+		case key.Matches(msg, m.keyMap.CursorDown):
 			if m.selected < len(m.items)-1 {
 				m.selected++
 			}
@@ -203,8 +203,8 @@ func (m *MainMenuModel) renderMenuItems() string {
 
 func (m *MainMenuModel) renderHelp() string {
 	return styles.RenderMainMenuHelp(
-		m.keyMap.Up.Help().Key,
-		m.keyMap.Down.Help().Key,
+		m.keyMap.CursorUp.Help().Key,
+		m.keyMap.CursorDown.Help().Key,
 		m.keyMap.Enter.Help().Key,
 		m.keyMap.Quit.Help().Key,
 	)

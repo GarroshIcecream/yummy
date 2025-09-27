@@ -73,9 +73,9 @@ func (m *DetailModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				cmd_edit := ui.SendEditRecipeMsg(m.CurrentRecipe.ID)
 				cmds = append(cmds, cmd_state, cmd_edit)
 			}
-		case key.Matches(msg, m.keyMap.Up):
+		case key.Matches(msg, m.keyMap.CursorUp):
 			m.ScrollUp(ui.DefaultScrollSpeed)
-		case key.Matches(msg, m.keyMap.Down):
+		case key.Matches(msg, m.keyMap.CursorDown):
 			m.ScrollDown(ui.DefaultScrollSpeed)
 		}
 

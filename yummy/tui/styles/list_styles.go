@@ -1,92 +1,141 @@
 package styles
 
 import (
-	"github.com/charmbracelet/bubbles/list"
+	list "github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/lipgloss"
 )
 
-func ApplyDelegateStyles(d list.DefaultDelegate) list.DefaultDelegate {
-	d.Styles.NormalTitle = lipgloss.NewStyle().
+func GetDelegateStyles() list.DefaultItemStyles {
+	normalTitle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#FFFFFF")).
 		Padding(0, 2)
 
-	d.Styles.NormalDesc = lipgloss.NewStyle().
+	normalDesc := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#A0A0A0")).
 		Padding(0, 2)
 
 	selectedColor := lipgloss.Color("#FF6B6B")
-	d.Styles.SelectedTitle = lipgloss.NewStyle().
+	selectedTitle := lipgloss.NewStyle().
 		Foreground(selectedColor).
 		BorderLeftForeground(selectedColor).
 		BorderStyle(lipgloss.NormalBorder()).
 		BorderLeft(true).
 		Padding(0, 2)
 
-	d.Styles.SelectedDesc = d.Styles.SelectedTitle.
+	selectedDesc := selectedTitle.
 		Foreground(lipgloss.Color("#FFB6B6"))
 
-	return d
+	dimmedTitle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#A0A0A0")).
+		Padding(0, 2)
+
+	dimmedDesc := dimmedTitle.
+		Foreground(lipgloss.Color("#A0A0A0"))
+
+	filterMatch := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#FF6B6B")).
+		Underline(true)
+
+	return list.DefaultItemStyles{
+		NormalTitle:   normalTitle,
+		NormalDesc:    normalDesc,
+		SelectedTitle: selectedTitle,
+		SelectedDesc:  selectedDesc,
+		DimmedTitle:   dimmedTitle,
+		DimmedDesc:    dimmedDesc,
+		FilterMatch:   filterMatch,
+	}
 }
 
-func ApplyListStyles(l list.Model) list.Model {
+func GetListStyles() list.Styles {
 
 	// Make the title pop with a subtle glow effect
-	l.Styles.Title = lipgloss.NewStyle().
+	titleStyle := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(lipgloss.Color("#FFFFFF")).
 		Padding(0, 1)
 
 	// Style pagination with dots
-	l.Styles.PaginationStyle = lipgloss.NewStyle().
+	paginationStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#FFB6B6")).
 		PaddingLeft(2)
 
 	// Style the help text to be more subtle
-	l.Styles.HelpStyle = lipgloss.NewStyle().
+	helpStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#A0A0A0")).
 		Padding(1, 0, 0, 2)
 
 	// Make the filter prompt stand out
-	l.Styles.FilterPrompt = lipgloss.NewStyle().
+	filterPrompt := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#FF6B6B")).
 		Bold(true)
 
 	// Style the filter cursor
-	l.Styles.FilterCursor = lipgloss.NewStyle().
+	filterCursor := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#FFFFFF")).
 		Background(lipgloss.Color("#FF6B6B"))
 
 	// Style the "no items" message
-	l.Styles.NoItems = lipgloss.NewStyle().
+	noItems := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#A0A0A0")).
 		Italic(true)
 
 	// Style the pagination dots
-	l.Styles.ActivePaginationDot = lipgloss.NewStyle().
+	activePaginationDot := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#FF6B6B")).
 		SetString("●")
 
-	l.Styles.InactivePaginationDot = lipgloss.NewStyle().
+	inactivePaginationDot := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#FFB6B6")).
 		SetString("○")
 
-	l.Styles.DividerDot = lipgloss.NewStyle().
+	dividerDot := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#FFB6B6")).
 		SetString(" • ")
 
 	// Style the status bar
-	l.Styles.StatusBar = lipgloss.NewStyle().
+	statusBar := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#A0A0A0")).
 		Padding(0, 0, 1, 2)
 
 	// Style the status bar when filtering
-	l.Styles.StatusBarActiveFilter = lipgloss.NewStyle().
+	statusBarActiveFilter := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#FF6B6B")).
 		Bold(true)
 
 	// Style the filter count
-	l.Styles.StatusBarFilterCount = lipgloss.NewStyle().
+	statusBarFilterCount := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#FFB6B6"))
 
-	return l
+	spinnerStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#FFB6B6"))
+
+	defaultFilterCharacterMatch := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#FFB6B6"))
+
+	statusEmpty := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#FFB6B6"))
+
+	arabicPagination := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#FFB6B6"))
+
+	return list.Styles{
+		TitleBar:                    titleStyle,
+		Title:                       titleStyle,
+		Spinner:                     spinnerStyle,
+		FilterPrompt:                filterPrompt,
+		FilterCursor:                filterCursor,
+		DefaultFilterCharacterMatch: defaultFilterCharacterMatch,
+		StatusBar:                   statusBar,
+		StatusEmpty:                 statusEmpty,
+		StatusBarActiveFilter:       statusBarActiveFilter,
+		StatusBarFilterCount:        statusBarFilterCount,
+		NoItems:                     noItems,
+		PaginationStyle:             paginationStyle,
+		HelpStyle:                   helpStyle,
+		ActivePaginationDot:         activePaginationDot,
+		InactivePaginationDot:       inactivePaginationDot,
+		ArabicPagination:            arabicPagination,
+		DividerDot:                  dividerDot,
+	}
 }

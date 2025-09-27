@@ -21,9 +21,15 @@ type RecipeWithDescription struct {
 	RecipeID             uint
 	RecipeName           string
 	FormattedDescription string
+	IsFavourite          bool
 }
 
-func (i RecipeWithDescription) Title() string       { return i.RecipeName }
+func (i RecipeWithDescription) Title() string {
+	if i.IsFavourite {
+		return "⭐ " + i.RecipeName
+	}
+	return i.RecipeName
+}
 func (i RecipeWithDescription) Description() string { return i.FormattedDescription }
 func (i RecipeWithDescription) FilterValue() string {
 	return fmt.Sprintf("%s - %s", i.RecipeName, i.FormattedDescription)
@@ -48,7 +54,8 @@ func FormatRecipe(
 	id uint,
 	name string,
 	author string,
-	description string) RecipeWithDescription {
+	description string,
+	isFavourite bool) RecipeWithDescription {
 
 	author_fin := "N/A"
 	if author != "" {
@@ -64,6 +71,7 @@ func FormatRecipe(
 		RecipeID:             id,
 		RecipeName:           name,
 		FormattedDescription: fmt.Sprintf("%s - %s", author_fin, desc),
+		IsFavourite:          isFavourite,
 	}
 
 }

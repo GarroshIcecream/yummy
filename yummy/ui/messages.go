@@ -45,6 +45,10 @@ type ResponseMsg struct {
 	Error   error
 }
 
+type SetFavouriteMsg struct {
+	RecipeID uint
+}
+
 func SendCloseDialogMsg() tea.Cmd {
 	return tui.CmdHandler(CloseDialogMsg{})
 }
@@ -86,4 +90,8 @@ func SendResponseMsg(response string) tea.Cmd {
 		Content: response,
 		Error:   nil,
 	})
+}
+
+func SendSetFavouriteMsg(recipe_id uint) tea.Cmd {
+	return tui.CmdHandler(SetFavouriteMsg{RecipeID: recipe_id})
 }

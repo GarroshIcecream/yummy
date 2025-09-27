@@ -111,7 +111,7 @@ func (m *EditModel) setupLists() {
 	}
 
 	ingredientDelegate := list.NewDefaultDelegate()
-	ingredientDelegate = styles.ApplyDelegateStyles(ingredientDelegate)
+	ingredientDelegate.Styles = styles.GetDelegateStyles()
 	ingredientDelegate.ShowDescription = true
 	ingredientDelegate.ShortHelpFunc = func() []key.Binding {
 		return []key.Binding{
@@ -123,7 +123,7 @@ func (m *EditModel) setupLists() {
 	}
 
 	m.ingredientList = list.New(ingredientItems, ingredientDelegate, 0, 0)
-	m.ingredientList = styles.ApplyListStyles(m.ingredientList)
+	m.ingredientList.Styles = styles.GetListStyles()
 	m.ingredientList.Title = "Ingredients"
 	m.ingredientList.SetStatusBarItemName("ingredient", "ingredients")
 
@@ -137,7 +137,7 @@ func (m *EditModel) setupLists() {
 	}
 
 	instructionDelegate := list.NewDefaultDelegate()
-	instructionDelegate = styles.ApplyDelegateStyles(instructionDelegate)
+	instructionDelegate.Styles = styles.GetDelegateStyles()
 	instructionDelegate.ShowDescription = false
 	instructionDelegate.ShortHelpFunc = func() []key.Binding {
 		return []key.Binding{
@@ -149,7 +149,7 @@ func (m *EditModel) setupLists() {
 	}
 
 	m.instructionList = list.New(instructionItems, instructionDelegate, 0, 0)
-	m.instructionList = styles.ApplyListStyles(m.instructionList)
+	m.instructionList.Styles = styles.GetListStyles()
 	m.instructionList.Title = "Instructions"
 	m.instructionList.SetStatusBarItemName("instruction", "instructions")
 }
@@ -242,11 +242,11 @@ func (m *EditModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m *EditModel) handleFormKeys(msg tea.KeyMsg) tea.Cmd {
 	switch {
-	case key.Matches(msg, m.keyMap.Up):
+	case key.Matches(msg, m.keyMap.CursorUp):
 		if m.activeField > 0 {
 			m.activeField--
 		}
-	case key.Matches(msg, m.keyMap.Down):
+	case key.Matches(msg, m.keyMap.CursorDown):
 		if m.activeField < 7 { // 8 fields total (0-7)
 			m.activeField++
 		}

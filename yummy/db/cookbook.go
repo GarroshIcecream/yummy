@@ -15,6 +15,11 @@ type CookBook struct {
 	conn *gorm.DB
 }
 
+// GetDB returns the underlying database connection
+func (c *CookBook) GetDB() *gorm.DB {
+	return c.conn
+}
+
 func NewCookBook(db_path string, gorm_opts ...gorm.Option) (*CookBook, error) {
 	db_path = filepath.Join(db_path, "cookbook.db")
 	_, err := os.Stat(db_path)
@@ -167,21 +172,25 @@ func (c *CookBook) CreateNewRecipe(recipe_name string) {
 	c.conn.Create(&Recipe{RecipeName: recipe_name})
 }
 
-func (c *CookBook) AllRecipes() ([]recipe.RecipeWithDescription, error) {
+func (c *CookBook) AllRecipes(favourite bool) ([]recipe.RecipeWithDescription, error) {
 	var recipes []struct {
 		ID          uint
 		RecipeName  string
 		Author      string
 		Description string
+		Favourite   bool
 	}
 
-	err := c.conn.
+	query := c.conn.
 		Table("recipes").
-		Select("recipes.id, recipes.recipe_name, recipe_metadata.author, recipe_metadata.description").
-		Joins("LEFT JOIN recipe_metadata ON recipes.id = recipe_metadata.recipe_id").
-		Order("recipes.recipe_name").
-		Find(&recipes).
-		Error
+		Select("recipes.id, recipes.recipe_name, recipe_metadata.author, recipe_metadata.description, recipe_metadata.favourite").
+		Joins("LEFT JOIN recipe_metadata ON recipes.id = recipe_metadata.recipe_id")
+
+	if favourite {
+		query = query.Where("recipe_metadata.favourite = ?", favourite)
+	}
+
+	err := query.Order("recipes.recipe_name").Find(&recipes).Error
 	if err != nil {
 		return nil, err
 	}
@@ -193,10 +202,27 @@ func (c *CookBook) AllRecipes() ([]recipe.RecipeWithDescription, error) {
 			rec.RecipeName,
 			rec.Author,
 			rec.Description,
+			rec.Favourite,
 		)
 	}
 
 	return formattedRecipes, nil
+}
+
+func (c *CookBook) SetFavourite(recipe_id uint) error {
+	var metadata RecipeMetadata
+	err := c.conn.Where("recipe_id = ?", recipe_id).First(&metadata).Error
+	if err != nil {
+		return err
+	}
+
+	newFavourite := !metadata.Favourite
+	err = c.conn.Model(&RecipeMetadata{}).Where("recipe_id = ?", recipe_id).Update("favourite", newFavourite).Error
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // SaveScrapedRecipe saves a scraped recipe to the database

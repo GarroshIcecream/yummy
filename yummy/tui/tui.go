@@ -47,11 +47,11 @@ func New(cookbook *db.CookBook, ctx context.Context) (*Manager, error) {
 	keymaps := config.DefaultKeyMap()
 
 	models := map[ui.SessionState]TUIModel{
-		ui.SessionStateMainMenu: main_menu.New(cookbook, keymaps),
-		ui.SessionStateList:     yummy_list.New(cookbook, keymaps),
-		ui.SessionStateDetail:   detail.New(cookbook, keymaps),
-		ui.SessionStateEdit:     edit.New(cookbook, keymaps, nil),
-		ui.SessionStateChat:     chat.New(cookbook, keymaps),
+		ui.SessionStateMainMenu:      main_menu.New(cookbook, keymaps),
+		ui.SessionStateList:          yummy_list.New(cookbook, keymaps, false),
+		ui.SessionStateDetail:        detail.New(cookbook, keymaps),
+		ui.SessionStateEdit:          edit.New(cookbook, keymaps, nil),
+		ui.SessionStateChat:          chat.New(cookbook, keymaps),
 		ui.SessionStateStateSelector: state_selector.New(),
 	}
 
@@ -107,15 +107,15 @@ func (m *Manager) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		switch {
-		case key.Matches(msg, m.keyMap.Quit):
+		case key.Matches(msg, m.keyMap.ForceQuit):
 			return m, tea.Quit
-		case key.Matches(msg, m.keyMap.Up):
+		case key.Matches(msg, m.keyMap.CursorUp):
 			if m.CurrentSessionState == ui.SessionStateDetail {
 				if detailModel, ok := m.models[ui.SessionStateDetail].(*detail.DetailModel); ok {
 					detailModel.ScrollUp(ui.DefaultScrollSpeed)
 				}
 			}
-		case key.Matches(msg, m.keyMap.Down):
+		case key.Matches(msg, m.keyMap.CursorDown):
 			if m.CurrentSessionState == ui.SessionStateDetail {
 				if detailModel, ok := m.models[ui.SessionStateDetail].(*detail.DetailModel); ok {
 					detailModel.ScrollDown(ui.DefaultScrollSpeed)
