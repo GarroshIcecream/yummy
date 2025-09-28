@@ -8,6 +8,19 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+type SessionMessage struct {
+	SessionID    uint
+	Message      string
+	Role         string
+	ModelName    string
+	Content      string
+	InputTokens  int
+	OutputTokens int
+	TotalTokens  int
+}
+
+type GenerateResponseMsg struct{}
+
 type RecipeSelectedMsg struct {
 	RecipeID uint
 }
@@ -52,6 +65,16 @@ type SetFavouriteMsg struct {
 	RecipeID uint
 }
 
+type SessionSelectedMsg struct {
+	SessionID uint
+}
+
+type LoadSessionMsg struct {
+	SessionID uint
+	Messages  []SessionMessage
+	Err       error
+}
+
 func SendCloseDialogMsg() tea.Cmd {
 	return tui.CmdHandler(CloseDialogMsg{})
 }
@@ -91,16 +114,26 @@ func SendEmptyResponseMsg() tea.Cmd {
 	})
 }
 
-func SendResponseMsg(response string) tea.Cmd {
-	return tui.CmdHandler(ResponseMsg{
-		Response:         response,
-		PromptTokens:     0,
-		CompletionTokens: 0,
-		TotalTokens:      0,
-		Error:            nil,
-	})
+func SendResponseMsg(response ResponseMsg) tea.Cmd {
+	return tui.CmdHandler(response)
+}
+
+func SendGenerateResponseMsg() tea.Cmd {
+	return tui.CmdHandler(GenerateResponseMsg{})
 }
 
 func SendSetFavouriteMsg(recipe_id uint) tea.Cmd {
 	return tui.CmdHandler(SetFavouriteMsg{RecipeID: recipe_id})
+}
+
+func SendSessionSelectedMsg(sessionID uint) tea.Cmd {
+	return tui.CmdHandler(SessionSelectedMsg{SessionID: sessionID})
+}
+
+func SendLoadSessionMsg(sessionID uint, messages []SessionMessage, err error) tea.Cmd {
+	return tui.CmdHandler(LoadSessionMsg{
+		SessionID: sessionID,
+		Messages:  messages,
+		Err:       err,
+	})
 }

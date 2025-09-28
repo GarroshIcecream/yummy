@@ -11,6 +11,7 @@ import (
 
 	db "github.com/GarroshIcecream/yummy/yummy/db"
 	ui "github.com/GarroshIcecream/yummy/yummy/ui"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/llms/ollama"
 )
@@ -292,6 +293,7 @@ func (l *LLMService) GetSystemPrompt() string {
 
 // GenerateResponse generates a response for the given conversation
 func (l *LLMService) GenerateResponse(conversation []llms.MessageContent) ui.ResponseMsg {
+	log.Printf("Generating response with model: %s", l.modelName)
 	answer, err := l.model.GenerateContent(
 		context.Background(),
 		conversation,
@@ -313,7 +315,7 @@ func (l *LLMService) GenerateResponse(conversation []llms.MessageContent) ui.Res
 
 	if len(answer.Choices) > 0 {
 		output := answer.Choices[0].Content
-		log.Printf("answer: %v", output)
+		log.Printf("Generated response: %s", output)
 		return ui.ResponseMsg{
 			Response:         output,
 			PromptTokens:     answer.Choices[0].GenerationInfo["PromptTokens"].(int),
@@ -323,11 +325,22 @@ func (l *LLMService) GenerateResponse(conversation []llms.MessageContent) ui.Res
 		}
 	}
 
+	log.Printf("No response from model - no choices available")
 	return ui.ResponseMsg{
 		Response:         "",
 		PromptTokens:     0,
 		CompletionTokens: 0,
 		TotalTokens:      0,
 		Error:            fmt.Errorf("no response from model"),
+	}
+}
+
+// GenerateResponseAsync generates a response asynchronously and returns a tea.Cmd
+func (l *LLMService) GenerateResponseAsync(conversation []llms.MessageContent) tea.Cmd {
+	return func() tea.Msg {
+		log.Printf("Starting async response generation with model: %s", l.modelName)
+		response := l.GenerateResponse(conversation)
+		log.Printf("Async response generation completed: %v", response)
+		return response
 	}
 }

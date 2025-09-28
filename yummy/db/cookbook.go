@@ -543,3 +543,49 @@ func (c *CookBook) GetSessionStats(sessionID uint) (messageCount int64, totalInp
 
 	return count, inputTokens, outputTokens, nil
 }
+
+// GetAllSessions retrieves all chat sessions with their metadata
+func (c *CookBook) GetAllSessions() ([]SessionHistory, error) {
+	var sessions []SessionHistory
+
+	// Get all sessions ordered by most recent first
+	if err := c.conn.Order("updated_at DESC").Find(&sessions).Error; err != nil {
+		return nil, fmt.Errorf("failed to get sessions: %w", err)
+	}
+
+	return sessions, nil
+}
+
+// GetNonEmptySessions retrieves only sessions that have messages
+func (c *CookBook) GetNonEmptySessions() ([]SessionHistory, error) {
+	var sessions []SessionHistory
+
+	// Get sessions that have at least one message
+	query := `
+		SELECT DISTINCT sh.* 
+		FROM session_histories sh
+		INNER JOIN session_messages sm ON sh.id = sm.session_id
+		ORDER BY sh.updated_at DESC
+	`
+
+	if err := c.conn.Raw(query).Scan(&sessions).Error; err != nil {
+		return nil, fmt.Errorf("failed to get non-empty sessions: %w", err)
+	}
+
+	return sessions, nil
+}
+
+// GetSessionWithStats retrieves a session with its statistics
+func (c *CookBook) GetSessionWithStats(sessionID uint) (*SessionHistory, int64, int64, int64, error) {
+	var session SessionHistory
+	if err := c.conn.First(&session, sessionID).Error; err != nil {
+		return nil, 0, 0, 0, fmt.Errorf("session not found: %w", err)
+	}
+
+	messageCount, inputTokens, outputTokens, err := c.GetSessionStats(sessionID)
+	if err != nil {
+		return nil, 0, 0, 0, err
+	}
+
+	return &session, messageCount, inputTokens, outputTokens, nil
+}

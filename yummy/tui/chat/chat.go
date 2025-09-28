@@ -18,8 +18,8 @@ import (
 
 	"github.com/GarroshIcecream/yummy/yummy/config"
 	db "github.com/GarroshIcecream/yummy/yummy/db"
+	"github.com/GarroshIcecream/yummy/yummy/tui/session_selector"
 	styles "github.com/GarroshIcecream/yummy/yummy/tui/styles"
-	"github.com/GarroshIcecream/yummy/yummy/tui/utils"
 	ui "github.com/GarroshIcecream/yummy/yummy/ui"
 )
 
@@ -44,6 +44,7 @@ type ChatModel struct {
 	TotalTokenCount  int
 	modelState       ui.ModelState
 	sessionID        uint
+	sessionSelector  *session_selector.SessionSelectorModel
 }
 
 func New(cookbook *db.CookBook, keymaps config.KeyMap) *ChatModel {
@@ -114,6 +115,15 @@ func New(cookbook *db.CookBook, keymaps config.KeyMap) *ChatModel {
 		log.Printf("Created new chat session with ID: %d", sessionID)
 	}
 
+	// Initialize session selector
+	sessionSelector := session_selector.New(cookbook, keymaps)
+	sessionSelector.SetOnSelect(func(sessionID uint) tea.Cmd {
+		return ui.SendSessionSelectedMsg(sessionID)
+	})
+	sessionSelector.SetOnCancel(func() tea.Cmd {
+		return nil
+	})
+
 	// Initialize the chat model
 	chatModel := &ChatModel{
 		cookbook:         cookbook,
@@ -131,6 +141,7 @@ func New(cookbook *db.CookBook, keymaps config.KeyMap) *ChatModel {
 		OutputTokenCount: 0,
 		loading:          false,
 		sessionID:        sessionID,
+		sessionSelector:  sessionSelector,
 	}
 
 	chatModel.updateViewportFromConversation()
@@ -176,6 +187,15 @@ func (m *ChatModel) renderConversationAsMarkdown() string {
 		if i < len(m.conversation)-1 {
 			content.WriteString("\n")
 		}
+	}
+
+	// Add thinking indicator if loading
+	if m.loading {
+		content.WriteString("\n")
+		thinkingHeader := styles.AssistantMessageStyle.Render("🤖 Assistant:")
+		thinkingContent := m.spinner.View() + " Thinking..."
+		content.WriteString(thinkingHeader + "\n\n")
+		content.WriteString(thinkingContent)
 	}
 
 	result := content.String()
@@ -275,7 +295,7 @@ func (m *ChatModel) ProcessUserMessage(userInput string) {
 	m.updateViewportFromConversation()
 	m.textarea.Reset()
 
-	//m.saveUserMessageToDatabase(userInput)
+	m.saveUserMessageToDatabase(userInput)
 }
 
 func (m *ChatModel) ProcessResponse(response ui.ResponseMsg) {
@@ -297,14 +317,46 @@ func (m *ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	)
 
 	switch msg := msg.(type) {
+	case ui.GenerateResponseMsg:
+		if m.llmService == nil {
+			cmds = append(cmds, ui.SendEmptyResponseMsg())
+		} else {
+			response := m.llmService.GenerateResponse(m.conversation)
+			cmds = append(cmds, ui.SendResponseMsg(response))
+		}
+		return m, tea.Batch(cmds...)
+
 	case ui.ResponseMsg:
 		m.loading = false
 		if msg.Error != nil {
 			log.Printf("Error generating response: %v", msg.Error)
 		} else {
 			m.messageCount++
-			log.Printf("Processing response: %v", msg)
 			m.ProcessResponse(msg)
+		}
+
+	case ui.SessionSelectedMsg:
+		cmds = append(cmds, m.loadSession(msg.SessionID))
+		return m, tea.Batch(cmds...)
+
+	case ui.LoadSessionMsg:
+		if msg.Err != nil {
+			log.Printf("Error loading session: %v", msg.Err)
+		} else {
+			dbMessages := make([]db.SessionMessage, len(msg.Messages))
+			for i, uiMsg := range msg.Messages {
+				dbMessages[i] = db.SessionMessage{
+					SessionID:    uiMsg.SessionID,
+					Message:      uiMsg.Message,
+					Role:         uiMsg.Role,
+					ModelName:    uiMsg.ModelName,
+					Content:      uiMsg.Content,
+					InputTokens:  uiMsg.InputTokens,
+					OutputTokens: uiMsg.OutputTokens,
+					TotalTokens:  uiMsg.TotalTokens,
+				}
+			}
+			m.loadSessionMessages(dbMessages)
 		}
 
 	case spinner.TickMsg:
@@ -373,12 +425,14 @@ func (m *ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.loading = true
 				m.messageCount++
 				m.ProcessUserMessage(userInput)
-				if m.llmService == nil {
-					cmds = append(cmds, utils.CmdHandler(ui.SendEmptyResponseMsg()))
-				} else {
-					cmds = append(cmds, utils.CmdHandler(m.llmService.GenerateResponse(m.conversation)))
-				}
+				cmds = append(cmds, ui.SendGenerateResponseMsg())
+				cmds = append(cmds, m.spinner.Tick)
+				return m, tea.Batch(cmds...)
 			}
+		case tea.KeyCtrlN:
+			m.sessionSelector.Show()
+			cmds = append(cmds, session_selector.SendLoadSessionsMsg())
+			return m, tea.Batch(cmds...)
 		}
 	}
 
@@ -386,6 +440,14 @@ func (m *ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	cmds = append(cmds, cmd)
 	m.viewport, cmd = m.viewport.Update(msg)
 	cmds = append(cmds, cmd)
+
+	if m.sessionSelector.IsVisible() {
+		updatedSelector, cmd := m.sessionSelector.Update(msg)
+		if selectorModel, ok := updatedSelector.(*session_selector.SessionSelectorModel); ok {
+			m.sessionSelector = selectorModel
+		}
+		cmds = append(cmds, cmd)
+	}
 
 	return m, tea.Batch(cmds...)
 }
@@ -410,6 +472,11 @@ func (m *ChatModel) View() string {
 	mainContent := lipgloss.JoinVertical(lipgloss.Left, chat, input)
 	chatLayout := lipgloss.JoinHorizontal(lipgloss.Top, sidebar, mainContent)
 	layout := lipgloss.JoinVertical(lipgloss.Left, title, chatLayout)
+
+	if m.sessionSelector.IsVisible() {
+		sessionSelectorView := m.sessionSelector.View()
+		layout = sessionSelectorView
+	}
 
 	return layout
 }
@@ -465,6 +532,9 @@ func (m *ChatModel) SetSize(width, height int) {
 			glamour.WithWordWrap(markdownWidth),
 		)
 	}
+
+	// Update session selector size
+	m.sessionSelector.SetSize(width, height)
 }
 
 // GetSize returns the current width and height of the model
@@ -505,4 +575,76 @@ func (m *ChatModel) GetDatabaseSessionStats() (messageCount int64, totalInputTok
 		return 0, 0, 0, fmt.Errorf("no session ID available")
 	}
 	return m.cookbook.GetSessionStats(m.sessionID)
+}
+
+// loadSession loads a session asynchronously
+func (m *ChatModel) loadSession(sessionID uint) tea.Cmd {
+	return func() tea.Msg {
+		dbMessages, err := m.cookbook.GetSessionMessages(sessionID)
+		if err != nil {
+			return ui.LoadSessionMsg{
+				SessionID: sessionID,
+				Messages:  []ui.SessionMessage{},
+				Err:       err,
+			}
+		}
+
+		// Convert db.SessionMessage to ui.SessionMessage
+		uiMessages := make([]ui.SessionMessage, len(dbMessages))
+		for i, dbMsg := range dbMessages {
+			uiMessages[i] = ui.SessionMessage{
+				SessionID:    dbMsg.SessionID,
+				Message:      dbMsg.Message,
+				Role:         dbMsg.Role,
+				ModelName:    dbMsg.ModelName,
+				Content:      dbMsg.Content,
+				InputTokens:  dbMsg.InputTokens,
+				OutputTokens: dbMsg.OutputTokens,
+				TotalTokens:  dbMsg.TotalTokens,
+			}
+		}
+
+		return ui.LoadSessionMsg{
+			SessionID: sessionID,
+			Messages:  uiMessages,
+			Err:       nil,
+		}
+	}
+}
+
+// loadSessionMessages loads messages from a session into the conversation
+func (m *ChatModel) loadSessionMessages(messages []db.SessionMessage) {
+	// Clear current conversation
+	m.conversation = []llms.MessageContent{}
+
+	// Add welcome message
+	m.conversation = AppendMessage(m.conversation, llms.ChatMessageTypeAI, ui.WelcomeMessage)
+
+	// Load messages from the session
+	for _, msg := range messages {
+		role := llms.ChatMessageType(msg.Role)
+		m.conversation = AppendMessage(m.conversation, role, msg.Content)
+	}
+
+	// Update session ID
+	m.sessionID = messages[0].SessionID
+
+	// Reset counters
+	m.messageCount = len(messages)
+	m.InputTokenCount = 0
+	m.OutputTokenCount = 0
+	m.TotalTokenCount = 0
+
+	// Calculate token counts from loaded messages
+	for _, msg := range messages {
+		m.InputTokenCount += msg.InputTokens
+		m.OutputTokenCount += msg.OutputTokens
+		m.TotalTokenCount += msg.TotalTokens
+	}
+
+	// Update viewport with loaded conversation
+	m.updateViewportFromConversation()
+
+	// Hide session selector
+	m.sessionSelector.Hide()
 }
