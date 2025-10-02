@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"github.com/GarroshIcecream/yummy/yummy/tui/detail"
-	"github.com/GarroshIcecream/yummy/yummy/ui"
+	utils "github.com/GarroshIcecream/yummy/yummy/tui/utils"
 	"github.com/spf13/cobra"
 )
 
@@ -33,7 +33,7 @@ var exportCmd = &cobra.Command{
 			return err
 		}
 
-		msg := tui.GetModel(ui.SessionStateDetail).(*detail.DetailModel).FetchRecipe(recipe_id)
+		msg := tui.GetModel(utils.SessionStateDetail).(*detail.DetailModel).FetchRecipe(recipe_id)
 		if msg.Err != nil {
 			return msg.Err
 		}

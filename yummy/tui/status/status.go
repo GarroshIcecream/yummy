@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	styles "github.com/GarroshIcecream/yummy/yummy/tui/styles"
-	ui "github.com/GarroshIcecream/yummy/yummy/ui"
+	utils "github.com/GarroshIcecream/yummy/yummy/tui/utils"
 	"github.com/charmbracelet/lipgloss"
 )
 
@@ -16,8 +16,8 @@ type StatusLine struct {
 
 // this sucks as we need to think of some other fields that are applicable to us
 type StatusInfo struct {
-	Mode        ui.StatusMode
-	FileName    ui.StateNames
+	Mode        utils.StatusMode
+	FileName    utils.StateNames
 	FileInfo    string
 	Position    string
 	LineCount   int
@@ -51,7 +51,7 @@ func (s *StatusLine) Render(info StatusInfo) string {
 
 	leftWidth := lipgloss.Width(leftStyled)
 	rightWidth := lipgloss.Width(rightStyled)
-	spaceWidth := s.width - leftWidth - rightWidth - ui.StatusLinePadding
+	spaceWidth := s.width - leftWidth - rightWidth - utils.StatusLinePadding
 
 	emptySpace := ""
 	if spaceWidth > 0 {
@@ -103,22 +103,22 @@ func (s *StatusLine) renderRightSide(info StatusInfo) string {
 	return strings.Join(parts, separator)
 }
 
-func CreateStatusInfo(sessionState ui.SessionState, additionalInfo map[string]interface{}) StatusInfo {
+func CreateStatusInfo(sessionState utils.SessionState, additionalInfo map[string]interface{}) StatusInfo {
 	info := StatusInfo{}
 
 	switch sessionState {
-	case ui.SessionStateMainMenu:
-		info.Mode = ui.StatusModeMenu
-		info.FileName = ui.StateNameMainMenu
+	case utils.SessionStateMainMenu:
+		info.Mode = utils.StatusModeMenu
+		info.FileName = utils.StateNameMainMenu
 		info.FileInfo = "Ready"
 
-	case ui.SessionStateList:
-		info.Mode = ui.StatusModeList
-		info.FileName = ui.StateNameList
+	case utils.SessionStateList:
+		info.Mode = utils.StatusModeList
+		info.FileName = utils.StateNameList
 		if selectedItem, ok := additionalInfo["selected_item"].(string); ok {
-			info.FileName = ui.StateNames(selectedItem)
+			info.FileName = utils.StateNames(selectedItem)
 		} else {
-			info.FileName = ui.StateNameList
+			info.FileName = utils.StateNameList
 		}
 		if count, ok := additionalInfo["count"].(int); ok {
 			info.FileInfo = fmt.Sprintf("%d recipes", count)
@@ -126,12 +126,12 @@ func CreateStatusInfo(sessionState ui.SessionState, additionalInfo map[string]in
 			info.FileInfo = "Loading..."
 		}
 
-	case ui.SessionStateDetail:
-		info.Mode = ui.StatusModeRecipe
+	case utils.SessionStateDetail:
+		info.Mode = utils.StatusModeRecipe
 		if recipeName, ok := additionalInfo["recipe_name"].(string); ok {
-			info.FileName = ui.StateNames(recipeName)
+			info.FileName = utils.StateNames(recipeName)
 		} else {
-			info.FileName = ui.StateNameDetail
+			info.FileName = utils.StateNameDetail
 		}
 		if scrollPos, ok := additionalInfo["scroll_pos"].(int); ok {
 			if totalLines, ok := additionalInfo["total_lines"].(int); ok {
@@ -142,29 +142,34 @@ func CreateStatusInfo(sessionState ui.SessionState, additionalInfo map[string]in
 			}
 		}
 
-	case ui.SessionStateEdit:
-		info.Mode = ui.StatusModeEdit
+	case utils.SessionStateEdit:
+		info.Mode = utils.StatusModeEdit
 		if recipeName, ok := additionalInfo["recipe_name"].(string); ok {
-			info.FileName = ui.StateNames(recipeName)
+			info.FileName = utils.StateNames(recipeName)
 		} else {
-			info.FileName = ui.StateNameEdit
+			info.FileName = utils.StateNameEdit
 		}
 		info.Modified = true
 		info.FileInfo = "Modified"
 
-	case ui.SessionStateChat:
-		info.Mode = ui.StatusModeChat
-		info.FileName = ui.StateNameChat
+	case utils.SessionStateChat:
+		info.Mode = utils.StatusModeChat
+		info.FileName = utils.StateNameChat
 		info.FileInfo = "Chat Mode"
 
-	case ui.SessionStateStateSelector:
-		info.Mode = ui.StatusModeStateSelector
+	case utils.SessionStateStateSelector:
+		info.Mode = utils.StatusModeStateSelector
 		if stateSelected, ok := additionalInfo["state_selected"].(string); ok {
-			info.FileName = ui.StateNames(stateSelected)
+			info.FileName = utils.StateNames(stateSelected)
 		} else {
-			info.FileName = ui.StateNameMainMenu
+			info.FileName = utils.StateNameMainMenu
 		}
 		info.FileInfo = "State Selector"
+
+	case utils.SessionStateSessionSelector:
+		info.Mode = utils.StatusModeSessionSelector
+		info.FileName = "Session Selector"
+		info.FileInfo = "Select Chat Session"
 	}
 
 	return info

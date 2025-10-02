@@ -7,7 +7,7 @@ import (
 	db "github.com/GarroshIcecream/yummy/yummy/db"
 	"github.com/GarroshIcecream/yummy/yummy/recipe"
 	styles "github.com/GarroshIcecream/yummy/yummy/tui/styles"
-	"github.com/GarroshIcecream/yummy/yummy/ui"
+	utils "github.com/GarroshIcecream/yummy/yummy/tui/utils"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
@@ -17,7 +17,7 @@ type ListModel struct {
 	cookbook        *db.CookBook
 	err             error
 	RecipeList      list.Model
-	modelState      ui.ModelState
+	modelState      utils.ModelState
 	filterFavourite bool
 	width           int
 	height          int
@@ -37,10 +37,10 @@ func New(cookbook *db.CookBook, keymaps config.KeyMap, filterFavourite bool) *Li
 
 	l := list.New(items, d, 80, 40)
 	l.Styles = styles.GetListStyles()
-	l.Title = ui.ListTitle
+	l.Title = utils.ListTitle
 	l.KeyMap = keymaps.ListKeyMap()
-	l.SetStatusBarItemName(ui.ListItemNameSingular, ui.ListItemNamePlural)
-	l.StatusMessageLifetime = ui.ListViewStatusMessageTTL
+	l.SetStatusBarItemName(utils.ListItemNameSingular, utils.ListItemNamePlural)
+	l.StatusMessageLifetime = utils.ListViewStatusMessageTTL
 	l.AdditionalShortHelpKeys = func() []key.Binding {
 		return []key.Binding{keymaps.Add, keymaps.Delete}
 	}
@@ -53,7 +53,7 @@ func New(cookbook *db.CookBook, keymaps config.KeyMap, filterFavourite bool) *Li
 		cookbook:        cookbook,
 		keyMap:          keymaps,
 		filterFavourite: filterFavourite,
-		modelState:      ui.ModelStateLoaded,
+		modelState:      utils.ModelStateLoaded,
 		err:             err,
 		RecipeList:      l,
 	}
@@ -83,7 +83,7 @@ func (m *ListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 
-	case ui.SetFavouriteMsg:
+	case utils.SetFavouriteMsg:
 		if err := m.cookbook.SetFavourite(msg.RecipeID); err != nil {
 			m.err = err
 			return m, nil
@@ -92,9 +92,9 @@ func (m *ListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, cmd)
 		isFavourite := m.RecipeList.SelectedItem().(recipe.RecipeWithDescription).IsFavourite
 		if isFavourite {
-			cmds = append(cmds, m.RecipeList.NewStatusMessage(ui.ListViewStatusMessageFavouriteSet))
+			cmds = append(cmds, m.RecipeList.NewStatusMessage(utils.ListViewStatusMessageFavouriteSet))
 		} else {
-			cmds = append(cmds, m.RecipeList.NewStatusMessage(ui.ListViewStatusMessageFavouriteRemoved))
+			cmds = append(cmds, m.RecipeList.NewStatusMessage(utils.ListViewStatusMessageFavouriteRemoved))
 		}
 
 	case tea.KeyMsg:
@@ -109,21 +109,21 @@ func (m *ListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 					cmd = m.RefreshRecipeList()
 					cmds = append(cmds, cmd)
-					cmds = append(cmds, m.RecipeList.NewStatusMessage(ui.ListViewStatusMessageRecipeDeleted))
+					cmds = append(cmds, m.RecipeList.NewStatusMessage(utils.ListViewStatusMessageRecipeDeleted))
 				}
 			}
 		case key.Matches(msg, m.keyMap.Enter):
 			if m.RecipeList.FilterState() != list.Filtering {
 				if i, ok := m.SelectedItemToRecipeWithDescription(); ok {
-					cmds = append(cmds, ui.SendSessionStateMsg(ui.SessionStateDetail))
-					cmds = append(cmds, ui.SendRecipeSelectedMsg(i.RecipeID))
+					cmds = append(cmds, utils.SendSessionStateMsg(utils.SessionStateDetail))
+					cmds = append(cmds, utils.SendRecipeSelectedMsg(i.RecipeID))
 				}
 			}
 
 		case key.Matches(msg, m.keyMap.SetFavourite):
 			if m.RecipeList.FilterState() != list.Filtering {
 				if i, ok := m.SelectedItemToRecipeWithDescription(); ok {
-					cmds = append(cmds, ui.SendSetFavouriteMsg(i.RecipeID))
+					cmds = append(cmds, utils.SendSetFavouriteMsg(i.RecipeID))
 				}
 			}
 		}
@@ -178,6 +178,6 @@ func (m *ListModel) GetSize() (width, height int) {
 	return m.width, m.height
 }
 
-func (m *ListModel) GetModelState() ui.ModelState {
+func (m *ListModel) GetModelState() utils.ModelState {
 	return m.modelState
 }

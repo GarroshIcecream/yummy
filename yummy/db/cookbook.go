@@ -16,6 +16,13 @@ type CookBook struct {
 	conn *gorm.DB
 }
 
+type SessionStats struct {
+	SessionID         uint
+	MessageCount      int64
+	TotalInputTokens  int64
+	TotalOutputTokens int64
+}
+
 // GetDB returns the underlying database connection
 func (c *CookBook) GetDB() *gorm.DB {
 	return c.conn
@@ -522,26 +529,31 @@ func (c *CookBook) GetSessionMessages(sessionID uint) ([]SessionMessage, error) 
 }
 
 // GetSessionStats returns statistics for a given session
-func (c *CookBook) GetSessionStats(sessionID uint) (messageCount int64, totalInputTokens, totalOutputTokens int64, err error) {
+func (c *CookBook) GetSessionStats(sessionID uint) (SessionStats, error) {
 	var count int64
 	var inputTokens, outputTokens int64
 
 	// Count messages
 	if err := c.conn.Model(&SessionMessage{}).Where("session_id = ?", sessionID).Count(&count).Error; err != nil {
-		return 0, 0, 0, fmt.Errorf("failed to count session messages: %w", err)
+		return SessionStats{}, fmt.Errorf("failed to count session messages: %w", err)
 	}
 
 	// Sum input tokens
 	if err := c.conn.Model(&SessionMessage{}).Where("session_id = ?", sessionID).Select("COALESCE(SUM(input_tokens), 0)").Scan(&inputTokens).Error; err != nil {
-		return 0, 0, 0, fmt.Errorf("failed to sum input tokens: %w", err)
+		return SessionStats{}, fmt.Errorf("failed to sum input tokens: %w", err)
 	}
 
 	// Sum output tokens
 	if err := c.conn.Model(&SessionMessage{}).Where("session_id = ?", sessionID).Select("COALESCE(SUM(output_tokens), 0)").Scan(&outputTokens).Error; err != nil {
-		return 0, 0, 0, fmt.Errorf("failed to sum output tokens: %w", err)
+		return SessionStats{}, fmt.Errorf("failed to sum output tokens: %w", err)
 	}
 
-	return count, inputTokens, outputTokens, nil
+	return SessionStats{
+		SessionID:         sessionID,
+		MessageCount:      count,
+		TotalInputTokens:  inputTokens,
+		TotalOutputTokens: outputTokens,
+	}, nil
 }
 
 // GetAllSessions retrieves all chat sessions with their metadata
@@ -573,19 +585,4 @@ func (c *CookBook) GetNonEmptySessions() ([]SessionHistory, error) {
 	}
 
 	return sessions, nil
-}
-
-// GetSessionWithStats retrieves a session with its statistics
-func (c *CookBook) GetSessionWithStats(sessionID uint) (*SessionHistory, int64, int64, int64, error) {
-	var session SessionHistory
-	if err := c.conn.First(&session, sessionID).Error; err != nil {
-		return nil, 0, 0, 0, fmt.Errorf("session not found: %w", err)
-	}
-
-	messageCount, inputTokens, outputTokens, err := c.GetSessionStats(sessionID)
-	if err != nil {
-		return nil, 0, 0, 0, err
-	}
-
-	return &session, messageCount, inputTokens, outputTokens, nil
 }

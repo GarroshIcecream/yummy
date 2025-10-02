@@ -131,11 +131,10 @@ func setupApp(cmd *cobra.Command) (*tui.Manager, error) {
 		return nil, err
 	}
 
-	// check ollama status
 	ollamaStatus := chat.GetOllamaServiceStatus()
-	if len(ollamaStatus.Errors) > 0 {
-		slog.Error("Ollama service status", "errors", ollamaStatus.Errors)
-		return nil, fmt.Errorf("ollama service status: %v", ollamaStatus.Errors)
+	if ollamaStatus.Error != nil {
+		slog.Error("Ollama service status", "error", ollamaStatus.Error)
+		return nil, fmt.Errorf("ollama service status: %v", ollamaStatus.Error)
 	}
 
 	tuiInstance, err := tui.New(conn, ctx)

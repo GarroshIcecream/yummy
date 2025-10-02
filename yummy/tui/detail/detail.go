@@ -8,7 +8,7 @@ import (
 	db "github.com/GarroshIcecream/yummy/yummy/db"
 	recipes "github.com/GarroshIcecream/yummy/yummy/recipe"
 	styles "github.com/GarroshIcecream/yummy/yummy/tui/styles"
-	ui "github.com/GarroshIcecream/yummy/yummy/ui"
+	utils "github.com/GarroshIcecream/yummy/yummy/tui/utils"
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
@@ -24,24 +24,24 @@ type DetailModel struct {
 	width          int
 	height         int
 	keyMap         config.KeyMap
-	modelState     ui.ModelState
+	modelState     utils.ModelState
 }
 
 func New(cookbook *db.CookBook, keymaps config.KeyMap) *DetailModel {
 	renderer, _ := glamour.NewTermRenderer(
 		glamour.WithAutoStyle(),
 		glamour.WithEmoji(),
-		glamour.WithWordWrap(ui.DefaultViewportWidth),
+		glamour.WithWordWrap(utils.DefaultViewportWidth),
 	)
 
 	model := &DetailModel{
 		cookbook:       cookbook,
 		renderer:       renderer,
 		scrollPosition: 0,
-		width:          ui.DefaultViewportWidth,
-		height:         ui.DefaultViewportHeight,
+		width:          utils.DefaultViewportWidth,
+		height:         utils.DefaultViewportHeight,
 		keyMap:         keymaps,
-		modelState:     ui.ModelStateLoaded,
+		modelState:     utils.ModelStateLoaded,
 	}
 
 	return model
@@ -55,11 +55,11 @@ func (m *DetailModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
-	case ui.RecipeSelectedMsg:
-		cmd_load := ui.SendLoadRecipeMsg(m.FetchRecipe(msg.RecipeID))
+	case utils.RecipeSelectedMsg:
+		cmd_load := utils.SendLoadRecipeMsg(m.FetchRecipe(msg.RecipeID))
 		cmds = append(cmds, cmd_load)
 
-	case ui.LoadRecipeMsg:
+	case utils.LoadRecipeMsg:
 		m.scrollPosition = 0
 		m.CurrentRecipe = msg.Recipe
 		m.content = msg.Content
@@ -69,23 +69,23 @@ func (m *DetailModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch {
 		case key.Matches(msg, m.keyMap.Edit):
 			if m.CurrentRecipe != nil {
-				cmd_state := ui.SendSessionStateMsg(ui.SessionStateEdit)
-				cmd_edit := ui.SendEditRecipeMsg(m.CurrentRecipe.ID)
+				cmd_state := utils.SendSessionStateMsg(utils.SessionStateEdit)
+				cmd_edit := utils.SendEditRecipeMsg(m.CurrentRecipe.ID)
 				cmds = append(cmds, cmd_state, cmd_edit)
 			}
 		case key.Matches(msg, m.keyMap.CursorUp):
-			m.ScrollUp(ui.DefaultScrollSpeed)
+			m.ScrollUp(utils.DefaultScrollSpeed)
 		case key.Matches(msg, m.keyMap.CursorDown):
-			m.ScrollDown(ui.DefaultScrollSpeed)
+			m.ScrollDown(utils.DefaultScrollSpeed)
 		}
 
 	case tea.MouseMsg:
 		if msg.Action == tea.MouseActionPress {
 			switch msg.Button {
 			case tea.MouseButtonWheelUp:
-				m.ScrollUp(ui.DefaultScrollSpeed)
+				m.ScrollUp(utils.DefaultScrollSpeed)
 			case tea.MouseButtonWheelDown:
-				m.ScrollDown(ui.DefaultScrollSpeed)
+				m.ScrollDown(utils.DefaultScrollSpeed)
 			}
 		}
 	}
@@ -105,10 +105,10 @@ func (m *DetailModel) View() string {
 	return m.renderContentView()
 }
 
-func (m *DetailModel) FetchRecipe(recipe_id uint) ui.LoadRecipeMsg {
+func (m *DetailModel) FetchRecipe(recipe_id uint) utils.LoadRecipeMsg {
 	recipe, err := m.cookbook.GetFullRecipe(recipe_id)
 	if err != nil {
-		return ui.LoadRecipeMsg{Recipe: nil, Content: "", Err: err}
+		return utils.LoadRecipeMsg{Recipe: nil, Content: "", Err: err}
 	}
 
 	// Render markdown content immediately
@@ -118,7 +118,7 @@ func (m *DetailModel) FetchRecipe(recipe_id uint) ui.LoadRecipeMsg {
 		content = markdown
 	}
 
-	return ui.LoadRecipeMsg{Recipe: recipe, Content: content, Err: nil}
+	return utils.LoadRecipeMsg{Recipe: recipe, Content: content, Err: nil}
 }
 
 func (m *DetailModel) ScrollUp(amount int) {
@@ -194,7 +194,7 @@ func (m *DetailModel) refreshContent() {
 	}
 }
 
-func (m *DetailModel) GetModelState() ui.ModelState {
+func (m *DetailModel) GetModelState() utils.ModelState {
 	return m.modelState
 }
 

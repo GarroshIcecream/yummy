@@ -23,11 +23,9 @@ func RenderSidebar(messageCount int, tokenCount int, ollamaStatus OllamaServiceS
 	} else {
 		sidebar.WriteString(styles.SidebarSectionStyle.Render("🔧 Ollama Status: ❌"))
 		sidebar.WriteString("\n")
-		if len(status.Errors) > 0 {
-			for _, err := range status.Errors {
-				sidebar.WriteString(styles.SidebarErrorStyle.Render(fmt.Sprintf("   • %s", err)))
-				sidebar.WriteString("\n")
-			}
+		if status.Error != nil {
+			sidebar.WriteString(styles.SidebarErrorStyle.Render(fmt.Sprintf("   • %s", status.Error)))
+			sidebar.WriteString("\n")
 		}
 	}
 	sidebar.WriteString("\n")

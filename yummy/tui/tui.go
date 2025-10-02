@@ -11,12 +11,12 @@ import (
 	"github.com/GarroshIcecream/yummy/yummy/recipe"
 	chat "github.com/GarroshIcecream/yummy/yummy/tui/chat"
 	detail "github.com/GarroshIcecream/yummy/yummy/tui/detail"
+	dialog "github.com/GarroshIcecream/yummy/yummy/tui/dialog"
 	edit "github.com/GarroshIcecream/yummy/yummy/tui/edit"
 	yummy_list "github.com/GarroshIcecream/yummy/yummy/tui/list"
 	main_menu "github.com/GarroshIcecream/yummy/yummy/tui/main_menu"
-	state_selector "github.com/GarroshIcecream/yummy/yummy/tui/state_selector"
 	status "github.com/GarroshIcecream/yummy/yummy/tui/status"
-	ui "github.com/GarroshIcecream/yummy/yummy/ui"
+	utils "github.com/GarroshIcecream/yummy/yummy/tui/utils"
 	"github.com/charmbracelet/bubbles/key"
 	list "github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
@@ -25,18 +25,18 @@ import (
 
 type TUIModel interface {
 	tea.Model
-	GetModelState() ui.ModelState
+	GetModelState() utils.ModelState
 	SetSize(width, height int)
 	GetSize() (width, height int)
 }
 
 type Manager struct {
-	CurrentSessionState  ui.SessionState
-	PreviousSessionState ui.SessionState
-	models               map[ui.SessionState]TUIModel
+	CurrentSessionState  utils.SessionState
+	PreviousSessionState utils.SessionState
+	models               map[utils.SessionState]TUIModel
 	Cookbook             *db.CookBook
 	keyMap               config.KeyMap
-	ModelState           ui.ModelState
+	ModelState           utils.ModelState
 	Ctx                  context.Context
 	statusLine           *status.StatusLine
 	width                int
@@ -46,45 +46,49 @@ type Manager struct {
 func New(cookbook *db.CookBook, ctx context.Context) (*Manager, error) {
 	keymaps := config.DefaultKeyMap()
 
-	models := map[ui.SessionState]TUIModel{
-		ui.SessionStateMainMenu:      main_menu.New(cookbook, keymaps),
-		ui.SessionStateList:          yummy_list.New(cookbook, keymaps, false),
-		ui.SessionStateDetail:        detail.New(cookbook, keymaps),
-		ui.SessionStateEdit:          edit.New(cookbook, keymaps, nil),
-		ui.SessionStateChat:          chat.New(cookbook, keymaps),
-		ui.SessionStateStateSelector: state_selector.New(),
+	models := map[utils.SessionState]TUIModel{
+		utils.SessionStateMainMenu:        main_menu.New(cookbook, keymaps),
+		utils.SessionStateList:            yummy_list.New(cookbook, keymaps, false),
+		utils.SessionStateDetail:          detail.New(cookbook, keymaps),
+		utils.SessionStateEdit:            edit.New(cookbook, keymaps, nil),
+		utils.SessionStateChat:            chat.New(cookbook, keymaps),
+		utils.SessionStateStateSelector:   dialog.NewStateSelectorDialog(),
+		utils.SessionStateSessionSelector: dialog.NewSessionSelectorDialog(cookbook, keymaps),
 	}
 
 	manager := Manager{
 		Cookbook:             cookbook,
 		keyMap:               keymaps,
 		models:               models,
-		CurrentSessionState:  ui.SessionStateMainMenu,
-		PreviousSessionState: ui.SessionStateMainMenu,
+		CurrentSessionState:  utils.SessionStateMainMenu,
+		PreviousSessionState: utils.SessionStateMainMenu,
 		Ctx:                  ctx,
-		statusLine:           status.New(ui.MainMenuContentWidth, ui.StatusLineHeight),
-		width:                ui.MainMenuContentWidth,
-		height:               ui.DefaultViewportHeight,
-		ModelState:           ui.ModelStateLoaded,
+		statusLine:           status.New(utils.MainMenuContentWidth, utils.StatusLineHeight),
+		width:                utils.MainMenuContentWidth,
+		height:               utils.DefaultViewportHeight,
+		ModelState:           utils.ModelStateLoaded,
 	}
 
 	return &manager, nil
 }
 
-func (m *Manager) SetCurrentSessionState(state ui.SessionState) {
+func (m *Manager) SetCurrentSessionState(state utils.SessionState) {
+	if m.CurrentSessionState == state {
+		return
+	}
 	m.PreviousSessionState = m.CurrentSessionState
 	m.CurrentSessionState = state
 }
 
-func (m *Manager) GetCurrentSessionState() ui.SessionState {
+func (m *Manager) GetCurrentSessionState() utils.SessionState {
 	return m.CurrentSessionState
 }
 
-func (m *Manager) GetModel(state ui.SessionState) TUIModel {
+func (m *Manager) GetModel(state utils.SessionState) TUIModel {
 	return m.models[state]
 }
 
-func (m *Manager) GetModelState(state ui.SessionState) ui.ModelState {
+func (m *Manager) GetModelState(state utils.SessionState) utils.ModelState {
 	return m.models[state].GetModelState()
 }
 
@@ -94,15 +98,15 @@ func (m *Manager) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 
-	case ui.SessionStateMsg:
+	case utils.SessionStateMsg:
 		m.SetCurrentSessionState(msg.SessionState)
 
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		m.statusLine.SetSize(msg.Width, ui.StatusLineHeight)
+		m.statusLine.SetSize(msg.Width, utils.StatusLineHeight)
 		for _, model := range m.models {
-			model.SetSize(msg.Width, msg.Height-ui.StatusLineHeight)
+			model.SetSize(msg.Width, msg.Height-utils.StatusLineHeight)
 		}
 
 	case tea.KeyMsg:
@@ -110,48 +114,50 @@ func (m *Manager) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keyMap.ForceQuit):
 			return m, tea.Quit
 		case key.Matches(msg, m.keyMap.CursorUp):
-			if m.CurrentSessionState == ui.SessionStateDetail {
-				if detailModel, ok := m.models[ui.SessionStateDetail].(*detail.DetailModel); ok {
-					detailModel.ScrollUp(ui.DefaultScrollSpeed)
+			if m.CurrentSessionState == utils.SessionStateDetail {
+				if detailModel, ok := m.models[utils.SessionStateDetail].(*detail.DetailModel); ok {
+					detailModel.ScrollUp(utils.DefaultScrollSpeed)
 				}
 			}
 		case key.Matches(msg, m.keyMap.CursorDown):
-			if m.CurrentSessionState == ui.SessionStateDetail {
-				if detailModel, ok := m.models[ui.SessionStateDetail].(*detail.DetailModel); ok {
-					detailModel.ScrollDown(ui.DefaultScrollSpeed)
+			if m.CurrentSessionState == utils.SessionStateDetail {
+				if detailModel, ok := m.models[utils.SessionStateDetail].(*detail.DetailModel); ok {
+					detailModel.ScrollDown(utils.DefaultScrollSpeed)
 				}
 			}
 
 		case key.Matches(msg, m.keyMap.Edit):
-			if m.CurrentSessionState == ui.SessionStateDetail {
-				if detailModel, ok := m.models[ui.SessionStateDetail].(*detail.DetailModel); ok {
-					cmds = append(cmds, ui.SendSessionStateMsg(ui.SessionStateEdit))
-					cmds = append(cmds, ui.SendEditRecipeMsg(detailModel.CurrentRecipe.ID))
+			if m.CurrentSessionState == utils.SessionStateDetail {
+				if detailModel, ok := m.models[utils.SessionStateDetail].(*detail.DetailModel); ok {
+					cmds = append(cmds, utils.SendSessionStateMsg(utils.SessionStateEdit))
+					cmds = append(cmds, utils.SendEditRecipeMsg(detailModel.CurrentRecipe.ID))
 				}
 			}
+			return m, tea.Batch(cmds...)
 
 		case key.Matches(msg, m.keyMap.Back):
-			if m.CurrentSessionState == ui.SessionStateList {
-				if listModel, ok := m.models[ui.SessionStateList].(*yummy_list.ListModel); ok {
+			if m.CurrentSessionState == utils.SessionStateList {
+				if listModel, ok := m.models[utils.SessionStateList].(*yummy_list.ListModel); ok {
 					if listModel.RecipeList.FilterState() != list.Filtering {
 						m.SetCurrentSessionState(m.PreviousSessionState)
-						return m, nil
 					}
 				}
 			} else {
 				m.SetCurrentSessionState(m.PreviousSessionState)
-				return m, nil
 			}
+
+			return m, nil
 		case key.Matches(msg, m.keyMap.Add):
-			if m.CurrentSessionState == ui.SessionStateList {
-				if listModel, ok := m.models[ui.SessionStateList].(*yummy_list.ListModel); ok {
+			if m.CurrentSessionState == utils.SessionStateList {
+				if listModel, ok := m.models[utils.SessionStateList].(*yummy_list.ListModel); ok {
 					if listModel.RecipeList.FilterState() != list.Filtering {
 						m.SetCurrentSessionState(m.PreviousSessionState)
 					}
 				}
 			}
+			return m, nil
 		case key.Matches(msg, m.keyMap.StateSelector):
-			m.SetCurrentSessionState(ui.SessionStateStateSelector)
+			m.SetCurrentSessionState(utils.SessionStateStateSelector)
 			return m, nil
 		}
 	}
@@ -185,7 +191,7 @@ func (m Manager) View() string {
 	}
 
 	// Render status line if not loading
-	if m.GetModelState(m.CurrentSessionState) != ui.ModelStateLoading {
+	if m.GetModelState(m.CurrentSessionState) != utils.ModelStateLoading {
 		statusInfo := m.createStatusInfo()
 		statusLine := m.statusLine.Render(statusInfo)
 		content = lipgloss.JoinVertical(lipgloss.Left, content, statusLine)
@@ -199,14 +205,14 @@ func (m *Manager) createStatusInfo() status.StatusInfo {
 
 	// Add specific information based on current session state
 	switch m.CurrentSessionState {
-	case ui.SessionStateList:
-		if listModel, ok := m.models[ui.SessionStateList].(*yummy_list.ListModel); ok {
+	case utils.SessionStateList:
+		if listModel, ok := m.models[utils.SessionStateList].(*yummy_list.ListModel); ok {
 			additionalInfo["count"] = len(listModel.RecipeList.Items())
 			additionalInfo["selected_item"] = listModel.RecipeList.SelectedItem().(recipe.RecipeWithDescription).Title()
 		}
 
-	case ui.SessionStateDetail:
-		if detailModel, ok := m.models[ui.SessionStateDetail].(*detail.DetailModel); ok {
+	case utils.SessionStateDetail:
+		if detailModel, ok := m.models[utils.SessionStateDetail].(*detail.DetailModel); ok {
 			if detailModel.CurrentRecipe != nil {
 				recipeName := detailModel.CurrentRecipe.Name
 				recipeID := detailModel.CurrentRecipe.ID
@@ -221,12 +227,12 @@ func (m *Manager) createStatusInfo() status.StatusInfo {
 			additionalInfo["total_lines"] = detailModel.GetContentHeight()
 		}
 
-	case ui.SessionStateEdit:
+	case utils.SessionStateEdit:
 		// Edit model doesn't expose recipe name directly, so we'll use a generic name
 		additionalInfo["recipe_name"] = "Edit Recipe"
 
-	case ui.SessionStateStateSelector:
-		selectedState := m.models[ui.SessionStateStateSelector].(*state_selector.StateSelectorDialogCmp).GetSelectedStateName()
+	case utils.SessionStateStateSelector:
+		selectedState := m.models[utils.SessionStateStateSelector].(*dialog.StateSelectorDialogCmp).GetSelectedStateName()
 		additionalInfo["state_selected"] = selectedState
 	}
 

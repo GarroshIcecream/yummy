@@ -1,10 +1,9 @@
-package ui
+package utils
 
 import (
 	"errors"
 
 	recipes "github.com/GarroshIcecream/yummy/yummy/recipe"
-	tui "github.com/GarroshIcecream/yummy/yummy/tui/utils"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -20,6 +19,8 @@ type SessionMessage struct {
 }
 
 type GenerateResponseMsg struct{}
+
+type LoadSessionsMsg struct{}
 
 type RecipeSelectedMsg struct {
 	RecipeID uint
@@ -76,27 +77,31 @@ type LoadSessionMsg struct {
 }
 
 func SendCloseDialogMsg() tea.Cmd {
-	return tui.CmdHandler(CloseDialogMsg{})
+	return CmdHandler(CloseDialogMsg{})
 }
 
 func SendRecipeSelectedMsg(recipe_id uint) tea.Cmd {
-	return tui.CmdHandler(RecipeSelectedMsg{RecipeID: recipe_id})
+	return CmdHandler(RecipeSelectedMsg{RecipeID: recipe_id})
 }
 
 func SendSessionStateMsg(session_state SessionState) tea.Cmd {
-	return tui.CmdHandler(SessionStateMsg{SessionState: session_state})
+	return CmdHandler(SessionStateMsg{SessionState: session_state})
 }
 
 func SendEditRecipeMsg(recipe_id uint) tea.Cmd {
-	return tui.CmdHandler(EditRecipeMsg{RecipeID: recipe_id})
+	return CmdHandler(EditRecipeMsg{RecipeID: recipe_id})
 }
 
 func SendLoadRecipeMsg(msg LoadRecipeMsg) tea.Cmd {
-	return tui.CmdHandler(msg)
+	return CmdHandler(msg)
+}
+
+func SendLoadSessionsMsg() tea.Cmd {
+	return CmdHandler(LoadSessionsMsg{})
 }
 
 func SendStatusInfoMsg(msg string, msgType int, ttl int) tea.Cmd {
-	return tui.CmdHandler(StatusInfoMsg{
+	return CmdHandler(StatusInfoMsg{
 		Msg:  msg,
 		Type: msgType,
 		TTL:  ttl,
@@ -105,7 +110,7 @@ func SendStatusInfoMsg(msg string, msgType int, ttl int) tea.Cmd {
 
 func SendEmptyResponseMsg() tea.Cmd {
 	err := errors.New("empty response")
-	return tui.CmdHandler(ResponseMsg{
+	return CmdHandler(ResponseMsg{
 		Response:         EmptyResponse,
 		PromptTokens:     0,
 		CompletionTokens: 0,
@@ -115,23 +120,23 @@ func SendEmptyResponseMsg() tea.Cmd {
 }
 
 func SendResponseMsg(response ResponseMsg) tea.Cmd {
-	return tui.CmdHandler(response)
+	return CmdHandler(response)
 }
 
 func SendGenerateResponseMsg() tea.Cmd {
-	return tui.CmdHandler(GenerateResponseMsg{})
+	return CmdHandler(GenerateResponseMsg{})
 }
 
 func SendSetFavouriteMsg(recipe_id uint) tea.Cmd {
-	return tui.CmdHandler(SetFavouriteMsg{RecipeID: recipe_id})
+	return CmdHandler(SetFavouriteMsg{RecipeID: recipe_id})
 }
 
 func SendSessionSelectedMsg(sessionID uint) tea.Cmd {
-	return tui.CmdHandler(SessionSelectedMsg{SessionID: sessionID})
+	return CmdHandler(SessionSelectedMsg{SessionID: sessionID})
 }
 
 func SendLoadSessionMsg(sessionID uint, messages []SessionMessage, err error) tea.Cmd {
-	return tui.CmdHandler(LoadSessionMsg{
+	return CmdHandler(LoadSessionMsg{
 		SessionID: sessionID,
 		Messages:  messages,
 		Err:       err,

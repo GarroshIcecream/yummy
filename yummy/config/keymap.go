@@ -18,6 +18,7 @@ type KeyMap struct {
 	Help                 key.Binding
 	Edit                 key.Binding
 	StateSelector        key.Binding
+	SessionSelector      key.Binding
 	SetFavourite         key.Binding
 	PrevPage             key.Binding
 	NextPage             key.Binding
@@ -129,6 +130,10 @@ func DefaultKeyMap() KeyMap {
 		StateSelector: key.NewBinding(
 			key.WithKeys("ctrl+s"),
 			key.WithHelp("ctrl+s", "select state"),
+		),
+		SessionSelector: key.NewBinding(
+			key.WithKeys("ctrl+n"),
+			key.WithHelp("ctrl+n", "select session"),
 		),
 		SetFavourite: key.NewBinding(
 			key.WithKeys("ctrl+t"),

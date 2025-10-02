@@ -10,7 +10,7 @@ import (
 	db "github.com/GarroshIcecream/yummy/yummy/db"
 	recipes "github.com/GarroshIcecream/yummy/yummy/recipe"
 	styles "github.com/GarroshIcecream/yummy/yummy/tui/styles"
-	ui "github.com/GarroshIcecream/yummy/yummy/ui"
+	utils "github.com/GarroshIcecream/yummy/yummy/tui/utils"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
@@ -57,7 +57,7 @@ type EditModel struct {
 	// Navigation
 	activeField int
 	showHelp    bool
-	modelState  ui.ModelState
+	modelState  utils.ModelState
 }
 
 func New(cookbook *db.CookBook, keymaps config.KeyMap, recipe *recipes.RecipeRaw) *EditModel {
@@ -69,7 +69,7 @@ func New(cookbook *db.CookBook, keymaps config.KeyMap, recipe *recipes.RecipeRaw
 		state:        EditStateForm,
 		activeField:  0,
 		showHelp:     false,
-		modelState:   ui.ModelStateLoaded,
+		modelState:   utils.ModelStateLoaded,
 		ingredients:  []recipes.Ingredient{},
 		instructions: []string{},
 	}
@@ -96,7 +96,7 @@ func New(cookbook *db.CookBook, keymaps config.KeyMap, recipe *recipes.RecipeRaw
 	return model
 }
 
-func (m *EditModel) GetModelState() ui.ModelState {
+func (m *EditModel) GetModelState() utils.ModelState {
 	return m.modelState
 }
 
@@ -173,9 +173,9 @@ func (m *EditModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 			// Go back to previous state
-			cmds = append(cmds, ui.SendSessionStateMsg(ui.SessionStateDetail))
+			cmds = append(cmds, utils.SendSessionStateMsg(utils.SessionStateDetail))
 			if m.recipeID != nil {
-				cmds = append(cmds, ui.SendRecipeSelectedMsg(*m.recipeID))
+				cmds = append(cmds, utils.SendRecipeSelectedMsg(*m.recipeID))
 			}
 		case key.Matches(msg, m.keyMap.Quit):
 			return m, tea.Quit
@@ -200,11 +200,11 @@ func (m *EditModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.SetSize(msg.Width, msg.Height)
 
-	case ui.EditRecipeMsg:
+	case utils.EditRecipeMsg:
 		m.recipeID = &msg.RecipeID
 		cmds = append(cmds, tea.Cmd(m.loadRecipe))
 
-	case ui.LoadRecipeMsg:
+	case utils.LoadRecipeMsg:
 		if msg.Err != nil {
 			m.err = msg.Err
 			return m, nil
@@ -225,14 +225,14 @@ func (m *EditModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.setupLists()
 		}
 
-	case ui.SaveMsg:
+	case utils.SaveMsg:
 		if msg.Err != nil {
 			m.err = msg.Err
 		} else {
 			// Recipe saved successfully, go back to detail view
-			cmds = append(cmds, ui.SendSessionStateMsg(ui.SessionStateDetail))
+			cmds = append(cmds, utils.SendSessionStateMsg(utils.SessionStateDetail))
 			if m.recipeID != nil {
-				cmds = append(cmds, ui.SendRecipeSelectedMsg(*m.recipeID))
+				cmds = append(cmds, utils.SendRecipeSelectedMsg(*m.recipeID))
 			}
 		}
 	}
@@ -329,22 +329,22 @@ func (m *EditModel) handleInstructionKeys(msg tea.KeyMsg) tea.Cmd {
 func (m *EditModel) loadRecipe() tea.Msg {
 	recipe, err := m.cookbook.GetFullRecipe(*m.recipeID)
 	if err != nil {
-		return ui.LoadRecipeMsg{Recipe: nil, Err: fmt.Errorf("failed to load recipe: %v", err)}
+		return utils.LoadRecipeMsg{Recipe: nil, Err: fmt.Errorf("failed to load recipe: %v", err)}
 	}
-	return ui.LoadRecipeMsg{Recipe: recipe}
+	return utils.LoadRecipeMsg{Recipe: recipe}
 }
 
 func (m *EditModel) saveRecipe() tea.Msg {
 	// Parse prep time
 	prepTime, err := strconv.Atoi(m.prepTime)
 	if err != nil {
-		return ui.SaveMsg{Err: fmt.Errorf("invalid prep time: %v", err)}
+		return utils.SaveMsg{Err: fmt.Errorf("invalid prep time: %v", err)}
 	}
 
 	// Parse cook time
 	cookTime, err := strconv.Atoi(m.cookTime)
 	if err != nil {
-		return ui.SaveMsg{Err: fmt.Errorf("invalid cook time: %v", err)}
+		return utils.SaveMsg{Err: fmt.Errorf("invalid cook time: %v", err)}
 	}
 
 	// Create recipe
@@ -380,7 +380,7 @@ func (m *EditModel) saveRecipe() tea.Msg {
 		saveErr = m.cookbook.UpdateRecipe(recipe)
 	}
 
-	return ui.SaveMsg{Recipe: recipe, Err: saveErr}
+	return utils.SaveMsg{Recipe: recipe, Err: saveErr}
 }
 
 func (m *EditModel) splitCategories(categories string) []string {

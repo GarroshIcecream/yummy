@@ -1,4 +1,4 @@
-package state_selector
+package dialog
 
 import (
 	"fmt"
@@ -6,7 +6,7 @@ import (
 
 	config "github.com/GarroshIcecream/yummy/yummy/config"
 	"github.com/GarroshIcecream/yummy/yummy/tui/styles"
-	"github.com/GarroshIcecream/yummy/yummy/ui"
+	utils "github.com/GarroshIcecream/yummy/yummy/tui/utils"
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -17,7 +17,7 @@ type StateSelectorDialogCmp struct {
 	wHeight int
 
 	selectedIndex int
-	states        []ui.SessionState
+	states        []utils.SessionState
 	stateNames    []string
 	keymap        config.KeyMap
 	height        int
@@ -26,13 +26,13 @@ type StateSelectorDialogCmp struct {
 }
 
 // NewStateSelectorDialog creates a new state selection dialog.
-func New() *StateSelectorDialogCmp {
-	states := []ui.SessionState{
-		ui.SessionStateMainMenu,
-		ui.SessionStateList,
-		ui.SessionStateDetail,
-		ui.SessionStateEdit,
-		ui.SessionStateChat,
+func NewStateSelectorDialog() *StateSelectorDialogCmp {
+	states := []utils.SessionState{
+		utils.SessionStateMainMenu,
+		utils.SessionStateList,
+		utils.SessionStateDetail,
+		utils.SessionStateEdit,
+		utils.SessionStateChat,
 	}
 
 	stateNames := []string{
@@ -54,8 +54,8 @@ func New() *StateSelectorDialogCmp {
 	return &StateSelectorDialogCmp{
 		selectedIndex: 0,
 		states:        states,
-		height:        ui.DefaultViewportHeight,
-		width:         ui.DefaultViewportWidth,
+		height:        utils.DefaultViewportHeight,
+		width:         utils.DefaultViewportWidth,
 		stateNames:    stateNames,
 		emojis:        emojis,
 		keymap:        config.DefaultKeyMap(),
@@ -110,17 +110,17 @@ func (s *StateSelectorDialogCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			s.selectedIndex = *s.GetStateIndexFromNumberKey(msg)
 			selectedState := s.states[s.selectedIndex]
 			cmds = append(cmds, tea.Batch(
-				ui.SendSessionStateMsg(selectedState),
-				ui.SendCloseDialogMsg(),
+				utils.SendSessionStateMsg(selectedState),
+				utils.SendCloseDialogMsg(),
 			))
 		case key.Matches(msg, s.keymap.Enter):
 			selectedState := s.states[s.selectedIndex]
 			cmds = append(cmds, tea.Batch(
-				ui.SendSessionStateMsg(selectedState),
-				ui.SendCloseDialogMsg(),
+				utils.SendSessionStateMsg(selectedState),
+				utils.SendCloseDialogMsg(),
 			))
 		case key.Matches(msg, s.keymap.Back, s.keymap.Quit):
-			cmds = append(cmds, ui.SendCloseDialogMsg())
+			cmds = append(cmds, utils.SendCloseDialogMsg())
 		}
 	}
 
@@ -184,11 +184,11 @@ func (s *StateSelectorDialogCmp) GetSize() (int, int) {
 	return s.width, s.height
 }
 
-func (s *StateSelectorDialogCmp) GetModelState() ui.ModelState {
-	return ui.ModelStateLoaded
+func (s *StateSelectorDialogCmp) GetModelState() utils.ModelState {
+	return utils.ModelStateLoaded
 }
 
-func (s *StateSelectorDialogCmp) GetSelectedState() ui.SessionState {
+func (s *StateSelectorDialogCmp) GetSelectedState() utils.SessionState {
 	return s.states[s.selectedIndex]
 }
 

@@ -1,4 +1,4 @@
-package session_selector
+package dialog
 
 import (
 	"fmt"
@@ -6,6 +6,7 @@ import (
 
 	"github.com/GarroshIcecream/yummy/yummy/config"
 	db "github.com/GarroshIcecream/yummy/yummy/db"
+	utils "github.com/GarroshIcecream/yummy/yummy/tui/utils"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
@@ -42,18 +43,17 @@ func (s SessionItem) FilterValue() string {
 	return fmt.Sprintf("session %d", s.SessionID)
 }
 
-type SessionSelectorModel struct {
+type SessionSelectorDialogCmp struct {
 	cookbook *db.CookBook
 	keyMap   config.KeyMap
 	list     list.Model
-	visible  bool
+	wWidth   int
+	wHeight  int
 	width    int
 	height   int
-	onSelect func(uint) tea.Cmd
-	onCancel func() tea.Cmd
 }
 
-func New(cookbook *db.CookBook, keymaps config.KeyMap) *SessionSelectorModel {
+func NewSessionSelectorDialog(cookbook *db.CookBook, keymaps config.KeyMap) *SessionSelectorDialogCmp {
 	items := []list.Item{}
 
 	l := list.New(items, list.NewDefaultDelegate(), 0, 0)
@@ -72,70 +72,60 @@ func New(cookbook *db.CookBook, keymaps config.KeyMap) *SessionSelectorModel {
 		MarginLeft(2).
 		Foreground(lipgloss.Color("#626262"))
 
-	return &SessionSelectorModel{
+	return &SessionSelectorDialogCmp{
 		cookbook: cookbook,
 		keyMap:   keymaps,
 		list:     l,
-		visible:  false,
-		width:    60,
-		height:   20,
+		width:    utils.DefaultViewportWidth,
+		height:   utils.DefaultViewportHeight,
 	}
 }
 
-func (m *SessionSelectorModel) Init() tea.Cmd {
+func (m *SessionSelectorDialogCmp) Init() tea.Cmd {
 	return nil
 }
 
-func (m *SessionSelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *SessionSelectorDialogCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch {
-		case key.Matches(msg, m.keyMap.Back):
-			if m.visible {
-				m.visible = false
-				if m.onCancel != nil {
-					cmds = append(cmds, m.onCancel())
-				}
-				return m, tea.Batch(cmds...)
-			}
+		case key.Matches(msg, m.keyMap.Back, m.keyMap.Quit):
+			cmds = append(cmds, utils.SendSessionStateMsg(utils.SessionStateChat))
+			return m, tea.Batch(cmds...)
+
+		case key.Matches(msg, m.keyMap.SessionSelector):
+			cmds = append(cmds, utils.SendSessionStateMsg(utils.SessionStateChat))
+			return m, tea.Batch(cmds...)
 		case key.Matches(msg, m.keyMap.Enter):
-			if m.visible {
-				if selectedItem, ok := m.list.SelectedItem().(SessionItem); ok {
-					m.visible = false
-					if m.onSelect != nil {
-						cmds = append(cmds, m.onSelect(selectedItem.SessionID))
-					}
-					return m, tea.Batch(cmds...)
-				}
+			if selectedItem, ok := m.list.SelectedItem().(SessionItem); ok {
+				cmds = append(cmds, tea.Sequence(
+					utils.SendSessionStateMsg(utils.SessionStateChat),
+					utils.SendSessionSelectedMsg(selectedItem.SessionID),
+				))
+				return m, tea.Batch(cmds...)
 			}
 		}
 
 	case tea.WindowSizeMsg:
-		m.width = msg.Width
-		m.height = msg.Height
+		m.wWidth = msg.Width
+		m.wHeight = msg.Height
 		m.list.SetWidth(msg.Width - 4)
 		m.list.SetHeight(msg.Height - 6)
 
-	case LoadSessionsMsg:
+	case utils.LoadSessionsMsg:
 		m.loadSessions()
 	}
 
-	if m.visible {
-		m.list, cmd = m.list.Update(msg)
-		cmds = append(cmds, cmd)
-	}
+	m.list, cmd = m.list.Update(msg)
+	cmds = append(cmds, cmd)
 
 	return m, tea.Batch(cmds...)
 }
 
-func (m *SessionSelectorModel) View() string {
-	if !m.visible {
-		return ""
-	}
-
+func (m *SessionSelectorDialogCmp) View() string {
 	// Create a centered dialog box
 	dialogWidth := m.width - 8
 	if dialogWidth > 80 {
@@ -165,81 +155,53 @@ func (m *SessionSelectorModel) View() string {
 	content = lipgloss.JoinVertical(lipgloss.Left, content, helpText)
 
 	// Create a full-screen container that centers the dialog
-	// Use Place to center the dialog in the middle of the screen
-	return lipgloss.Place(
-		m.width,
-		m.height,
-		lipgloss.Center,
-		lipgloss.Center,
-		boxStyle.Render(content),
-	)
+	centeredDialogStyle := lipgloss.NewStyle().
+		Align(lipgloss.Center).
+		AlignVertical(lipgloss.Center).
+		Width(m.width).
+		Height(m.height)
+
+	return centeredDialogStyle.Render(boxStyle.Render(content))
 }
 
-func (m *SessionSelectorModel) Show() {
-	m.visible = true
-	m.loadSessions()
-}
-
-func (m *SessionSelectorModel) Hide() {
-	m.visible = false
-}
-
-func (m *SessionSelectorModel) IsVisible() bool {
-	return m.visible
-}
-
-func (m *SessionSelectorModel) SetSize(width, height int) {
+func (m *SessionSelectorDialogCmp) SetSize(width, height int) {
 	m.width = width
 	m.height = height
 	m.list.SetWidth(width - 4)
 	m.list.SetHeight(height - 6)
 }
 
-func (m *SessionSelectorModel) SetOnSelect(callback func(uint) tea.Cmd) {
-	m.onSelect = callback
+func (m *SessionSelectorDialogCmp) GetSize() (int, int) {
+	return m.width, m.height
 }
 
-func (m *SessionSelectorModel) SetOnCancel(callback func() tea.Cmd) {
-	m.onCancel = callback
+func (m *SessionSelectorDialogCmp) GetModelState() utils.ModelState {
+	return utils.ModelStateLoaded
 }
 
-func (m *SessionSelectorModel) loadSessions() {
+func (m *SessionSelectorDialogCmp) loadSessions() {
 	sessions, err := m.cookbook.GetNonEmptySessions()
 	if err != nil {
-		// If there's an error, show an empty list
 		m.list.SetItems([]list.Item{})
 		return
 	}
 
 	items := make([]list.Item, len(sessions))
 	for i, session := range sessions {
-		// Get stats for each session
-		messageCount, inputTokens, outputTokens, err := m.cookbook.GetSessionStats(session.ID)
+		stats, err := m.cookbook.GetSessionStats(session.ID)
 		if err != nil {
-			// If we can't get stats, use zeros
-			messageCount = 0
-			inputTokens = 0
-			outputTokens = 0
+			stats = db.SessionStats{}
 		}
 
 		items[i] = SessionItem{
 			SessionID:         session.ID,
 			CreatedAt:         session.CreatedAt,
 			UpdatedAt:         session.UpdatedAt,
-			MessageCount:      messageCount,
-			TotalInputTokens:  inputTokens,
-			TotalOutputTokens: outputTokens,
+			MessageCount:      stats.MessageCount,
+			TotalInputTokens:  stats.TotalInputTokens,
+			TotalOutputTokens: stats.TotalOutputTokens,
 		}
 	}
 
 	m.list.SetItems(items)
-}
-
-// LoadSessionsMsg is a message to trigger loading sessions
-type LoadSessionsMsg struct{}
-
-func SendLoadSessionsMsg() tea.Cmd {
-	return func() tea.Msg {
-		return LoadSessionsMsg{}
-	}
 }
