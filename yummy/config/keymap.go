@@ -80,8 +80,8 @@ func DefaultKeyMap() KeyMap {
 			key.WithHelp("n", "no"),
 		),
 		Edit: key.NewBinding(
-			key.WithKeys("e"),
-			key.WithHelp("e", "edit"),
+			key.WithKeys("ctrl+e"),
+			key.WithHelp("ctrl+e", "edit"),
 		),
 		PrevPage: key.NewBinding(
 			key.WithKeys("h", "pgup", "b", "u"),
@@ -108,8 +108,8 @@ func DefaultKeyMap() KeyMap {
 			key.WithHelp("ctrl+c", "force quit"),
 		),
 		Enter: key.NewBinding(
-			key.WithKeys("enter", " "),
-			key.WithHelp("enter/space", "select"),
+			key.WithKeys("enter"),
+			key.WithHelp("enter", "select"),
 		),
 		Back: key.NewBinding(
 			key.WithKeys("esc", "q"),

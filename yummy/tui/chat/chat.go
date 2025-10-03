@@ -430,7 +430,7 @@ func (m *ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, tea.Batch(cmds...)
 			}
 		case key.Matches(msg, m.keyMap.SessionSelector):
-			cmds = append(cmds, tea.Batch(
+			cmds = append(cmds, tea.Sequence(
 				utils.SendSessionStateMsg(utils.SessionStateSessionSelector),
 				utils.SendLoadSessionsMsg(),
 			))
