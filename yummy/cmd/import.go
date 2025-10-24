@@ -23,10 +23,10 @@ The markdown format should match the export format used by yummy export command.
 	Example: `
 		# Import a recipe from markdown file
 		yummy import recipe.md
-		
+
 		# Import a recipe from JSON file
 		yummy import recipe.json
-		
+
 		# Import with custom name
 		yummy import recipe.md --name "My Custom Recipe"
   	`,

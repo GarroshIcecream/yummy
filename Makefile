@@ -50,22 +50,22 @@ build:
 .PHONY: build-all
 build-all: clean
 	mkdir -p $(DIST_DIR)
-	
+
 	# Linux AMD64
 	GOOS=linux GOARCH=amd64 $(GOBUILD) $(BUILD_FLAGS) -o $(DIST_DIR)/$(BINARY_NAME)-linux-amd64 .
-	
+
 	# Linux ARM64
 	GOOS=linux GOARCH=arm64 $(GOBUILD) $(BUILD_FLAGS) -o $(DIST_DIR)/$(BINARY_NAME)-linux-arm64 .
-	
+
 	# Windows AMD64
 	GOOS=windows GOARCH=amd64 $(GOBUILD) $(BUILD_FLAGS) -o $(DIST_DIR)/$(BINARY_NAME)-windows-amd64.exe .
-	
+
 	# Windows ARM64
 	GOOS=windows GOARCH=arm64 $(GOBUILD) $(BUILD_FLAGS) -o $(DIST_DIR)/$(BINARY_NAME)-windows-arm64.exe .
-	
+
 	# macOS AMD64
 	GOOS=darwin GOARCH=amd64 $(GOBUILD) $(BUILD_FLAGS) -o $(DIST_DIR)/$(BINARY_NAME)-darwin-amd64 .
-	
+
 	# macOS ARM64 (Apple Silicon)
 	GOOS=darwin GOARCH=arm64 $(GOBUILD) $(BUILD_FLAGS) -o $(DIST_DIR)/$(BINARY_NAME)-darwin-arm64 .
 

@@ -54,23 +54,23 @@ release:
   github:
     owner: GarroshIcecream
     name: yummy
-  
+
   header: |
     ## 🍳 Yummy Recipe Manager {{ .Version }}
-    
+
     A terminal-based cookbook manager and recipe assistant built with Go and Bubble Tea.
-    
+
     ### What's New
     - Check the changelog for detailed changes
-    
+
     ### Installation
     Download the appropriate binary for your platform and extract it to a directory in your PATH.
-    
+
   footer: |
     ### Support
     - Report issues: [GitHub Issues](https://github.com/GarroshIcecream/yummy/issues)
     - Documentation: [README](https://github.com/GarroshIcecream/yummy#readme)
-    
+
     ### Development
     Built with ❤️ using Go and [Bubble Tea](https://github.com/charmbracelet/bubbletea)
 
@@ -131,7 +131,7 @@ homebrew_casks:
     # Caveats for users
     caveats: |
       Yummy is a terminal-based application. Run 'yummy --help' to get started.
-      
+
       Note: On macOS, you may need to allow the application to run in System Preferences > Security & Privacy.
 
 # Scoop manifest (optional)
@@ -167,12 +167,12 @@ announce:
   twitter:
     enabled: true
     message_template: |
-      🍳 Yummy Recipe Manager {{ .Version }} is out! 
-      
+      🍳 Yummy Recipe Manager {{ .Version }} is out!
+
       A beautiful terminal-based cookbook manager and recipe assistant.
-      
+
       Download: {{ .URL }}
-      
+
       #golang #terminal #cooking #recipes
 
 # Metadata

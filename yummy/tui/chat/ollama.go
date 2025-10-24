@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	utils "github.com/GarroshIcecream/yummy/yummy/tui/utils"
+	consts "github.com/GarroshIcecream/yummy/yummy/consts"
 )
 
 type OllamaServiceStatus struct {
@@ -69,7 +69,7 @@ func StartOllamaService() error {
 func CheckOllamaAvailable() error {
 	_, err := exec.LookPath("ollama")
 	if err != nil {
-		return fmt.Errorf(utils.OllamaNotInstalledHelp)
+		return fmt.Errorf(consts.OllamaNotInstalledHelp)
 	}
 
 	err = CheckOllamaServiceRunning()
@@ -77,12 +77,12 @@ func CheckOllamaAvailable() error {
 		log.Printf("Ollama service not running, attempting to start it...")
 		startErr := StartOllamaService()
 		if startErr != nil {
-			return fmt.Errorf("%s\n\nService check error: %v\nStart attempt error: %v", utils.OllamaServiceNotRunningHelp, err, startErr)
+			return fmt.Errorf("%s\n\nService check error: %v\nStart attempt error: %v", consts.OllamaServiceNotRunningHelp, err, startErr)
 		}
 		log.Printf("Successfully started Ollama service")
 	}
 
-	log.Printf("Ollama check passed: model %s is available", utils.DefaultModel)
+	log.Printf("Ollama check passed: model %s is available", consts.DefaultModel)
 	return nil
 }
 
@@ -134,10 +134,10 @@ func GetOllamaServiceStatus() *OllamaServiceStatus {
 		return status
 	}
 
-	if slices.Contains(status.InstalledModels, utils.DefaultModel) {
+	if slices.Contains(status.InstalledModels, consts.DefaultModel) {
 		status.ModelAvailable = true
 	} else {
-		status.Error = fmt.Errorf("required model %s not found", utils.DefaultModel)
+		status.Error = fmt.Errorf("required model %s not found", consts.DefaultModel)
 	}
 
 	return status

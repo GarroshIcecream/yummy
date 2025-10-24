@@ -5,8 +5,10 @@ import (
 	"time"
 
 	"github.com/GarroshIcecream/yummy/yummy/config"
+	consts "github.com/GarroshIcecream/yummy/yummy/consts"
 	db "github.com/GarroshIcecream/yummy/yummy/db"
-	utils "github.com/GarroshIcecream/yummy/yummy/tui/utils"
+	messages "github.com/GarroshIcecream/yummy/yummy/models/msg"
+	themes "github.com/GarroshIcecream/yummy/yummy/themes"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
@@ -44,16 +46,17 @@ func (s SessionItem) FilterValue() string {
 }
 
 type SessionSelectorDialogCmp struct {
-	cookbook *db.CookBook
-	keyMap   config.KeyMap
-	list     list.Model
-	wWidth   int
-	wHeight  int
-	width    int
-	height   int
+	sessionLog *db.SessionLog
+	keyMap     config.KeyMap
+	list       list.Model
+	wWidth     int
+	wHeight    int
+	width      int
+	height     int
+	theme      *themes.Theme
 }
 
-func NewSessionSelectorDialog(cookbook *db.CookBook, keymaps config.KeyMap) *SessionSelectorDialogCmp {
+func NewSessionSelectorDialog(sessionLog *db.SessionLog, keymaps config.KeyMap, theme *themes.Theme) *SessionSelectorDialogCmp {
 	items := []list.Item{}
 
 	l := list.New(items, list.NewDefaultDelegate(), 0, 0)
@@ -73,11 +76,12 @@ func NewSessionSelectorDialog(cookbook *db.CookBook, keymaps config.KeyMap) *Ses
 		Foreground(lipgloss.Color("#626262"))
 
 	return &SessionSelectorDialogCmp{
-		cookbook: cookbook,
-		keyMap:   keymaps,
-		list:     l,
-		width:    utils.DefaultViewportWidth,
-		height:   utils.DefaultViewportHeight,
+		sessionLog: sessionLog,
+		keyMap:     keymaps,
+		list:       l,
+		width:      consts.DefaultViewportWidth,
+		height:     consts.DefaultViewportHeight,
+		theme:      theme,
 	}
 }
 
@@ -93,17 +97,17 @@ func (m *SessionSelectorDialogCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch {
 		case key.Matches(msg, m.keyMap.Back, m.keyMap.Quit):
-			cmds = append(cmds, utils.SendSessionStateMsg(utils.SessionStateChat))
+			cmds = append(cmds, messages.SendSessionStateMsg(consts.SessionStateChat))
 			return m, tea.Batch(cmds...)
 
 		case key.Matches(msg, m.keyMap.SessionSelector):
-			cmds = append(cmds, utils.SendSessionStateMsg(utils.SessionStateChat))
+			cmds = append(cmds, messages.SendSessionStateMsg(consts.SessionStateChat))
 			return m, tea.Batch(cmds...)
 		case key.Matches(msg, m.keyMap.Enter):
 			if selectedItem, ok := m.list.SelectedItem().(SessionItem); ok {
 				cmds = append(cmds, tea.Sequence(
-					utils.SendSessionStateMsg(utils.SessionStateChat),
-					utils.SendSessionSelectedMsg(selectedItem.SessionID),
+					messages.SendSessionStateMsg(consts.SessionStateChat),
+					messages.SendSessionSelectedMsg(selectedItem.SessionID),
 				))
 				return m, tea.Batch(cmds...)
 			}
@@ -115,7 +119,7 @@ func (m *SessionSelectorDialogCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.list.SetWidth(msg.Width - 4)
 		m.list.SetHeight(msg.Height - 6)
 
-	case utils.LoadSessionsMsg:
+	case messages.LoadSessionsMsg:
 		m.loadSessions()
 	}
 
@@ -175,12 +179,12 @@ func (m *SessionSelectorDialogCmp) GetSize() (int, int) {
 	return m.width, m.height
 }
 
-func (m *SessionSelectorDialogCmp) GetModelState() utils.ModelState {
-	return utils.ModelStateLoaded
+func (m *SessionSelectorDialogCmp) GetModelState() consts.ModelState {
+	return consts.ModelStateLoaded
 }
 
 func (m *SessionSelectorDialogCmp) loadSessions() {
-	sessions, err := m.cookbook.GetNonEmptySessions()
+	sessions, err := m.sessionLog.GetNonEmptySessions()
 	if err != nil {
 		m.list.SetItems([]list.Item{})
 		return
@@ -188,7 +192,7 @@ func (m *SessionSelectorDialogCmp) loadSessions() {
 
 	items := make([]list.Item, len(sessions))
 	for i, session := range sessions {
-		stats, err := m.cookbook.GetSessionStats(session.ID)
+		stats, err := m.sessionLog.GetSessionStats(session.ID)
 		if err != nil {
 			stats = db.SessionStats{}
 		}

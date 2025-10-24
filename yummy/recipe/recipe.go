@@ -9,30 +9,14 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	consts "github.com/GarroshIcecream/yummy/yummy/consts"
 )
 
 type RecipeTableItem struct {
 	title  string
 	value  string
 	length int
-}
-
-type RecipeWithDescription struct {
-	RecipeID             uint
-	RecipeName           string
-	FormattedDescription string
-	IsFavourite          bool
-}
-
-func (i RecipeWithDescription) Title() string {
-	if i.IsFavourite {
-		return "⭐ " + i.RecipeName
-	}
-	return i.RecipeName
-}
-func (i RecipeWithDescription) Description() string { return i.FormattedDescription }
-func (i RecipeWithDescription) FilterValue() string {
-	return fmt.Sprintf("%s - %s", i.RecipeName, i.FormattedDescription)
 }
 
 type RecipeRaw struct {
@@ -50,38 +34,62 @@ type RecipeRaw struct {
 	Instructions []string
 }
 
-func FormatRecipe(
-	id uint,
-	name string,
-	author string,
-	description string,
-	isFavourite bool) RecipeWithDescription {
-
-	author_fin := "N/A"
-	if author != "" {
-		author_fin = author
-	}
-
-	desc := "N/A"
-	if description != "" {
-		desc = description
-	}
-
-	return RecipeWithDescription{
-		RecipeID:             id,
-		RecipeName:           name,
-		FormattedDescription: fmt.Sprintf("%s - %s", author_fin, desc),
-		IsFavourite:          isFavourite,
-	}
-
+type RecipeMetadata struct {
+	Categories  []string
+	Author      string
+	CookTime    time.Duration
+	PrepTime    time.Duration
+	TotalTime   time.Duration
+	Quantity    string
+	URL         string
+	Favourite   bool
+	Ingredients []string
 }
 
-func ConstructTableRow(item *RecipeTableItem, first_column_length int, longest_string int) string {
-	r_pad_value := longest_string - item.length
-	r_pad_title := first_column_length - len(item.title)
-	return fmt.Sprintf("| %s | %s |\n", item.title+strings.Repeat(" ", r_pad_title), item.value+strings.Repeat(" ", r_pad_value))
+type RecipeWithDescription struct {
+	RecipeID          uint
+	RecipeName        string
+	AuthorName        string
+	RecipeDescription string
+	IsFavourite       bool
+	Metadata          RecipeMetadata
 }
 
+func (i RecipeWithDescription) Title() string {
+	if i.IsFavourite {
+		return "⭐ " + i.RecipeName
+	}
+	return i.RecipeName
+}
+func (i RecipeWithDescription) Description() string {
+	return fmt.Sprintf("%s - %s", i.AuthorName, i.RecipeDescription)
+}
+func (i RecipeWithDescription) FilterValue() string {
+	filterData := map[consts.FilterField]interface{}{
+		consts.TitleField:       i.RecipeName,
+		consts.DescriptionField: i.RecipeDescription,
+		consts.AuthorField:      i.AuthorName,
+		consts.CategoryField:    i.Metadata.Categories,
+		consts.IngredientsField: i.Metadata.Ingredients,
+		consts.FavouriteField:   i.IsFavourite,
+	}
+
+	jsonBytes, err := json.Marshal(filterData)
+	if err != nil {
+		return fmt.Sprintf("%s %s %s", i.RecipeName, i.RecipeDescription, i.AuthorName)
+	}
+
+	return string(jsonBytes)
+}
+
+// ConstructTableRow constructs a table row for the recipe content
+func ConstructTableRow(item *RecipeTableItem, firstColumnLength int, longestString int) string {
+	padValue := longestString - item.length
+	padTitle := firstColumnLength - len(item.title)
+	return fmt.Sprintf("| %s | %s |\n", item.title+strings.Repeat(" ", padTitle), item.value+strings.Repeat(" ", padValue))
+}
+
+// FormatRecipeContent formats the recipe content into a markdown string
 func FormatRecipeContent(recipe *RecipeRaw) string {
 	var s strings.Builder
 

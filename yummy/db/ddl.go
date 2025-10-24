@@ -6,7 +6,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func GetDBModels() []any {
+func GetCookbookModels() []any {
 	return []any{
 		&Recipe{},
 		&Category{},
@@ -14,9 +14,23 @@ func GetDBModels() []any {
 		&RecipeMetadata{},
 		&Instructions{},
 		&Ingredients{},
+	}
+}
+
+func GetSessionLogModels() []any {
+	return []any{
 		&SessionHistory{},
 		&SessionMessage{},
 	}
+
+}
+
+type CookBook struct {
+	conn *gorm.DB
+}
+
+type SessionLog struct {
+	conn *gorm.DB
 }
 
 type Recipe struct {

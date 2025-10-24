@@ -6,9 +6,10 @@ import (
 	"strings"
 
 	"github.com/GarroshIcecream/yummy/yummy/config"
+	consts "github.com/GarroshIcecream/yummy/yummy/consts"
 	db "github.com/GarroshIcecream/yummy/yummy/db"
-	"github.com/GarroshIcecream/yummy/yummy/tui/styles"
-	utils "github.com/GarroshIcecream/yummy/yummy/tui/utils"
+	messages "github.com/GarroshIcecream/yummy/yummy/models/msg"
+	"github.com/GarroshIcecream/yummy/yummy/themes"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
@@ -24,38 +25,39 @@ type MainMenuModel struct {
 	keyMap     config.KeyMap
 	showHelp   bool
 	spinner    spinner.Model
-	modelState utils.ModelState
+	modelState consts.ModelState
 	loadingMsg string
+	theme      *themes.Theme
 }
 
 type menuItem struct {
 	title       string
 	description string
-	state       utils.SessionState
+	state       consts.SessionState
 	handler     func() tea.Cmd
 	icon        string
 }
 
-func New(cookbook *db.CookBook, keymaps config.KeyMap) *MainMenuModel {
+func New(cookbook *db.CookBook, keymaps config.KeyMap, theme *themes.Theme) *MainMenuModel {
 	items := []menuItem{
 		{
 			title:       "Browse Your Cookbook",
 			description: "Explore your personal collection of saved recipes",
-			state:       utils.SessionStateList,
+			state:       consts.SessionStateList,
 			icon:        "📚",
 			handler:     nil,
 		},
 		{
 			title:       "Discover Random Recipe",
 			description: "Get inspired with a surprise recipe from the web",
-			state:       utils.SessionStateDetail,
+			state:       consts.SessionStateDetail,
 			icon:        "🎲",
 			handler:     func() tea.Cmd { return RandomRecipeCmd(cookbook) },
 		},
 		{
 			title:       "AI Cooking Assistant",
 			description: "Chat with our AI for cooking tips and recipe advice",
-			state:       utils.SessionStateChat,
+			state:       consts.SessionStateChat,
 			icon:        "🤖",
 			handler:     nil,
 		},
@@ -64,7 +66,7 @@ func New(cookbook *db.CookBook, keymaps config.KeyMap) *MainMenuModel {
 	// Initialize spinner with a nice style
 	spinnerModel := spinner.New()
 	spinnerModel.Spinner = spinner.Dot
-	spinnerModel.Style = styles.MainMenuSpinnerStyle
+	spinnerModel.Style = theme.Spinner
 
 	// Pick a random loading message once
 	loadingMessages := []string{
@@ -83,8 +85,9 @@ func New(cookbook *db.CookBook, keymaps config.KeyMap) *MainMenuModel {
 		keyMap:     keymaps,
 		showHelp:   false,
 		spinner:    spinnerModel,
-		modelState: utils.ModelStateLoading,
+		modelState: consts.ModelStateLoading,
 		loadingMsg: loadingMsg,
+		theme:      theme,
 	}
 }
 
@@ -117,7 +120,7 @@ func (m *MainMenuModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keyMap.Enter):
 			if len(m.items) > 0 {
 				selectedItem := m.items[m.selected]
-				cmds = append(cmds, utils.SendSessionStateMsg(selectedItem.state))
+				cmds = append(cmds, messages.SendSessionStateMsg(selectedItem.state))
 				if selectedItem.handler != nil {
 					cmds = append(cmds, selectedItem.handler())
 				}
@@ -129,7 +132,7 @@ func (m *MainMenuModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	if m.width > 0 && m.height > 0 {
-		m.modelState = utils.ModelStateLoaded
+		m.modelState = consts.ModelStateLoaded
 	}
 
 	return m, tea.Sequence(cmds...)
@@ -138,32 +141,32 @@ func (m *MainMenuModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func RandomRecipeCmd(cookbook *db.CookBook) tea.Cmd {
 	recipe, err := cookbook.RandomRecipe()
 	if err == nil {
-		return utils.SendRecipeSelectedMsg(recipe.ID)
+		return messages.SendRecipeSelectedMsg(recipe.ID)
 	}
 	return nil
 }
 
 func (m *MainMenuModel) View() string {
-	if m.modelState == utils.ModelStateLoading {
+	if m.modelState == consts.ModelStateLoading {
 		return m.spinner.View() + " " + m.loadingMsg
 	}
 
 	var content strings.Builder
 
-	content.WriteString(styles.GetMainMenuBorderTop(utils.MainMenuContentWidth))
+	content.WriteString(m.theme.GetMainMenuBorderTop(consts.MainMenuContentWidth))
 	content.WriteString("\n")
 
 	// Title
-	title := styles.GetMainMenuTitle()
+	title := consts.MainMenuLogoText
 	content.WriteString(title)
 	content.WriteString("\n\n")
 
 	// Add decorative separator
-	content.WriteString(styles.GetMainMenuSeparator(utils.MainMenuContentWidth))
+	content.WriteString(m.theme.GetMainMenuSeparator(consts.MainMenuContentWidth))
 	content.WriteString("\n\n")
 
 	// Welcome message
-	welcomeMsg := styles.GetMainMenuWelcomeMessage()
+	welcomeMsg := consts.MainMenuWelcomeText
 	content.WriteString(welcomeMsg)
 	content.WriteString("\n\n")
 
@@ -179,10 +182,10 @@ func (m *MainMenuModel) View() string {
 
 	// Add decorative bottom border
 	content.WriteString("\n")
-	content.WriteString(styles.GetMainMenuBorderBottom(utils.MainMenuContentWidth))
+	content.WriteString(m.theme.GetMainMenuBorderBottom(consts.MainMenuContentWidth))
 
 	// Center the content with styling
-	style := styles.MainMenuContainerStyle.
+	style := m.theme.MainMenuContainer.
 		Width(m.width).
 		Height(m.height).
 		Align(lipgloss.Center, lipgloss.Center)
@@ -195,7 +198,7 @@ func (m *MainMenuModel) renderMenuItems() string {
 
 	for i, item := range m.items {
 		isSelected := i == m.selected
-		itemContentStyled := styles.RenderMainMenuItem(item.icon, item.title, item.description, isSelected, utils.MenuItemWidth)
+		itemContentStyled := m.theme.RenderMainMenuItem(item.icon, item.title, item.description, isSelected, consts.MenuItemWidth)
 
 		items.WriteString(itemContentStyled)
 
@@ -210,7 +213,7 @@ func (m *MainMenuModel) renderMenuItems() string {
 }
 
 func (m *MainMenuModel) renderHelp() string {
-	return styles.RenderMainMenuHelp(
+	return m.theme.RenderMainMenuHelp(
 		m.keyMap.CursorUp.Help().Key,
 		m.keyMap.CursorDown.Help().Key,
 		m.keyMap.Enter.Help().Key,
@@ -229,6 +232,10 @@ func (m *MainMenuModel) GetSize() (width, height int) {
 	return m.width, m.height
 }
 
-func (m *MainMenuModel) GetModelState() utils.ModelState {
+func (m *MainMenuModel) GetModelState() consts.ModelState {
 	return m.modelState
+}
+
+func (m *MainMenuModel) GetSessionState() consts.SessionState {
+	return consts.SessionStateMainMenu
 }

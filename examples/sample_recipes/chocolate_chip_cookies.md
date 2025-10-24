@@ -18,7 +18,7 @@
 *Gather all ingredients before starting:*
 
 • **2 1/4 cups** *all-purpose flour* (sifted)
-• **1 tsp** *baking soda* 
+• **1 tsp** *baking soda*
 • **1 tsp** *salt*
 • **1 cup** *butter* (softened)
 • **3/4 cup** *granulated sugar*

@@ -54,11 +54,21 @@ func RecoverPanic(name string, cleanup func()) {
 
 		file, err := os.Create(filename)
 		if err == nil {
-			defer file.Close()
+			defer func() {
+				if closeErr := file.Close(); closeErr != nil {
+					fmt.Fprintf(os.Stderr, "Error closing panic log file: %v\n", closeErr)
+				}
+			}()
 
-			fmt.Fprintf(file, "Panic in %s: %v\n\n", name, r)
-			fmt.Fprintf(file, "Time: %s\n\n", time.Now().Format(time.RFC3339))
-			fmt.Fprintf(file, "Stack Trace:\n%s\n", debug.Stack())
+			if _, err := fmt.Fprintf(file, "Panic in %s: %v\n\n", name, r); err != nil {
+				fmt.Fprintf(os.Stderr, "Error writing panic info: %v\n", err)
+			}
+			if _, err := fmt.Fprintf(file, "Time: %s\n\n", time.Now().Format(time.RFC3339)); err != nil {
+				fmt.Fprintf(os.Stderr, "Error writing panic time: %v\n", err)
+			}
+			if _, err := fmt.Fprintf(file, "Stack Trace:\n%s\n", debug.Stack()); err != nil {
+				fmt.Fprintf(os.Stderr, "Error writing panic stack trace: %v\n", err)
+			}
 
 			if cleanup != nil {
 				cleanup()

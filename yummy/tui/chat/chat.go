@@ -18,13 +18,15 @@ import (
 	"github.com/tmc/langchaingo/llms"
 
 	"github.com/GarroshIcecream/yummy/yummy/config"
+	consts "github.com/GarroshIcecream/yummy/yummy/consts"
 	db "github.com/GarroshIcecream/yummy/yummy/db"
-	styles "github.com/GarroshIcecream/yummy/yummy/tui/styles"
-	utils "github.com/GarroshIcecream/yummy/yummy/tui/utils"
+	messages "github.com/GarroshIcecream/yummy/yummy/models/msg"
+	themes "github.com/GarroshIcecream/yummy/yummy/themes"
 )
 
 type ChatModel struct {
 	cookbook         *db.CookBook
+	sessionLog       *db.SessionLog
 	keyMap           config.KeyMap
 	viewport         viewport.Model
 	textarea         textarea.Model
@@ -43,11 +45,12 @@ type ChatModel struct {
 	InputTokenCount  int
 	OutputTokenCount int
 	TotalTokenCount  int
-	modelState       utils.ModelState
+	modelState       consts.ModelState
 	sessionID        uint
+	theme            *themes.Theme
 }
 
-func New(cookbook *db.CookBook, keymaps config.KeyMap) *ChatModel {
+func New(cookbook *db.CookBook, sessionLog *db.SessionLog, keymaps config.KeyMap, theme *themes.Theme) *ChatModel {
 	llmService, err := NewLLMService(cookbook)
 	if err != nil {
 		log.Printf("Warning: LLM service initialization failed: %v", err)
@@ -55,8 +58,8 @@ func New(cookbook *db.CookBook, keymaps config.KeyMap) *ChatModel {
 
 	windowWidth, windowHeight, err := term.GetSize(int(os.Stdout.Fd()))
 	if err != nil {
-		windowWidth = utils.DefaultViewportWidth
-		windowHeight = utils.DefaultViewportHeight
+		windowWidth = consts.DefaultViewportWidth
+		windowHeight = consts.DefaultViewportHeight
 	}
 
 	// Calculate markdown width accounting for message formatting
@@ -74,19 +77,19 @@ func New(cookbook *db.CookBook, keymaps config.KeyMap) *ChatModel {
 	}
 
 	conversation := []llms.MessageContent{}
-	conversation = AppendMessage(conversation, llms.ChatMessageTypeAI, utils.WelcomeMessage)
+	conversation = AppendMessage(conversation, llms.ChatMessageTypeAI, consts.WelcomeMessage)
 
 	ta := textarea.New()
-	ta.Placeholder = utils.TextAreaPlaceholder
+	ta.Placeholder = consts.TextAreaPlaceholder
 	ta.Focus()
 
-	ta.CharLimit = utils.TextAreaMaxChar
+	ta.CharLimit = consts.TextAreaMaxChar
 	contentWidth := windowWidth - 8
 	if contentWidth < 20 {
 		contentWidth = 20
 	}
 	ta.SetWidth(contentWidth)
-	ta.SetHeight(utils.TextAreaHeight)
+	ta.SetHeight(consts.TextAreaHeight)
 	ta.FocusedStyle.CursorLine = lipgloss.NewStyle()
 	ta.ShowLineNumbers = false
 
@@ -100,14 +103,14 @@ func New(cookbook *db.CookBook, keymaps config.KeyMap) *ChatModel {
 	}
 
 	vp := viewport.New(contentWidth, viewportHeight)
-	vp.Style = styles.ChatStyle
+	vp.Style = theme.Chat
 
 	s := spinner.New()
 	s.Spinner = spinner.Dot
-	s.Style = styles.SpinnerStyle
+	s.Style = theme.Spinner
 
 	// Create a new session for this chat
-	sessionID, err := cookbook.CreateSession()
+	sessionID, err := sessionLog.CreateSession()
 	if err != nil {
 		log.Printf("Warning: Failed to create chat session: %v", err)
 		sessionID = 0 // Use 0 as fallback - messages won't be saved but chat will still work
@@ -125,14 +128,15 @@ func New(cookbook *db.CookBook, keymaps config.KeyMap) *ChatModel {
 		conversation:     conversation,
 		llmService:       llmService,
 		markdownRenderer: markdownRenderer,
-		modelState:       utils.ModelStateLoaded,
-		sidebarWidth:     utils.SidebarWidth,
-		showSidebar:      windowWidth >= utils.MinWidthForSidebar,
+		modelState:       consts.ModelStateLoaded,
+		sidebarWidth:     consts.SidebarWidth,
+		showSidebar:      windowWidth >= consts.MinWidthForSidebar,
 		messageCount:     0,
 		InputTokenCount:  0,
 		OutputTokenCount: 0,
 		loading:          false,
 		sessionID:        sessionID,
+		theme:            theme,
 	}
 
 	chatModel.updateViewportFromConversation()
@@ -159,9 +163,9 @@ func (m *ChatModel) renderConversationAsMarkdown() string {
 		var header string
 		switch message.Role {
 		case llms.ChatMessageTypeHuman:
-			header = styles.UserMessageStyle.Render("👤 You:")
+			header = m.theme.UserMessage.Render("👤 You:")
 		case llms.ChatMessageTypeAI:
-			header = styles.AssistantMessageStyle.Render("🤖 Assistant:")
+			header = m.theme.AssistantMessage.Render("🤖 Assistant:")
 		default:
 			header = ""
 		}
@@ -183,7 +187,7 @@ func (m *ChatModel) renderConversationAsMarkdown() string {
 	// Add thinking indicator if loading
 	if m.loading {
 		content.WriteString("\n")
-		thinkingHeader := styles.AssistantMessageStyle.Render("🤖 Assistant:")
+		thinkingHeader := m.theme.AssistantMessage.Render("🤖 Assistant:")
 		thinkingContent := m.spinner.View() + " Thinking..."
 		content.WriteString(thinkingHeader + "\n\n")
 		content.WriteString(thinkingContent)
@@ -243,13 +247,13 @@ func (m *ChatModel) updateViewportFromConversation() {
 // saveMessageToDatabase saves a message to the database
 // This method handles both user messages and AI responses, storing them in the SessionMessage table
 // with appropriate role, model information, and token counts for analytics
-func (m *ChatModel) saveResponseToDatabase(msg utils.ResponseMsg) {
+func (m *ChatModel) saveResponseToDatabase(msg messages.ResponseMsg) {
 	if m.sessionID == 0 {
 		log.Printf("No session ID available, skipping message save")
 		return
 	}
 
-	err := m.cookbook.SaveSessionMessage(
+	err := m.sessionLog.SaveSessionMessage(
 		m.sessionID,
 		msg.Response,
 		llms.ChatMessageTypeAI,
@@ -265,7 +269,7 @@ func (m *ChatModel) saveResponseToDatabase(msg utils.ResponseMsg) {
 }
 
 func (m *ChatModel) saveUserMessageToDatabase(userInput string) {
-	err := m.cookbook.SaveSessionMessage(
+	err := m.sessionLog.SaveSessionMessage(
 		m.sessionID,
 		userInput,
 		llms.ChatMessageTypeHuman,
@@ -289,7 +293,7 @@ func (m *ChatModel) ProcessUserMessage(userInput string) {
 	m.saveUserMessageToDatabase(userInput)
 }
 
-func (m *ChatModel) ProcessResponse(response utils.ResponseMsg) {
+func (m *ChatModel) ProcessResponse(response messages.ResponseMsg) {
 	m.conversation = AppendMessage(m.conversation, llms.ChatMessageTypeAI, response.Response)
 	m.updateViewportFromConversation()
 	m.viewport.GotoBottom()
@@ -308,16 +312,16 @@ func (m *ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	)
 
 	switch msg := msg.(type) {
-	case utils.GenerateResponseMsg:
+	case messages.GenerateResponseMsg:
 		if m.llmService == nil {
-			cmds = append(cmds, utils.SendEmptyResponseMsg())
+			cmds = append(cmds, messages.SendEmptyResponseMsg())
 		} else {
 			response := m.llmService.GenerateResponse(m.conversation)
-			cmds = append(cmds, utils.SendResponseMsg(response))
+			cmds = append(cmds, messages.SendResponseMsg(response))
 		}
 		return m, tea.Batch(cmds...)
 
-	case utils.ResponseMsg:
+	case messages.ResponseMsg:
 		m.loading = false
 		if msg.Error != nil {
 			log.Printf("Error generating response: %v", msg.Error)
@@ -326,11 +330,11 @@ func (m *ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.ProcessResponse(msg)
 		}
 
-	case utils.SessionSelectedMsg:
+	case messages.SessionSelectedMsg:
 		cmds = append(cmds, m.loadSession(msg.SessionID))
 		return m, tea.Batch(cmds...)
 
-	case utils.LoadSessionMsg:
+	case messages.LoadSessionMsg:
 		if msg.Err != nil {
 			log.Printf("Error loading session: %v", msg.Err)
 		} else {
@@ -360,7 +364,7 @@ func (m *ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.windowHeight = msg.Height
 
 		// Determine if sidebar should be shown based on width
-		m.showSidebar = msg.Width >= utils.MinWidthForSidebar
+		m.showSidebar = msg.Width >= consts.MinWidthForSidebar
 
 		// Calculate sidebar width (30% of total width, minimum 25, maximum 40)
 		// But ensure we don't take too much space on small screens
@@ -425,14 +429,14 @@ func (m *ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.loading = true
 				m.messageCount++
 				m.ProcessUserMessage(userInput)
-				cmds = append(cmds, utils.SendGenerateResponseMsg())
+				cmds = append(cmds, messages.SendGenerateResponseMsg())
 				cmds = append(cmds, m.spinner.Tick)
 				return m, tea.Batch(cmds...)
 			}
 		case key.Matches(msg, m.keyMap.SessionSelector):
 			cmds = append(cmds, tea.Sequence(
-				utils.SendSessionStateMsg(utils.SessionStateSessionSelector),
-				utils.SendLoadSessionsMsg(),
+				messages.SendSessionStateMsg(consts.SessionStateSessionSelector),
+				messages.SendLoadSessionsMsg(),
 			))
 			return m, tea.Batch(cmds...)
 		}
@@ -449,7 +453,7 @@ func (m *ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // View renders the model
 func (m *ChatModel) View() string {
 	// Create responsive title
-	title := styles.ChatTitleStyle.Render("🍳 Cooking Assistant")
+	title := m.theme.ChatTitle.Render("🍳 Cooking Assistant")
 
 	// Center the title if we have window width information
 	if m.windowWidth > 0 {
@@ -460,13 +464,13 @@ func (m *ChatModel) View() string {
 		}
 	}
 
-	chat := styles.ChatStyle.Render(m.viewport.View())
+	chat := m.theme.Chat.Render(m.viewport.View())
 	input := m.textarea.View()
 	mainContent := lipgloss.JoinVertical(lipgloss.Left, chat, input)
 
 	var chatLayout string
 	if m.showSidebar {
-		sidebar := RenderSidebar(m.messageCount, m.TotalTokenCount, *m.llmService.ollamaStatus, m.llmService, m.sidebarWidth, m.viewport.Height)
+		sidebar := RenderSidebar(m.messageCount, m.TotalTokenCount, *m.llmService.ollamaStatus, m.llmService, m.theme, m.sidebarWidth, m.viewport.Height)
 		chatLayout = lipgloss.JoinHorizontal(lipgloss.Top, sidebar, mainContent)
 	} else {
 		chatLayout = mainContent
@@ -483,7 +487,7 @@ func (m *ChatModel) SetSize(width, height int) {
 	m.windowHeight = height
 
 	// Determine if sidebar should be shown based on width
-	m.showSidebar = width >= utils.MinWidthForSidebar
+	m.showSidebar = width >= consts.MinWidthForSidebar
 
 	// Calculate sidebar width (30% of total width, minimum 25, maximum 40)
 	// But ensure we don't take too much space on small screens
@@ -542,8 +546,12 @@ func (m *ChatModel) GetSize() (width, height int) {
 	return m.width, m.height
 }
 
-func (m *ChatModel) GetModelState() utils.ModelState {
+func (m *ChatModel) GetModelState() consts.ModelState {
 	return m.modelState
+}
+
+func (m *ChatModel) GetSessionState() consts.SessionState {
+	return consts.SessionStateChat
 }
 
 // GetSessionMessages retrieves all messages for the current session
@@ -552,7 +560,7 @@ func (m *ChatModel) GetSessionMessages() ([]db.SessionMessage, error) {
 		return nil, fmt.Errorf("no session ID available")
 	}
 
-	sessionMessages, err := m.cookbook.GetSessionMessages(m.sessionID)
+	sessionMessages, err := m.sessionLog.GetSessionMessages(m.sessionID)
 	if err != nil {
 		return nil, err
 	}
@@ -574,25 +582,25 @@ func (m *ChatModel) GetDatabaseSessionStats() (db.SessionStats, error) {
 	if m.sessionID == 0 {
 		return db.SessionStats{}, fmt.Errorf("no session ID available")
 	}
-	return m.cookbook.GetSessionStats(m.sessionID)
+	return m.sessionLog.GetSessionStats(m.sessionID)
 }
 
 // loadSession loads a session asynchronously
 func (m *ChatModel) loadSession(sessionID uint) tea.Cmd {
 	return func() tea.Msg {
-		dbMessages, err := m.cookbook.GetSessionMessages(sessionID)
+		dbMessages, err := m.sessionLog.GetSessionMessages(sessionID)
 		if err != nil {
-			return utils.LoadSessionMsg{
+			return messages.LoadSessionMsg{
 				SessionID: sessionID,
-				Messages:  []utils.SessionMessage{},
+				Messages:  []messages.SessionMessage{},
 				Err:       err,
 			}
 		}
 
 		// Convert db.SessionMessage to utils.SessionMessage
-		uiMessages := make([]utils.SessionMessage, len(dbMessages))
+		uiMessages := make([]messages.SessionMessage, len(dbMessages))
 		for i, dbMsg := range dbMessages {
-			uiMessages[i] = utils.SessionMessage{
+			uiMessages[i] = messages.SessionMessage{
 				SessionID:    dbMsg.SessionID,
 				Message:      dbMsg.Message,
 				Role:         dbMsg.Role,
@@ -604,7 +612,7 @@ func (m *ChatModel) loadSession(sessionID uint) tea.Cmd {
 			}
 		}
 
-		return utils.LoadSessionMsg{
+		return messages.LoadSessionMsg{
 			SessionID: sessionID,
 			Messages:  uiMessages,
 			Err:       nil,
@@ -618,7 +626,7 @@ func (m *ChatModel) loadSessionMessages(messages []db.SessionMessage) {
 	m.conversation = []llms.MessageContent{}
 
 	// Add welcome message
-	m.conversation = AppendMessage(m.conversation, llms.ChatMessageTypeAI, utils.WelcomeMessage)
+	m.conversation = AppendMessage(m.conversation, llms.ChatMessageTypeAI, consts.WelcomeMessage)
 
 	// Load messages from the session
 	for _, msg := range messages {

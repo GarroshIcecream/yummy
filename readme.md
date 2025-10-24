@@ -2,7 +2,7 @@
 
 <div align="center">
   <img src="./assets/yummy_logo.svg" alt="Yummy Logo" />
-  
+
   ![Go Version](https://img.shields.io/badge/Go-1.24.3-blue.svg)
   [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/GarroshIcecream/yummy/blob/master/LICENSE)
   [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)

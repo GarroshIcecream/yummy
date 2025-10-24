@@ -9,6 +9,7 @@ import (
 
 	db "github.com/GarroshIcecream/yummy/yummy/db"
 	log "github.com/GarroshIcecream/yummy/yummy/log"
+	themes "github.com/GarroshIcecream/yummy/yummy/themes"
 	tui "github.com/GarroshIcecream/yummy/yummy/tui"
 	"github.com/GarroshIcecream/yummy/yummy/tui/chat"
 	"github.com/GarroshIcecream/yummy/yummy/version"
@@ -20,9 +21,11 @@ import (
 func init() {
 	rootCmd.PersistentFlags().BoolP("debug", "d", false, "Debug")
 	rootCmd.Flags().BoolP("help", "h", false, "Help")
+	rootCmd.Flags().StringP("theme", "t", "default", "Theme to use (default, dark, light)")
 
 	rootCmd.AddCommand(exportCmd)
 	rootCmd.AddCommand(importCmd)
+	rootCmd.AddCommand(groceryCmd)
 }
 
 var rootCmd = &cobra.Command{
@@ -30,7 +33,7 @@ var rootCmd = &cobra.Command{
 	Short: "Yummy - Terminal-based cookbook manager and recipe assistant",
 	Long: `🍳 Yummy — Your Command-Line Recipe Companion
 
-A fast, delightful command-line application for managing recipes. Built with care and powered by Bubble Tea, 
+A fast, delightful command-line application for managing recipes. Built with care and powered by Bubble Tea,
 Yummy brings a beautiful terminal-first experience to every home cook, developer, and recipe curator.
 
 🚀 Core Features:
@@ -112,6 +115,16 @@ func setupApp(cmd *cobra.Command) (*tui.Manager, error) {
 		return nil, err
 	}
 
+	theme, err := cmd.Flags().GetString("theme")
+	if err != nil {
+		return nil, err
+	}
+
+	themeManager := themes.NewThemeManager()
+	if err := themeManager.SetThemeByName(theme); err != nil {
+		return nil, err
+	}
+
 	//debug, _ := cmd.Flags().GetBool("debug")
 	// cfg, err := config.Init(cwd, debug)
 	// if err != nil {
@@ -126,7 +139,12 @@ func setupApp(cmd *cobra.Command) (*tui.Manager, error) {
 	// setup log
 	log.Setup(datadir, true)
 
-	conn, err := db.NewCookBook(datadir)
+	cookbook, err := db.NewCookBook(datadir)
+	if err != nil {
+		return nil, err
+	}
+
+	sessionLog, err := db.NewSessionLog(datadir)
 	if err != nil {
 		return nil, err
 	}
@@ -137,7 +155,7 @@ func setupApp(cmd *cobra.Command) (*tui.Manager, error) {
 		return nil, fmt.Errorf("ollama service status: %v", ollamaStatus.Error)
 	}
 
-	tuiInstance, err := tui.New(conn, ctx)
+	tuiInstance, err := tui.New(cookbook, sessionLog, themeManager, ctx)
 	if err != nil {
 		slog.Error("Failed to create tui instance", "error", err)
 		return nil, err

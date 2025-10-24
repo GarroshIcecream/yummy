@@ -4,10 +4,11 @@ import (
 	"fmt"
 
 	"github.com/GarroshIcecream/yummy/yummy/config"
+	consts "github.com/GarroshIcecream/yummy/yummy/consts"
 	db "github.com/GarroshIcecream/yummy/yummy/db"
+	messages "github.com/GarroshIcecream/yummy/yummy/models/msg"
 	"github.com/GarroshIcecream/yummy/yummy/recipe"
-	styles "github.com/GarroshIcecream/yummy/yummy/tui/styles"
-	utils "github.com/GarroshIcecream/yummy/yummy/tui/utils"
+	themes "github.com/GarroshIcecream/yummy/yummy/themes"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
@@ -17,14 +18,15 @@ type ListModel struct {
 	cookbook        *db.CookBook
 	err             error
 	RecipeList      list.Model
-	modelState      utils.ModelState
+	modelState      consts.ModelState
 	filterFavourite bool
 	width           int
 	height          int
 	keyMap          config.KeyMap
+	theme           *themes.Theme
 }
 
-func New(cookbook *db.CookBook, keymaps config.KeyMap, filterFavourite bool) *ListModel {
+func New(cookbook *db.CookBook, keymaps config.KeyMap, theme *themes.Theme, filterFavourite bool) *ListModel {
 	recipes, err := cookbook.AllRecipes(filterFavourite)
 
 	var items []list.Item
@@ -33,14 +35,15 @@ func New(cookbook *db.CookBook, keymaps config.KeyMap, filterFavourite bool) *Li
 	}
 
 	d := list.NewDefaultDelegate()
-	d.Styles = styles.GetDelegateStyles()
+	d.Styles = theme.DelegateStyles
 
 	l := list.New(items, d, 80, 40)
-	l.Styles = styles.GetListStyles()
-	l.Title = utils.ListTitle
+	l.Styles = theme.ListStyles
+	l.Title = consts.ListTitle
 	l.KeyMap = keymaps.ListKeyMap()
-	l.SetStatusBarItemName(utils.ListItemNameSingular, utils.ListItemNamePlural)
-	l.StatusMessageLifetime = utils.ListViewStatusMessageTTL
+	l.SetStatusBarItemName(consts.ListItemNameSingular, consts.ListItemNamePlural)
+	l.StatusMessageLifetime = consts.ListViewStatusMessageTTL
+	l.Filter = CustomFilter
 	l.AdditionalShortHelpKeys = func() []key.Binding {
 		return []key.Binding{keymaps.Add, keymaps.Delete}
 	}
@@ -53,9 +56,10 @@ func New(cookbook *db.CookBook, keymaps config.KeyMap, filterFavourite bool) *Li
 		cookbook:        cookbook,
 		keyMap:          keymaps,
 		filterFavourite: filterFavourite,
-		modelState:      utils.ModelStateLoaded,
+		modelState:      consts.ModelStateLoaded,
 		err:             err,
 		RecipeList:      l,
+		theme:           theme,
 	}
 }
 
@@ -68,7 +72,12 @@ func (m *ListModel) SelectedItemToRecipeWithDescription() (recipe.RecipeWithDesc
 		return recipe.RecipeWithDescription{}, false
 	}
 
-	if i, ok := m.RecipeList.SelectedItem().(recipe.RecipeWithDescription); ok {
+	selectedItem := m.RecipeList.SelectedItem()
+	if selectedItem == nil {
+		return recipe.RecipeWithDescription{}, false
+	}
+
+	if i, ok := selectedItem.(recipe.RecipeWithDescription); ok {
 		return i, true
 	}
 
@@ -83,18 +92,18 @@ func (m *ListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 
-	case utils.SetFavouriteMsg:
-		if err := m.cookbook.SetFavourite(msg.RecipeID); err != nil {
+	case messages.SetFavouriteMsg:
+		newFavourite, err := m.cookbook.SetFavourite(msg.RecipeID)
+		if err != nil {
 			m.err = err
 			return m, nil
 		}
 		cmd = m.RefreshRecipeList()
 		cmds = append(cmds, cmd)
-		isFavourite := m.RecipeList.SelectedItem().(recipe.RecipeWithDescription).IsFavourite
-		if isFavourite {
-			cmds = append(cmds, m.RecipeList.NewStatusMessage(utils.ListViewStatusMessageFavouriteSet))
+		if newFavourite {
+			cmds = append(cmds, m.RecipeList.NewStatusMessage(consts.ListViewStatusMessageFavouriteSet))
 		} else {
-			cmds = append(cmds, m.RecipeList.NewStatusMessage(utils.ListViewStatusMessageFavouriteRemoved))
+			cmds = append(cmds, m.RecipeList.NewStatusMessage(consts.ListViewStatusMessageFavouriteRemoved))
 		}
 
 	case tea.KeyMsg:
@@ -109,26 +118,26 @@ func (m *ListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 					cmd = m.RefreshRecipeList()
 					cmds = append(cmds, cmd)
-					cmds = append(cmds, m.RecipeList.NewStatusMessage(utils.ListViewStatusMessageRecipeDeleted))
+					cmds = append(cmds, m.RecipeList.NewStatusMessage(consts.ListViewStatusMessageRecipeDeleted))
 				}
 			}
 		case key.Matches(msg, m.keyMap.Enter):
 			if m.RecipeList.FilterState() != list.Filtering {
 				if i, ok := m.SelectedItemToRecipeWithDescription(); ok {
-					cmds = append(cmds, utils.SendSessionStateMsg(utils.SessionStateDetail))
-					cmds = append(cmds, utils.SendRecipeSelectedMsg(i.RecipeID))
+					cmds = append(cmds, messages.SendSessionStateMsg(consts.SessionStateDetail))
+					cmds = append(cmds, messages.SendRecipeSelectedMsg(i.RecipeID))
 				}
 			}
 
 		case key.Matches(msg, m.keyMap.SetFavourite):
 			if m.RecipeList.FilterState() != list.Filtering {
 				if i, ok := m.SelectedItemToRecipeWithDescription(); ok {
-					cmds = append(cmds, utils.SendSetFavouriteMsg(i.RecipeID))
+					cmds = append(cmds, messages.SendSetFavouriteMsg(i.RecipeID))
 				}
 			}
 		}
 	case tea.WindowSizeMsg:
-		h, v := styles.DocStyle.GetFrameSize()
+		h, v := m.theme.Doc.GetFrameSize()
 		m.RecipeList.SetSize(msg.Width-h, msg.Height-v)
 	}
 
@@ -143,7 +152,7 @@ func (m *ListModel) View() string {
 		return fmt.Sprintf("Error: %v", m.err)
 	}
 
-	return styles.DocStyle.Render(m.RecipeList.View())
+	return m.theme.Doc.Render(m.RecipeList.View())
 }
 
 func (m *ListModel) RefreshRecipeList() tea.Cmd {
@@ -168,7 +177,7 @@ func (m *ListModel) SetSize(width, height int) {
 	m.width = width
 	m.height = height
 	if m.RecipeList.Width() != 0 || m.RecipeList.Height() != 0 {
-		h, v := styles.DocStyle.GetFrameSize()
+		h, v := m.theme.Doc.GetFrameSize()
 		m.RecipeList.SetSize(width-h, height-v)
 	}
 }
@@ -178,6 +187,10 @@ func (m *ListModel) GetSize() (width, height int) {
 	return m.width, m.height
 }
 
-func (m *ListModel) GetModelState() utils.ModelState {
+func (m *ListModel) GetModelState() consts.ModelState {
 	return m.modelState
+}
+
+func (m *ListModel) GetSessionState() consts.SessionState {
+	return consts.SessionStateList
 }

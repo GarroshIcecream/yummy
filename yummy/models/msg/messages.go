@@ -1,8 +1,9 @@
-package utils
+package messages
 
 import (
 	"errors"
 
+	consts "github.com/GarroshIcecream/yummy/yummy/consts"
 	recipes "github.com/GarroshIcecream/yummy/yummy/recipe"
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -27,16 +28,16 @@ type RecipeSelectedMsg struct {
 }
 
 type SessionStateMsg struct {
-	SessionState SessionState
+	SessionState consts.SessionState
+}
+
+type EditRecipeMsg struct {
+	RecipeID uint
 }
 
 type SaveMsg struct {
 	Recipe *recipes.RecipeRaw
 	Err    error
-}
-
-type EditRecipeMsg struct {
-	RecipeID uint
 }
 
 type LoadRecipeMsg struct {
@@ -76,6 +77,12 @@ type LoadSessionMsg struct {
 	Err       error
 }
 
+func CmdHandler(msg tea.Msg) tea.Cmd {
+	return func() tea.Msg {
+		return msg
+	}
+}
+
 func SendCloseDialogMsg() tea.Cmd {
 	return CmdHandler(CloseDialogMsg{})
 }
@@ -84,7 +91,7 @@ func SendRecipeSelectedMsg(recipe_id uint) tea.Cmd {
 	return CmdHandler(RecipeSelectedMsg{RecipeID: recipe_id})
 }
 
-func SendSessionStateMsg(session_state SessionState) tea.Cmd {
+func SendSessionStateMsg(session_state consts.SessionState) tea.Cmd {
 	return CmdHandler(SessionStateMsg{SessionState: session_state})
 }
 
@@ -111,7 +118,7 @@ func SendStatusInfoMsg(msg string, msgType int, ttl int) tea.Cmd {
 func SendEmptyResponseMsg() tea.Cmd {
 	err := errors.New("empty response")
 	return CmdHandler(ResponseMsg{
-		Response:         EmptyResponse,
+		Response:         consts.EmptyResponse,
 		PromptTokens:     0,
 		CompletionTokens: 0,
 		TotalTokens:      0,

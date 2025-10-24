@@ -5,43 +5,50 @@ import (
 	"strings"
 
 	"github.com/GarroshIcecream/yummy/yummy/config"
+	consts "github.com/GarroshIcecream/yummy/yummy/consts"
 	db "github.com/GarroshIcecream/yummy/yummy/db"
+	messages "github.com/GarroshIcecream/yummy/yummy/models/msg"
 	recipes "github.com/GarroshIcecream/yummy/yummy/recipe"
-	styles "github.com/GarroshIcecream/yummy/yummy/tui/styles"
-	utils "github.com/GarroshIcecream/yummy/yummy/tui/utils"
+	themes "github.com/GarroshIcecream/yummy/yummy/themes"
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
 )
 
 type DetailModel struct {
+	// Database
 	cookbook       *db.CookBook
 	CurrentRecipe  *recipes.RecipeRaw
 	content        string
 	err            error
 	scrollPosition int
 	renderer       *glamour.TermRenderer
-	width          int
-	height         int
-	keyMap         config.KeyMap
-	modelState     utils.ModelState
+
+	width      int
+	height     int
+	modelState consts.ModelState
+
+	// UI
+	keyMap config.KeyMap
+	theme  *themes.Theme
 }
 
-func New(cookbook *db.CookBook, keymaps config.KeyMap) *DetailModel {
+func New(cookbook *db.CookBook, keymaps config.KeyMap, theme *themes.Theme) *DetailModel {
 	renderer, _ := glamour.NewTermRenderer(
 		glamour.WithAutoStyle(),
 		glamour.WithEmoji(),
-		glamour.WithWordWrap(utils.DefaultViewportWidth),
+		glamour.WithWordWrap(consts.DefaultViewportWidth),
 	)
 
 	model := &DetailModel{
 		cookbook:       cookbook,
-		renderer:       renderer,
 		scrollPosition: 0,
-		width:          utils.DefaultViewportWidth,
-		height:         utils.DefaultViewportHeight,
+		width:          consts.DefaultViewportWidth,
+		height:         consts.DefaultViewportHeight,
 		keyMap:         keymaps,
-		modelState:     utils.ModelStateLoaded,
+		modelState:     consts.ModelStateLoaded,
+		theme:          theme,
+		renderer:       renderer,
 	}
 
 	return model
@@ -55,11 +62,11 @@ func (m *DetailModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
-	case utils.RecipeSelectedMsg:
-		cmd_load := utils.SendLoadRecipeMsg(m.FetchRecipe(msg.RecipeID))
+	case messages.RecipeSelectedMsg:
+		cmd_load := messages.SendLoadRecipeMsg(m.FetchRecipe(msg.RecipeID))
 		cmds = append(cmds, cmd_load)
 
-	case utils.LoadRecipeMsg:
+	case messages.LoadRecipeMsg:
 		m.scrollPosition = 0
 		m.CurrentRecipe = msg.Recipe
 		m.content = msg.Content
@@ -69,23 +76,23 @@ func (m *DetailModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch {
 		case key.Matches(msg, m.keyMap.Edit):
 			if m.CurrentRecipe != nil {
-				cmd_state := utils.SendSessionStateMsg(utils.SessionStateEdit)
-				cmd_edit := utils.SendEditRecipeMsg(m.CurrentRecipe.ID)
+				cmd_state := messages.SendSessionStateMsg(consts.SessionStateEdit)
+				cmd_edit := messages.SendEditRecipeMsg(m.CurrentRecipe.ID)
 				cmds = append(cmds, cmd_state, cmd_edit)
 			}
 		case key.Matches(msg, m.keyMap.CursorUp):
-			m.ScrollUp(utils.DefaultScrollSpeed)
+			m.ScrollUp(consts.DefaultScrollSpeed)
 		case key.Matches(msg, m.keyMap.CursorDown):
-			m.ScrollDown(utils.DefaultScrollSpeed)
+			m.ScrollDown(consts.DefaultScrollSpeed)
 		}
 
 	case tea.MouseMsg:
 		if msg.Action == tea.MouseActionPress {
 			switch msg.Button {
 			case tea.MouseButtonWheelUp:
-				m.ScrollUp(utils.DefaultScrollSpeed)
+				m.ScrollUp(consts.DefaultScrollSpeed)
 			case tea.MouseButtonWheelDown:
-				m.ScrollDown(utils.DefaultScrollSpeed)
+				m.ScrollDown(consts.DefaultScrollSpeed)
 			}
 		}
 	}
@@ -105,10 +112,10 @@ func (m *DetailModel) View() string {
 	return m.renderContentView()
 }
 
-func (m *DetailModel) FetchRecipe(recipe_id uint) utils.LoadRecipeMsg {
+func (m *DetailModel) FetchRecipe(recipe_id uint) messages.LoadRecipeMsg {
 	recipe, err := m.cookbook.GetFullRecipe(recipe_id)
 	if err != nil {
-		return utils.LoadRecipeMsg{Recipe: nil, Content: "", Err: err}
+		return messages.LoadRecipeMsg{Recipe: nil, Content: "", Err: err}
 	}
 
 	// Render markdown content immediately
@@ -118,7 +125,7 @@ func (m *DetailModel) FetchRecipe(recipe_id uint) utils.LoadRecipeMsg {
 		content = markdown
 	}
 
-	return utils.LoadRecipeMsg{Recipe: recipe, Content: content, Err: nil}
+	return messages.LoadRecipeMsg{Recipe: recipe, Content: content, Err: nil}
 }
 
 func (m *DetailModel) ScrollUp(amount int) {
@@ -194,7 +201,11 @@ func (m *DetailModel) refreshContent() {
 	}
 }
 
-func (m *DetailModel) GetModelState() utils.ModelState {
+func (m *DetailModel) GetSessionState() consts.SessionState {
+	return consts.SessionStateDetail
+}
+
+func (m *DetailModel) GetModelState() consts.ModelState {
 	return m.modelState
 }
 
@@ -204,13 +215,13 @@ func (m *DetailModel) GetSize() (width, height int) {
 
 // renderErrorView renders the error state
 func (m *DetailModel) renderErrorView() string {
-	return styles.ErrorStyle.Render(fmt.Sprintf("❌ Error: %v", m.err))
+	return m.theme.Error.Render(fmt.Sprintf("❌ Error: %v", m.err))
 }
 
 // renderEmptyView renders the empty state
 func (m *DetailModel) renderEmptyView() string {
-	emptyMessage := styles.LoadingStyle.Render("📖 No recipe selected - choose one from the list")
-	return styles.DetailContentStyle.Render(emptyMessage)
+	emptyMessage := m.theme.Loading.Render("📖 No recipe selected - choose one from the list")
+	return m.theme.DetailContent.Render(emptyMessage)
 }
 
 // renderContentView renders the main content with proper markdown rendering
@@ -247,5 +258,5 @@ func (m *DetailModel) renderContentView() string {
 	}
 
 	// Apply content styling
-	return styles.DetailContentStyle.Render(visibleContent)
+	return m.theme.DetailContent.Render(visibleContent)
 }

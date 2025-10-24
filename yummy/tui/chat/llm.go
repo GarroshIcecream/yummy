@@ -6,8 +6,9 @@ import (
 	"log"
 	"slices"
 
+	consts "github.com/GarroshIcecream/yummy/yummy/consts"
 	db "github.com/GarroshIcecream/yummy/yummy/db"
-	utils "github.com/GarroshIcecream/yummy/yummy/tui/utils"
+	messages "github.com/GarroshIcecream/yummy/yummy/models/msg"
 	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/llms/ollama"
 )
@@ -32,10 +33,10 @@ type LLMResponse struct {
 func NewLLMService(db *db.CookBook) (*LLMService, error) {
 	ctx := context.Background()
 	toolManager := NewToolManager()
-	modelName := utils.DefaultModel
+	modelName := consts.DefaultModel
 	model, err := ollama.New(
 		ollama.WithModel(modelName),
-		ollama.WithSystemPrompt(utils.SystemPrompt),
+		ollama.WithSystemPrompt(consts.SystemPrompt),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to serve LLM model: %w", err)
@@ -62,7 +63,7 @@ func (l *LLMService) SetModelByName(modelName string) error {
 	l.modelName = modelName
 	model, err := ollama.New(
 		ollama.WithModel(modelName),
-		ollama.WithSystemPrompt(utils.SystemPrompt),
+		ollama.WithSystemPrompt(consts.SystemPrompt),
 	)
 	if err != nil {
 		return err
@@ -90,7 +91,7 @@ func (l *LLMService) GetCurrentModelTools() []llms.Tool {
 }
 
 func (l *LLMService) GetSystemPrompt() string {
-	return utils.SystemPrompt
+	return consts.SystemPrompt
 }
 
 // AppendMessage adds a message to the conversation
@@ -105,51 +106,47 @@ func AppendMessage(conversation []llms.MessageContent, role llms.ChatMessageType
 // GetChoices extracts the first choice from a completion response
 func ParseChoices(completion *llms.ContentResponse) ([]*llms.ContentChoice, error) {
 	if len(completion.Choices) == 0 {
-		return nil, fmt.Errorf("no response from model")
+		return nil, fmt.Errorf("no choices available")
 	}
 	return completion.Choices, nil
 }
 
 // GenerateResponse generates a response for the given conversation
-func (l *LLMService) GenerateResponse(conversation []llms.MessageContent) utils.ResponseMsg {
+func (l *LLMService) GenerateResponse(conversation []llms.MessageContent) messages.ResponseMsg {
 	log.Printf("Generating response with model: %s", l.modelName)
+	response := messages.ResponseMsg{
+		Response:         "",
+		PromptTokens:     0,
+		CompletionTokens: 0,
+		TotalTokens:      0,
+		Error:            nil,
+	}
+
 	answer, err := l.model.GenerateContent(
 		context.Background(),
 		conversation,
 		llms.WithModel(l.modelName),
-		llms.WithTemperature(utils.Temperature),
+		llms.WithTemperature(consts.Temperature),
 		llms.WithCandidateCount(1),
 		llms.WithTools(l.toolManager.GetTools()),
 	)
 	if err != nil {
 		log.Printf("model.GenerateContent error: %v", err)
-		return utils.ResponseMsg{
-			Response:         "",
-			PromptTokens:     0,
-			CompletionTokens: 0,
-			TotalTokens:      0,
-			Error:            err,
-		}
+		response.Error = err
+		return response
 	}
 
-	if len(answer.Choices) > 0 {
-		output := answer.Choices[0].Content
-		log.Printf("Generated response: %s", output)
-		return utils.ResponseMsg{
-			Response:         output,
-			PromptTokens:     answer.Choices[0].GenerationInfo["PromptTokens"].(int),
-			CompletionTokens: answer.Choices[0].GenerationInfo["CompletionTokens"].(int),
-			TotalTokens:      answer.Choices[0].GenerationInfo["TotalTokens"].(int),
-			Error:            nil,
-		}
+	choices, err := ParseChoices(answer)
+	if err != nil {
+		log.Printf("Error parsing choices: %v", err)
+		response.Error = err
+		return response
 	}
 
-	log.Printf("No response from model - no choices available")
-	return utils.ResponseMsg{
-		Response:         "",
-		PromptTokens:     0,
-		CompletionTokens: 0,
-		TotalTokens:      0,
-		Error:            fmt.Errorf("no response from model"),
-	}
+	response.Response = choices[0].Content
+	response.PromptTokens = choices[0].GenerationInfo["PromptTokens"].(int)
+	response.CompletionTokens = choices[0].GenerationInfo["CompletionTokens"].(int)
+	response.TotalTokens = choices[0].GenerationInfo["TotalTokens"].(int)
+
+	return response
 }

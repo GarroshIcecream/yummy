@@ -1,0 +1,35 @@
+# Pre-commit configuration for Go project
+repos:
+  # General hooks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: check-added-large-files
+      - id: check-yaml
+      - id: check-json
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-merge-conflict
+
+  # Go-specific hooks using remote repository
+  - repo: https://github.com/TekWizely/pre-commit-golang
+    rev: v1.0.0-rc.2
+    hooks:
+      # Repository-wide imports
+      - id: go-imports-repo
+
+      # Basic formatting (uses built-in gofmt)
+      - id: go-fmt-repo
+
+      # Module management
+      - id: go-mod-tidy
+
+      # Testing (only if tests exist)
+      - id: go-test-mod
+        args: [-v, -short]
+
+      # Repository-wide static analysis
+      - id: go-vet-repo-mod
+
+      # Repository-wide linting
+      - id: golangci-lint-repo-mod

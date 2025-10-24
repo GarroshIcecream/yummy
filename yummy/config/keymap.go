@@ -31,6 +31,11 @@ type KeyMap struct {
 	GoToEnd              key.Binding
 	Filter               key.Binding
 	ClearFilter          key.Binding
+	EditIngredients      key.Binding
+	EditInstructions     key.Binding
+	EditAdd              key.Binding
+	EditEdit             key.Binding
+	EditDelete           key.Binding
 }
 
 func (k KeyMap) ShortHelp() []key.Binding {
@@ -162,6 +167,30 @@ func DefaultKeyMap() KeyMap {
 		ClearFilter: key.NewBinding(
 			key.WithKeys("esc"),
 			key.WithHelp("esc", "clear filter"),
+		),
+		Help: key.NewBinding(
+			key.WithKeys("h", "?"),
+			key.WithHelp("h/?", "help"),
+		),
+		EditIngredients: key.NewBinding(
+			key.WithKeys("i"),
+			key.WithHelp("i", "edit ingredients"),
+		),
+		EditInstructions: key.NewBinding(
+			key.WithKeys("s"),
+			key.WithHelp("s", "edit instructions"),
+		),
+		EditAdd: key.NewBinding(
+			key.WithKeys("a"),
+			key.WithHelp("a", "add item"),
+		),
+		EditEdit: key.NewBinding(
+			key.WithKeys("e"),
+			key.WithHelp("e", "edit item"),
+		),
+		EditDelete: key.NewBinding(
+			key.WithKeys("d"),
+			key.WithHelp("d", "delete item"),
 		),
 	}
 }

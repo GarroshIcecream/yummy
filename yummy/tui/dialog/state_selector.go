@@ -5,8 +5,9 @@ import (
 	"strconv"
 
 	config "github.com/GarroshIcecream/yummy/yummy/config"
-	"github.com/GarroshIcecream/yummy/yummy/tui/styles"
-	utils "github.com/GarroshIcecream/yummy/yummy/tui/utils"
+	consts "github.com/GarroshIcecream/yummy/yummy/consts"
+	messages "github.com/GarroshIcecream/yummy/yummy/models/msg"
+	themes "github.com/GarroshIcecream/yummy/yummy/themes"
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -17,22 +18,23 @@ type StateSelectorDialogCmp struct {
 	wHeight int
 
 	selectedIndex int
-	states        []utils.SessionState
+	states        []consts.SessionState
 	stateNames    []string
 	keymap        config.KeyMap
 	height        int
 	width         int
 	emojis        []string
+	theme         *themes.Theme
 }
 
 // NewStateSelectorDialog creates a new state selection dialog.
-func NewStateSelectorDialog() *StateSelectorDialogCmp {
-	states := []utils.SessionState{
-		utils.SessionStateMainMenu,
-		utils.SessionStateList,
-		utils.SessionStateDetail,
-		utils.SessionStateEdit,
-		utils.SessionStateChat,
+func NewStateSelectorDialog(theme *themes.Theme) *StateSelectorDialogCmp {
+	states := []consts.SessionState{
+		consts.SessionStateMainMenu,
+		consts.SessionStateList,
+		consts.SessionStateDetail,
+		consts.SessionStateEdit,
+		consts.SessionStateChat,
 	}
 
 	stateNames := []string{
@@ -54,11 +56,12 @@ func NewStateSelectorDialog() *StateSelectorDialogCmp {
 	return &StateSelectorDialogCmp{
 		selectedIndex: 0,
 		states:        states,
-		height:        utils.DefaultViewportHeight,
-		width:         utils.DefaultViewportWidth,
+		height:        consts.DefaultViewportHeight,
+		width:         consts.DefaultViewportWidth,
 		stateNames:    stateNames,
 		emojis:        emojis,
 		keymap:        config.DefaultKeyMap(),
+		theme:         theme,
 	}
 }
 
@@ -110,17 +113,17 @@ func (s *StateSelectorDialogCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			s.selectedIndex = *s.GetStateIndexFromNumberKey(msg)
 			selectedState := s.states[s.selectedIndex]
 			cmds = append(cmds, tea.Batch(
-				utils.SendSessionStateMsg(selectedState),
-				utils.SendCloseDialogMsg(),
+				messages.SendSessionStateMsg(selectedState),
+				messages.SendCloseDialogMsg(),
 			))
 		case key.Matches(msg, s.keymap.Enter):
 			selectedState := s.states[s.selectedIndex]
 			cmds = append(cmds, tea.Batch(
-				utils.SendSessionStateMsg(selectedState),
-				utils.SendCloseDialogMsg(),
+				messages.SendSessionStateMsg(selectedState),
+				messages.SendCloseDialogMsg(),
 			))
 		case key.Matches(msg, s.keymap.Back, s.keymap.Quit):
-			cmds = append(cmds, utils.SendCloseDialogMsg())
+			cmds = append(cmds, messages.SendCloseDialogMsg())
 		}
 	}
 
@@ -161,11 +164,11 @@ func (s *StateSelectorDialogCmp) View() string {
 	content := lipgloss.JoinVertical(lipgloss.Left, stateItems...)
 	fullContent := lipgloss.JoinVertical(
 		lipgloss.Center,
-		styles.StateSelectorTitleStyle.Render(title),
+		s.theme.StateSelectorTitle.Render(title),
 		content,
 	)
 
-	dialogBox := styles.StateSelectorDialogStyle.Render(fullContent)
+	dialogBox := s.theme.StateSelectorDialog.Render(fullContent)
 	centeredDialogStyle := lipgloss.NewStyle().
 		Align(lipgloss.Center).
 		AlignVertical(lipgloss.Center).
@@ -184,11 +187,11 @@ func (s *StateSelectorDialogCmp) GetSize() (int, int) {
 	return s.width, s.height
 }
 
-func (s *StateSelectorDialogCmp) GetModelState() utils.ModelState {
-	return utils.ModelStateLoaded
+func (s *StateSelectorDialogCmp) GetModelState() consts.ModelState {
+	return consts.ModelStateLoaded
 }
 
-func (s *StateSelectorDialogCmp) GetSelectedState() utils.SessionState {
+func (s *StateSelectorDialogCmp) GetSelectedState() consts.SessionState {
 	return s.states[s.selectedIndex]
 }
 

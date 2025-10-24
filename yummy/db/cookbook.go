@@ -5,22 +5,31 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"time"
 
 	recipe "github.com/GarroshIcecream/yummy/yummy/recipe"
-	"github.com/tmc/langchaingo/llms"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 
-type CookBook struct {
-	conn *gorm.DB
-}
+// Creates new instance of CookBook struct
+func NewCookBook(dbPath string, opts ...gorm.Option) (*CookBook, error) {
+	dbPath = filepath.Join(dbPath, "cookbook.db")
+	_, err := os.Stat(dbPath)
+	if err != nil {
+		log.Printf("Database does not exist at %s, creating new database...", dbPath)
+	}
 
-type SessionStats struct {
-	SessionID         uint
-	MessageCount      int64
-	TotalInputTokens  int64
-	TotalOutputTokens int64
+	dbCon, err := gorm.Open(sqlite.Open(dbPath), opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := dbCon.AutoMigrate(GetCookbookModels()...); err != nil {
+		return nil, err
+	}
+
+	return &CookBook{conn: dbCon}, nil
 }
 
 // GetDB returns the underlying database connection
@@ -28,23 +37,32 @@ func (c *CookBook) GetDB() *gorm.DB {
 	return c.conn
 }
 
-func NewCookBook(db_path string, gorm_opts ...gorm.Option) (*CookBook, error) {
-	db_path = filepath.Join(db_path, "cookbook.db")
-	_, err := os.Stat(db_path)
-	if err != nil {
-		log.Printf("Database does not exist at %s, creating new database...", db_path)
-	}
-
-	db_con, err := gorm.Open(sqlite.Open(db_path), gorm_opts...)
-	if err != nil {
+// GetAllCategories returns list of all categories in the database
+func (c *CookBook) GetAllCategories() ([]string, error) {
+	var categories []string
+	if err := c.conn.Model(&Category{}).Distinct("category_name").Where("category_name != ''").Pluck("category_name", &categories).Error; err != nil {
 		return nil, err
 	}
 
-	if err := db_con.AutoMigrate(GetDBModels()...); err != nil {
+	return categories, nil
+}
+
+// GetAllAuthors returns list of all authors from the database
+func (c *CookBook) GetAllAuthors() ([]string, error) {
+	var authors []string
+	if err := c.conn.Model(&RecipeMetadata{}).Distinct("author").Where("author != ''").Pluck("author", &authors).Error; err != nil {
 		return nil, err
 	}
+	return authors, nil
+}
 
-	return &CookBook{conn: db_con}, nil
+// RecipeByName gets first matching recipe by name from the database
+func (c *CookBook) RecipeByName(recipeName string) (Recipe, error) {
+	var recipe Recipe
+	if err := c.conn.First(&recipe, "RecipeName = ?", recipeName).Error; err != nil {
+		return Recipe{}, err
+	}
+	return recipe, nil
 }
 
 // RandomRecipe returns a random recipe from the database
@@ -52,18 +70,6 @@ func (c *CookBook) RandomRecipe() (Recipe, error) {
 	var recipe Recipe
 	result := c.conn.Order("RANDOM()").Take(&recipe)
 	return recipe, result.Error
-}
-
-// RandomFullRecipe returns a random complete recipe with all related data
-func (c *CookBook) RandomFullRecipe() (*recipe.RecipeRaw, error) {
-	// First get a random recipe ID
-	recipe, err := c.RandomRecipe()
-	if err != nil {
-		return nil, err
-	}
-
-	// Then get the full recipe using the existing method
-	return c.GetFullRecipe(recipe.ID)
 }
 
 // HasRecipes checks if there are any recipes in the database
@@ -83,6 +89,7 @@ func (c *CookBook) RecipeCount() (int64, error) {
 	return count, result.Error
 }
 
+// DeleteRecipe deletes a recipe from the database by ID
 func (c *CookBook) DeleteRecipe(recipeID uint) error {
 	log.Printf("Starting deletion of recipe with ID: %d", recipeID)
 
@@ -169,71 +176,137 @@ func (c *CookBook) DeleteRecipe(recipeID uint) error {
 	return nil
 }
 
-func (c *CookBook) RecipeByName(recipe_name string) (Recipe, error) {
-	var recipe Recipe
-	result := c.conn.First(&recipe, "RecipeName = ?", recipe_name)
-
-	return recipe, result.Error
+// CreateNewRecipe creates a new recipe in the database
+func (c *CookBook) CreateNewRecipe(recipeName string) (uint, error) {
+	newRecipe := Recipe{RecipeName: recipeName}
+	if err := c.conn.Create(&newRecipe).Error; err != nil {
+		return 0, fmt.Errorf("failed to create recipe: %w", err)
+	}
+	return newRecipe.ID, nil
 }
 
-func (c *CookBook) CreateNewRecipe(recipe_name string) {
-	c.conn.Create(&Recipe{RecipeName: recipe_name})
-}
-
+// AllRecipes returns all recipes with their metadata
 func (c *CookBook) AllRecipes(favourite bool) ([]recipe.RecipeWithDescription, error) {
-	var recipes []struct {
+	// Build the base query with JOINs to get all data in one query
+	query := c.conn.Table("recipes").
+		Select(`
+			recipes.id,
+			recipes.recipe_name,
+			COALESCE(recipe_metadata.description, '') as description,
+			COALESCE(recipe_metadata.author, '') as author,
+			COALESCE(recipe_metadata.cook_time, 0) as cook_time,
+			COALESCE(recipe_metadata.prep_time, 0) as prep_time,
+			COALESCE(recipe_metadata.total_time, 0) as total_time,
+			COALESCE(recipe_metadata.quantity, '') as quantity,
+			COALESCE(recipe_metadata.url, '') as url,
+			COALESCE(recipe_metadata.favourite, 0) as favourite
+		`).
+		Joins("LEFT JOIN recipe_metadata ON recipes.id = recipe_metadata.recipe_id").
+		Order("recipes.recipe_name")
+
+	// Apply favourite filter at database level if requested
+	if favourite {
+		query = query.Where("recipe_metadata.favourite = ?", true)
+	}
+
+	// Execute the query to get all recipes with metadata
+	type RecipeWithMetadata struct {
 		ID          uint
 		RecipeName  string
-		Author      string
 		Description string
+		Author      string
+		CookTime    time.Duration
+		PrepTime    time.Duration
+		TotalTime   time.Duration
+		Quantity    string
+		URL         string
 		Favourite   bool
 	}
 
-	query := c.conn.
-		Table("recipes").
-		Select("recipes.id, recipes.recipe_name, recipe_metadata.author, recipe_metadata.description, recipe_metadata.favourite").
-		Joins("LEFT JOIN recipe_metadata ON recipes.id = recipe_metadata.recipe_id")
-
-	if favourite {
-		query = query.Where("recipe_metadata.favourite = ?", favourite)
-	}
-
-	err := query.Order("recipes.recipe_name").Find(&recipes).Error
-	if err != nil {
+	var recipesWithMetadata []RecipeWithMetadata
+	if err := query.Scan(&recipesWithMetadata).Error; err != nil {
 		return nil, err
 	}
 
-	formattedRecipes := make([]recipe.RecipeWithDescription, len(recipes))
-	for i, rec := range recipes {
-		formattedRecipes[i] = recipe.FormatRecipe(
-			rec.ID,
-			rec.RecipeName,
-			rec.Author,
-			rec.Description,
-			rec.Favourite,
-		)
+	// If no recipes found, return empty slice
+	if len(recipesWithMetadata) == 0 {
+		return []recipe.RecipeWithDescription{}, nil
 	}
 
-	return formattedRecipes, nil
+	// Collect all recipe IDs for batch category query
+	recipeIDs := make([]uint, len(recipesWithMetadata))
+	for i, r := range recipesWithMetadata {
+		recipeIDs[i] = r.ID
+	}
+
+	// Get all categories for all recipes in one query
+	var categories []struct {
+		RecipeID     uint   `gorm:"column:recipe_id"`
+		CategoryName string `gorm:"column:category_name"`
+	}
+	if err := c.conn.Model(&Category{}).
+		Select("recipe_id, category_name").
+		Where("recipe_id IN ?", recipeIDs).
+		Find(&categories).Error; err != nil {
+		return nil, err
+	}
+
+	// Group categories by recipe ID
+	categoriesByRecipe := make(map[uint][]string)
+	for _, cat := range categories {
+		categoriesByRecipe[cat.RecipeID] = append(categoriesByRecipe[cat.RecipeID], cat.CategoryName)
+	}
+
+	// Build the final result
+	result := make([]recipe.RecipeWithDescription, 0, len(recipesWithMetadata))
+	for _, r := range recipesWithMetadata {
+		recipeCategories, exists := categoriesByRecipe[r.ID]
+		if !exists {
+			recipeCategories = []string{}
+		}
+
+		recipeWithDesc := recipe.RecipeWithDescription{
+			RecipeID:          r.ID,
+			RecipeName:        r.RecipeName,
+			AuthorName:        r.Author,
+			RecipeDescription: r.Description,
+			IsFavourite:       r.Favourite,
+			Metadata: recipe.RecipeMetadata{
+				Categories: recipeCategories,
+				Author:     r.Author,
+				CookTime:   r.CookTime,
+				PrepTime:   r.PrepTime,
+				TotalTime:  r.TotalTime,
+				Quantity:   r.Quantity,
+				URL:        r.URL,
+				Favourite:  r.Favourite,
+			},
+		}
+
+		result = append(result, recipeWithDesc)
+	}
+
+	return result, nil
 }
 
-func (c *CookBook) SetFavourite(recipe_id uint) error {
+// SetFavourite sets the favourite status of a recipe
+func (c *CookBook) SetFavourite(recipeID uint) (bool, error) {
 	var metadata RecipeMetadata
-	err := c.conn.Where("recipe_id = ?", recipe_id).First(&metadata).Error
+	err := c.conn.Where("recipe_id = ?", recipeID).First(&metadata).Error
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	newFavourite := !metadata.Favourite
-	err = c.conn.Model(&RecipeMetadata{}).Where("recipe_id = ?", recipe_id).Update("favourite", newFavourite).Error
+	err = c.conn.Model(&RecipeMetadata{}).Where("recipe_id = ?", recipeID).Update("favourite", newFavourite).Error
 	if err != nil {
-		return err
+		return false, err
 	}
 
-	return nil
+	return newFavourite, nil
 }
 
-// SaveScrapedRecipe saves a scraped recipe to the database
+// SaveScrapedRecipe saves a scraped recipe to the database and returns ID
 func (c *CookBook) SaveScrapedRecipe(recipeRaw *recipe.RecipeRaw) (uint, error) {
 	// Create the base recipe
 	recipe := Recipe{
@@ -485,104 +558,4 @@ func (c *CookBook) GetFullRecipe(recipeID uint) (*recipe.RecipeRaw, error) {
 
 	log.Printf("GetFullRecipe completed successfully")
 	return recipeRaw, nil
-}
-
-// CreateSession creates a new chat session and returns the session ID
-func (c *CookBook) CreateSession() (uint, error) {
-	session := SessionHistory{}
-	if err := c.conn.Create(&session).Error; err != nil {
-		return 0, fmt.Errorf("failed to create session: %w", err)
-	}
-	return session.ID, nil
-}
-
-// SaveSessionMessage saves a message to the database
-func (c *CookBook) SaveSessionMessage(sessionID uint, message string, role llms.ChatMessageType, modelName, content string, inputTokens, outputTokens, totalTokens int) error {
-	// Convert ChatMessageType to string for database storage
-	roleStr := string(role)
-
-	sessionMessage := SessionMessage{
-		SessionID:    sessionID,
-		Message:      message,
-		Role:         roleStr,
-		ModelName:    modelName,
-		Content:      content,
-		InputTokens:  inputTokens,
-		OutputTokens: outputTokens,
-		TotalTokens:  totalTokens,
-	}
-
-	if err := c.conn.Create(&sessionMessage).Error; err != nil {
-		return fmt.Errorf("failed to save session message: %w", err)
-	}
-
-	return nil
-}
-
-// GetSessionMessages retrieves all messages for a given session
-func (c *CookBook) GetSessionMessages(sessionID uint) ([]SessionMessage, error) {
-	var messages []SessionMessage
-	if err := c.conn.Where("session_id = ?", sessionID).Order("created_at ASC").Find(&messages).Error; err != nil {
-		return nil, fmt.Errorf("failed to get session messages: %w", err)
-	}
-	return messages, nil
-}
-
-// GetSessionStats returns statistics for a given session
-func (c *CookBook) GetSessionStats(sessionID uint) (SessionStats, error) {
-	var count int64
-	var inputTokens, outputTokens int64
-
-	// Count messages
-	if err := c.conn.Model(&SessionMessage{}).Where("session_id = ?", sessionID).Count(&count).Error; err != nil {
-		return SessionStats{}, fmt.Errorf("failed to count session messages: %w", err)
-	}
-
-	// Sum input tokens
-	if err := c.conn.Model(&SessionMessage{}).Where("session_id = ?", sessionID).Select("COALESCE(SUM(input_tokens), 0)").Scan(&inputTokens).Error; err != nil {
-		return SessionStats{}, fmt.Errorf("failed to sum input tokens: %w", err)
-	}
-
-	// Sum output tokens
-	if err := c.conn.Model(&SessionMessage{}).Where("session_id = ?", sessionID).Select("COALESCE(SUM(output_tokens), 0)").Scan(&outputTokens).Error; err != nil {
-		return SessionStats{}, fmt.Errorf("failed to sum output tokens: %w", err)
-	}
-
-	return SessionStats{
-		SessionID:         sessionID,
-		MessageCount:      count,
-		TotalInputTokens:  inputTokens,
-		TotalOutputTokens: outputTokens,
-	}, nil
-}
-
-// GetAllSessions retrieves all chat sessions with their metadata
-func (c *CookBook) GetAllSessions() ([]SessionHistory, error) {
-	var sessions []SessionHistory
-
-	// Get all sessions ordered by most recent first
-	if err := c.conn.Order("updated_at DESC").Find(&sessions).Error; err != nil {
-		return nil, fmt.Errorf("failed to get sessions: %w", err)
-	}
-
-	return sessions, nil
-}
-
-// GetNonEmptySessions retrieves only sessions that have messages
-func (c *CookBook) GetNonEmptySessions() ([]SessionHistory, error) {
-	var sessions []SessionHistory
-
-	// Get sessions that have at least one message
-	query := `
-		SELECT DISTINCT sh.* 
-		FROM session_histories sh
-		INNER JOIN session_messages sm ON sh.id = sm.session_id
-		ORDER BY sh.updated_at DESC
-	`
-
-	if err := c.conn.Raw(query).Scan(&sessions).Error; err != nil {
-		return nil, fmt.Errorf("failed to get non-empty sessions: %w", err)
-	}
-
-	return sessions, nil
 }
