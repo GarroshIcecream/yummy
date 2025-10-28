@@ -89,6 +89,11 @@ type Theme struct {
 	StateSelectorSelectedItem      lipgloss.Style
 	StateSelectorIndicator         lipgloss.Style
 	StateSelectorSelectedIndicator lipgloss.Style
+
+	// Session selector styles
+	SessionSelectorTitle      lipgloss.Style
+	SessionSelectorPagination lipgloss.Style
+	SessionSelectorHelp       lipgloss.Style
 }
 
 // Helper methods for backward compatibility and convenience

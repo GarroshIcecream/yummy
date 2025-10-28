@@ -1,0 +1,441 @@
+name: "monokai"
+description: "Monokai-inspired theme with vibrant colors"
+
+colors:
+  # Monokai color palette
+  background: "#272822"
+  foreground: "#F8F8F2"
+  comment: "#75715E"
+  keyword: "#F92672"
+  string: "#E6DB74"
+  number: "#AE81FF"
+  function: "#A6E22E"
+  class: "#66D9EF"
+  constant: "#AE81FF"
+  variable: "#F8F8F2"
+  error: "#F92672"
+  warning: "#FD971F"
+  success: "#A6E22E"
+  info: "#66D9EF"
+
+styles:
+  title:
+    foreground: "foreground"
+    background: "keyword"
+    bold: true
+    padding: "0,4"
+
+  info:
+    foreground: "info"
+    border: "rounded"
+
+  error:
+    foreground: "error"
+    padding: "0,2"
+
+  header:
+    foreground: "success"
+    bold: true
+    padding: "1,0"
+
+  ingredient:
+    foreground: "function"
+    padding: "0,0,0,2"
+
+  doc:
+    margin: "1,2"
+
+  detail_content:
+    padding: "1,2"
+    margin: "0,1"
+
+  detail_header:
+    foreground: "foreground"
+    background: "keyword"
+    bold: true
+    padding: "0,4"
+    margin: "0,0,1,0"
+
+  detail_footer:
+    foreground: "info"
+    padding: "0,1"
+    margin: "1,0,0,0"
+
+  scroll_bar:
+    foreground: "info"
+
+  loading:
+    foreground: "warning"
+    italic: true
+
+  instruction:
+    foreground: "warning"
+    padding: "0,0,0,2"
+
+  warning:
+    foreground: "warning"
+    background: "background"
+    padding: "0,1"
+
+  success:
+    foreground: "success"
+    background: "background"
+    padding: "0,1"
+
+  help:
+    foreground: "comment"
+    background: "background"
+    padding: "0,1"
+
+  status_line:
+    foreground: "comment"
+    background: "background"
+    padding: "0,1"
+
+  status_line_left:
+    foreground: "comment"
+    background: "background"
+    padding: "0,1"
+
+  status_line_right:
+    foreground: "comment"
+    background: "background"
+    padding: "0,1"
+
+  status_line_mode:
+    foreground: "foreground"
+    background: "keyword"
+    bold: true
+    padding: "0,1"
+
+  status_line_file:
+    foreground: "info"
+    background: "background"
+    padding: "0,1"
+
+  status_line_info:
+    foreground: "success"
+    background: "background"
+    padding: "0,1"
+
+  status_line_separator:
+    foreground: "comment"
+    background: "background"
+
+  chat_title:
+    foreground: "function"
+    bold: true
+    margin: "1,0"
+    border: "rounded"
+    border_color: "function"
+    padding: "0,2"
+    align: "center"
+    background: "background"
+
+  chat:
+    border: "rounded"
+    border_color: "comment"
+    padding: "1,2"
+    margin: "0,1,0,0"
+    foreground: "foreground"
+
+  sidebar:
+    border: "normal"
+    border_color: "comment"
+    padding: "2,2,2,2"
+    margin: "1,1,0,0"
+    width: 28
+    background: "background"
+    foreground: "foreground"
+
+  sidebar_header:
+    foreground: "function"
+    bold: true
+    align: "center"
+    margin: "0,0,2,0"
+    background: "background"
+    padding: "1,2"
+
+  sidebar_section:
+    foreground: "foreground"
+    bold: true
+    margin: "0,0,1,0"
+    border: "normal"
+    border_color: "comment"
+    padding: "0,0,1,0"
+
+  sidebar_content:
+    foreground: "comment"
+    margin: "0,0,0,2"
+
+  sidebar_success:
+    foreground: "success"
+    bold: true
+
+  sidebar_error:
+    foreground: "error"
+    bold: true
+
+  user_message:
+    foreground: "function"
+    bold: true
+    align: "left"
+
+  user_content:
+    foreground: "foreground"
+    align: "left"
+    margin: "0,0,1,0"
+
+  assistant_message:
+    foreground: "success"
+    bold: true
+    align: "left"
+
+  assistant_content:
+    foreground: "foreground"
+    align: "left"
+    margin: "0,0,1,0"
+
+  user:
+    foreground: "error"
+    bold: true
+    padding: "0,1"
+    border: "rounded"
+    border_color: "error"
+    margin: "0,0,1,0"
+
+  assistant:
+    foreground: "success"
+    padding: "0,1"
+    border: "rounded"
+    border_color: "success"
+    margin: "0,0,1,0"
+
+  spinner:
+    foreground: "success"
+    bold: true
+
+  main_menu_border:
+    foreground: "function"
+
+  main_menu_container:
+    background: "background"
+    padding: "1,2"
+
+  main_menu_separator:
+    foreground: "function"
+
+  main_menu_welcome:
+    foreground: "comment"
+    italic: true
+    padding: "1,0"
+
+  main_menu_logo:
+    foreground: "function"
+    bold: true
+
+  main_menu_subtitle:
+    foreground: "comment"
+    italic: true
+    padding: "1,0"
+
+  main_menu_title_border:
+    border: "double"
+    border_color: "function"
+    align: "center"
+    padding: "1,2"
+    margin: "1,0"
+
+  main_menu_selected_arrow:
+    foreground: "warning"
+    bold: true
+
+  main_menu_selected_item:
+    border: "double"
+    border_color: "warning"
+
+  main_menu_unselected_item:
+    border: "normal"
+    border_color: "function"
+
+  main_menu_selected_icon:
+    foreground: "warning"
+    bold: true
+
+  main_menu_unselected_icon:
+    foreground: "comment"
+
+  main_menu_selected_title:
+    bold: true
+    foreground: "warning"
+
+  main_menu_unselected_title:
+    foreground: "foreground"
+
+  main_menu_selected_desc:
+    foreground: "warning"
+    italic: true
+    padding: "0,0,0,4,1"
+
+  main_menu_unselected_desc:
+    foreground: "comment"
+    italic: true
+    padding: "0,0,0,4,1"
+
+  main_menu_help_header:
+    foreground: "function"
+    bold: true
+    padding: "0,0,1,0"
+
+  main_menu_help_content:
+    foreground: "comment"
+    padding: "0,0,0,2"
+
+  main_menu_help_border:
+    border: "double"
+    border_color: "function"
+    background: "background"
+    padding: "1,2"
+    margin: "1,0"
+
+  main_menu_spinner:
+    foreground: "function"
+
+  state_selector_container:
+    align: "center"
+    width: 50
+    height: 15
+    border: "rounded"
+    border_color: "function"
+    background: "background"
+    padding: "2,3"
+
+  state_selector_dialog:
+    border: "rounded"
+    border_color: "success"
+    padding: "2,3"
+
+  state_selector_title:
+    bold: true
+    foreground: "success"
+    margin: "0,0,2,0"
+    align: "center"
+
+  state_selector_help:
+    foreground: "comment"
+    italic: true
+    align: "center"
+    margin: "2,0,0,0"
+
+  state_selector_item:
+    foreground: "comment"
+    padding: "0,2"
+    margin: "0,0,1,0"
+
+  state_selector_selected_item:
+    foreground: "foreground"
+    background: "function"
+    bold: true
+    padding: "0,2"
+    margin: "0,0,1,0"
+
+  state_selector_indicator:
+    foreground: "warning"
+    bold: true
+
+  state_selector_selected_indicator:
+    foreground: "foreground"
+    bold: true
+
+lists:
+  title_bar:
+    foreground: "function"
+    background: "background"
+    bold: true
+    padding: "1,2"
+
+  title:
+    foreground: "function"
+    bold: true
+    padding: "1,2"
+
+  spinner:
+    foreground: "function"
+
+  filter_prompt:
+    foreground: "function"
+    padding: "1,2"
+
+  filter_cursor:
+    foreground: "function"
+    bold: true
+
+  default_filter_character_match:
+    foreground: "success"
+
+  status_bar:
+    foreground: "comment"
+    background: "background"
+
+  status_empty:
+    foreground: "error"
+
+  status_bar_active_filter:
+    foreground: "warning"
+
+  status_bar_filter_count:
+    foreground: "warning"
+
+  no_items:
+    foreground: "error"
+
+  pagination_style:
+    foreground: "function"
+
+  help_style:
+    foreground: "comment"
+    background: "background"
+
+  active_pagination_dot:
+    foreground: "function"
+
+  inactive_pagination_dot:
+    foreground: "background"
+
+  arabic_pagination:
+    foreground: "function"
+
+  divider_dot:
+    foreground: "function"
+
+  normal_title:
+    foreground: "foreground"
+    padding: "0,2"
+
+  normal_desc:
+    foreground: "comment"
+    padding: "0,2"
+
+  selected_title:
+    foreground: "function"
+    border: "normal"
+    border_color: "function"
+    padding: "0,2"
+
+  selected_desc:
+    foreground: "success"
+    border: "normal"
+    border_color: "function"
+    padding: "0,2"
+
+  dimmed_title:
+    foreground: "comment"
+    padding: "0,2"
+
+  dimmed_desc:
+    foreground: "comment"
+    padding: "0,2"
+
+  filter_match:
+    foreground: "function"
+    underline: true

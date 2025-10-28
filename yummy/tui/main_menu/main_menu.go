@@ -17,17 +17,22 @@ import (
 )
 
 type MainMenuModel struct {
+	// Configuration
 	cookbook   *db.CookBook
-	items      []menuItem
-	selected   int
-	width      int
-	height     int
-	keyMap     config.KeyMap
-	showHelp   bool
-	spinner    spinner.Model
-	modelState consts.ModelState
-	loadingMsg string
 	theme      *themes.Theme
+	keyMap     config.KeyMap
+	config     *config.MainMenuConfig
+	modelState consts.ModelState
+
+	// UI components
+	items    []menuItem
+	selected int
+	width    int
+	height   int
+
+	// Spinner
+	spinner    spinner.Model
+	loadingMsg string
 }
 
 type menuItem struct {
@@ -38,7 +43,7 @@ type menuItem struct {
 	icon        string
 }
 
-func New(cookbook *db.CookBook, keymaps config.KeyMap, theme *themes.Theme) *MainMenuModel {
+func New(cookbook *db.CookBook, keymaps config.KeyMap, theme *themes.Theme, config *config.MainMenuConfig) *MainMenuModel {
 	items := []menuItem{
 		{
 			title:       "Browse Your Cookbook",
@@ -83,16 +88,16 @@ func New(cookbook *db.CookBook, keymaps config.KeyMap, theme *themes.Theme) *Mai
 		items:      items,
 		selected:   0,
 		keyMap:     keymaps,
-		showHelp:   false,
 		spinner:    spinnerModel,
 		modelState: consts.ModelStateLoading,
 		loadingMsg: loadingMsg,
 		theme:      theme,
+		config:     config,
 	}
 }
 
 func (m *MainMenuModel) Init() tea.Cmd {
-	return m.spinner.Tick
+	return nil
 }
 
 func (m *MainMenuModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -125,9 +130,6 @@ func (m *MainMenuModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					cmds = append(cmds, selectedItem.handler())
 				}
 			}
-
-		case key.Matches(msg, m.keyMap.Help):
-			m.showHelp = !m.showHelp
 		}
 	}
 
@@ -153,7 +155,7 @@ func (m *MainMenuModel) View() string {
 
 	var content strings.Builder
 
-	content.WriteString(m.theme.GetMainMenuBorderTop(consts.MainMenuContentWidth))
+	content.WriteString(m.theme.GetMainMenuBorderTop(m.config.MainMenuContentWidth))
 	content.WriteString("\n")
 
 	// Title
@@ -162,11 +164,11 @@ func (m *MainMenuModel) View() string {
 	content.WriteString("\n\n")
 
 	// Add decorative separator
-	content.WriteString(m.theme.GetMainMenuSeparator(consts.MainMenuContentWidth))
+	content.WriteString(m.theme.GetMainMenuSeparator(m.config.MainMenuContentWidth))
 	content.WriteString("\n\n")
 
 	// Welcome message
-	welcomeMsg := consts.MainMenuWelcomeText
+	welcomeMsg := m.config.MainMenuWelcomeText
 	content.WriteString(welcomeMsg)
 	content.WriteString("\n\n")
 
@@ -174,15 +176,9 @@ func (m *MainMenuModel) View() string {
 	menuContent := m.renderMenuItems()
 	content.WriteString(menuContent)
 
-	// Help section
-	if m.showHelp {
-		content.WriteString("\n")
-		content.WriteString(m.renderHelp())
-	}
-
 	// Add decorative bottom border
 	content.WriteString("\n")
-	content.WriteString(m.theme.GetMainMenuBorderBottom(consts.MainMenuContentWidth))
+	content.WriteString(m.theme.GetMainMenuBorderBottom(m.config.MainMenuContentWidth))
 
 	// Center the content with styling
 	style := m.theme.MainMenuContainer.
@@ -198,7 +194,7 @@ func (m *MainMenuModel) renderMenuItems() string {
 
 	for i, item := range m.items {
 		isSelected := i == m.selected
-		itemContentStyled := m.theme.RenderMainMenuItem(item.icon, item.title, item.description, isSelected, consts.MenuItemWidth)
+		itemContentStyled := m.theme.RenderMainMenuItem(item.icon, item.title, item.description, isSelected, m.config.MenuItemWidth)
 
 		items.WriteString(itemContentStyled)
 
@@ -210,15 +206,6 @@ func (m *MainMenuModel) renderMenuItems() string {
 	}
 
 	return items.String()
-}
-
-func (m *MainMenuModel) renderHelp() string {
-	return m.theme.RenderMainMenuHelp(
-		m.keyMap.CursorUp.Help().Key,
-		m.keyMap.CursorDown.Help().Key,
-		m.keyMap.Enter.Help().Key,
-		m.keyMap.Quit.Help().Key,
-	)
 }
 
 // SetSize sets the width and height of the model

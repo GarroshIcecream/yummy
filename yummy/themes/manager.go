@@ -1,28 +1,43 @@
 package themes
 
-import "fmt"
+import (
+	"fmt"
+	"log/slog"
+)
 
 // ThemeManager handles theme operations
 type ThemeManager struct {
 	currentTheme *Theme
-	themes       []*Theme
+	themes       []Theme
+	themesDir    string
 }
 
-// NewThemeManager creates a new theme manager
-func NewThemeManager() *ThemeManager {
-	themes := make([]*Theme, 0)
+// NewThemeManagerWithDir creates a new theme manager with a specific themes directory
+func NewThemeManager(themesDir string) *ThemeManager {
+	themes := make([]Theme, 0)
 	themes = append(themes, NewDefaultTheme())
-	themes = append(themes, NewDarkTheme())
-	themes = append(themes, NewLightTheme())
 
-	return &ThemeManager{
-		themes:       themes,
-		currentTheme: themes[0],
+	manager := &ThemeManager{
+		themes:    themes,
+		themesDir: themesDir,
 	}
+
+	// Load custom themes if directory exists
+	if themesDir != "" {
+		customThemes, err := LoadThemesFromDirectory(themesDir)
+		if err == nil {
+			slog.Info("Loaded custom themes", "count", len(customThemes))
+			manager.themes = append(manager.themes, customThemes...)
+		} else {
+			slog.Error("Failed to load custom themes", "error", err)
+		}
+	}
+
+	return manager
 }
 
 // RegisterTheme registers a new theme
-func (tm *ThemeManager) RegisterTheme(theme *Theme) {
+func (tm *ThemeManager) RegisterTheme(theme Theme) {
 	tm.themes = append(tm.themes, theme)
 }
 
@@ -30,7 +45,7 @@ func (tm *ThemeManager) RegisterTheme(theme *Theme) {
 func (tm *ThemeManager) SetThemeByName(name string) error {
 	for _, theme := range tm.themes {
 		if theme.Name == name {
-			tm.currentTheme = theme
+			tm.currentTheme = &theme
 			return nil
 		}
 	}
@@ -49,4 +64,28 @@ func (tm *ThemeManager) GetAvailableThemes() []string {
 		themes = append(themes, theme.Name)
 	}
 	return themes
+}
+
+// ReloadThemes reloads themes from the themes directory
+func (tm *ThemeManager) ReloadThemes() error {
+	if tm.themesDir == "" {
+		return nil
+	}
+
+	customThemes, err := LoadThemesFromDirectory(tm.themesDir)
+	if err != nil {
+		return fmt.Errorf("failed to reload themes: %v", err)
+	}
+
+	themes := make([]Theme, 0)
+	themes = append(themes, NewDefaultTheme())
+	themes = append(themes, customThemes...)
+	tm.themes = themes
+
+	return nil
+}
+
+// GetThemesDirectory returns the themes directory path
+func (tm *ThemeManager) GetThemesDirectory() string {
+	return tm.themesDir
 }

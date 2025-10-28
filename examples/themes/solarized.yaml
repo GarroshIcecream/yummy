@@ -1,0 +1,443 @@
+name: "solarized"
+description: "Solarized color scheme - easy on the eyes"
+
+colors:
+  # Solarized color palette
+  base03: "#002b36"
+  base02: "#073642"
+  base01: "#586e75"
+  base00: "#657b83"
+  base0: "#839496"
+  base1: "#93a1a1"
+  base2: "#eee8d5"
+  base3: "#fdf6e3"
+  yellow: "#b58900"
+  orange: "#cb4b16"
+  red: "#dc322f"
+  magenta: "#d33682"
+  violet: "#6c71c4"
+  blue: "#268bd2"
+  cyan: "#2aa198"
+  green: "#859900"
+
+styles:
+  title:
+    foreground: "base3"
+    background: "blue"
+    bold: true
+    padding: "0,4"
+
+  info:
+    foreground: "cyan"
+    border: "rounded"
+
+  error:
+    foreground: "red"
+    padding: "0,2"
+
+  header:
+    foreground: "green"
+    bold: true
+    padding: "1,0"
+
+  ingredient:
+    foreground: "violet"
+    padding: "0,0,0,2"
+
+  doc:
+    margin: "1,2"
+
+  detail_content:
+    padding: "1,2"
+    margin: "0,1"
+
+  detail_header:
+    foreground: "base3"
+    background: "blue"
+    bold: true
+    padding: "0,4"
+    margin: "0,0,1,0"
+
+  detail_footer:
+    foreground: "cyan"
+    padding: "0,1"
+    margin: "1,0,0,0"
+
+  scroll_bar:
+    foreground: "cyan"
+
+  loading:
+    foreground: "orange"
+    italic: true
+
+  instruction:
+    foreground: "yellow"
+    padding: "0,0,0,2"
+
+  warning:
+    foreground: "yellow"
+    background: "base02"
+    padding: "0,1"
+
+  success:
+    foreground: "green"
+    background: "base02"
+    padding: "0,1"
+
+  help:
+    foreground: "base0"
+    background: "base02"
+    padding: "0,1"
+
+  status_line:
+    foreground: "base0"
+    background: "base02"
+    padding: "0,1"
+
+  status_line_left:
+    foreground: "base0"
+    background: "base03"
+    padding: "0,1"
+
+  status_line_right:
+    foreground: "base0"
+    background: "base03"
+    padding: "0,1"
+
+  status_line_mode:
+    foreground: "base3"
+    background: "blue"
+    bold: true
+    padding: "0,1"
+
+  status_line_file:
+    foreground: "cyan"
+    background: "base03"
+    padding: "0,1"
+
+  status_line_info:
+    foreground: "green"
+    background: "base03"
+    padding: "0,1"
+
+  status_line_separator:
+    foreground: "base0"
+    background: "base03"
+
+  chat_title:
+    foreground: "magenta"
+    bold: true
+    margin: "1,0"
+    border: "rounded"
+    border_color: "magenta"
+    padding: "0,2"
+    align: "center"
+    background: "base02"
+
+  chat:
+    border: "rounded"
+    border_color: "base01"
+    padding: "1,2"
+    margin: "0,1,0,0"
+    foreground: "base1"
+
+  sidebar:
+    border: "normal"
+    border_color: "base01"
+    padding: "2,2,2,2"
+    margin: "1,1,0,0"
+    width: 28
+    background: "base03"
+    foreground: "base1"
+
+  sidebar_header:
+    foreground: "magenta"
+    bold: true
+    align: "center"
+    margin: "0,0,2,0"
+    background: "base02"
+    padding: "1,2"
+
+  sidebar_section:
+    foreground: "base1"
+    bold: true
+    margin: "0,0,1,0"
+    border: "normal"
+    border_color: "base01"
+    padding: "0,0,1,0"
+
+  sidebar_content:
+    foreground: "base0"
+    margin: "0,0,0,2"
+
+  sidebar_success:
+    foreground: "green"
+    bold: true
+
+  sidebar_error:
+    foreground: "red"
+    bold: true
+
+  user_message:
+    foreground: "magenta"
+    bold: true
+    align: "left"
+
+  user_content:
+    foreground: "base1"
+    align: "left"
+    margin: "0,0,1,0"
+
+  assistant_message:
+    foreground: "green"
+    bold: true
+    align: "left"
+
+  assistant_content:
+    foreground: "base1"
+    align: "left"
+    margin: "0,0,1,0"
+
+  user:
+    foreground: "red"
+    bold: true
+    padding: "0,1"
+    border: "rounded"
+    border_color: "red"
+    margin: "0,0,1,0"
+
+  assistant:
+    foreground: "green"
+    padding: "0,1"
+    border: "rounded"
+    border_color: "green"
+    margin: "0,0,1,0"
+
+  spinner:
+    foreground: "green"
+    bold: true
+
+  main_menu_border:
+    foreground: "cyan"
+
+  main_menu_container:
+    background: "base03"
+    padding: "1,2"
+
+  main_menu_separator:
+    foreground: "cyan"
+
+  main_menu_welcome:
+    foreground: "base0"
+    italic: true
+    padding: "1,0"
+
+  main_menu_logo:
+    foreground: "magenta"
+    bold: true
+
+  main_menu_subtitle:
+    foreground: "base0"
+    italic: true
+    padding: "1,0"
+
+  main_menu_title_border:
+    border: "double"
+    border_color: "cyan"
+    align: "center"
+    padding: "1,2"
+    margin: "1,0"
+
+  main_menu_selected_arrow:
+    foreground: "yellow"
+    bold: true
+
+  main_menu_selected_item:
+    border: "double"
+    border_color: "yellow"
+
+  main_menu_unselected_item:
+    border: "normal"
+    border_color: "cyan"
+
+  main_menu_selected_icon:
+    foreground: "yellow"
+    bold: true
+
+  main_menu_unselected_icon:
+    foreground: "base0"
+
+  main_menu_selected_title:
+    bold: true
+    foreground: "yellow"
+
+  main_menu_unselected_title:
+    foreground: "base1"
+
+  main_menu_selected_desc:
+    foreground: "orange"
+    italic: true
+    padding: "0,0,0,4,1"
+
+  main_menu_unselected_desc:
+    foreground: "base0"
+    italic: true
+    padding: "0,0,0,4,1"
+
+  main_menu_help_header:
+    foreground: "cyan"
+    bold: true
+    padding: "0,0,1,0"
+
+  main_menu_help_content:
+    foreground: "base0"
+    padding: "0,0,0,2"
+
+  main_menu_help_border:
+    border: "double"
+    border_color: "cyan"
+    background: "base02"
+    padding: "1,2"
+    margin: "1,0"
+
+  main_menu_spinner:
+    foreground: "cyan"
+
+  state_selector_container:
+    align: "center"
+    width: 50
+    height: 15
+    border: "rounded"
+    border_color: "cyan"
+    background: "base03"
+    padding: "2,3"
+
+  state_selector_dialog:
+    border: "rounded"
+    border_color: "green"
+    padding: "2,3"
+
+  state_selector_title:
+    bold: true
+    foreground: "green"
+    margin: "0,0,2,0"
+    align: "center"
+
+  state_selector_help:
+    foreground: "base00"
+    italic: true
+    align: "center"
+    margin: "2,0,0,0"
+
+  state_selector_item:
+    foreground: "base0"
+    padding: "0,2"
+    margin: "0,0,1,0"
+
+  state_selector_selected_item:
+    foreground: "base3"
+    background: "cyan"
+    bold: true
+    padding: "0,2"
+    margin: "0,0,1,0"
+
+  state_selector_indicator:
+    foreground: "yellow"
+    bold: true
+
+  state_selector_selected_indicator:
+    foreground: "base3"
+    bold: true
+
+lists:
+  title_bar:
+    foreground: "cyan"
+    background: "base02"
+    bold: true
+    padding: "1,2"
+
+  title:
+    foreground: "cyan"
+    bold: true
+    padding: "1,2"
+
+  spinner:
+    foreground: "cyan"
+
+  filter_prompt:
+    foreground: "cyan"
+    padding: "1,2"
+
+  filter_cursor:
+    foreground: "cyan"
+    bold: true
+
+  default_filter_character_match:
+    foreground: "green"
+
+  status_bar:
+    foreground: "base0"
+    background: "base02"
+
+  status_empty:
+    foreground: "red"
+
+  status_bar_active_filter:
+    foreground: "yellow"
+
+  status_bar_filter_count:
+    foreground: "yellow"
+
+  no_items:
+    foreground: "red"
+
+  pagination_style:
+    foreground: "cyan"
+
+  help_style:
+    foreground: "base0"
+    background: "base02"
+
+  active_pagination_dot:
+    foreground: "cyan"
+
+  inactive_pagination_dot:
+    foreground: "base02"
+
+  arabic_pagination:
+    foreground: "cyan"
+
+  divider_dot:
+    foreground: "cyan"
+
+  normal_title:
+    foreground: "base1"
+    padding: "0,2"
+
+  normal_desc:
+    foreground: "base0"
+    padding: "0,2"
+
+  selected_title:
+    foreground: "cyan"
+    border: "normal"
+    border_color: "cyan"
+    padding: "0,2"
+
+  selected_desc:
+    foreground: "green"
+    border: "normal"
+    border_color: "cyan"
+    padding: "0,2"
+
+  dimmed_title:
+    foreground: "base0"
+    padding: "0,2"
+
+  dimmed_desc:
+    foreground: "base0"
+    padding: "0,2"
+
+  filter_match:
+    foreground: "cyan"
+    underline: true

@@ -1,4 +1,4 @@
-package recipe
+package utils
 
 import (
 	"fmt"
@@ -14,7 +14,7 @@ type Ingredient struct {
 }
 
 func ParseIngredient(input string) Ingredient {
-	unitsPattern := strings.Join(corpusMeasures, "|")
+	unitsPattern := strings.Join(CorpusMeasures, "|")
 
 	re := regexp.MustCompile(fmt.Sprintf(`^(?:(\d+(?:/\d+)?(?:\s*-\s*\d+(?:/\d+)?)?\s*))?((?:%s)\s+)?([^(]+?)(?:\s*\((.*?)\))?$`, unitsPattern))
 
@@ -25,7 +25,7 @@ func ParseIngredient(input string) Ingredient {
 
 	unit := strings.TrimSpace(matches[2])
 	if unit != "" {
-		if normalizedUnit, exists := corpusMeasuresMap[unit]; exists {
+		if normalizedUnit, exists := CorpusMeasuresMap[unit]; exists {
 			unit = normalizedUnit
 		}
 	}

@@ -1,11 +1,11 @@
 package db
 
 import (
-	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 
+	"github.com/GarroshIcecream/yummy/yummy/config"
 	"github.com/tmc/langchaingo/llms"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -13,18 +13,19 @@ import (
 
 // SessionStats struct for session statistics
 type SessionStats struct {
-	SessionID         uint
-	MessageCount      int64
-	TotalInputTokens  int64
-	TotalOutputTokens int64
+	SessionID    uint
+	MessageCount int
+	InputTokens  int
+	OutputTokens int
+	TotalTokens  int
 }
 
 // Creates new instance of SessionLog struct
-func NewSessionLog(dbPath string, opts ...gorm.Option) (*SessionLog, error) {
-	dbPath = filepath.Join(dbPath, "session_log.db")
+func NewSessionLog(dbPath string, config *config.DatabaseConfig, opts ...gorm.Option) (*SessionLog, error) {
+	dbPath = filepath.Join(dbPath, "db", config.SessionLogDBName)
 	_, err := os.Stat(dbPath)
 	if err != nil {
-		log.Printf("Database does not exist at %s, creating new database...", dbPath)
+		slog.Info("Database does not exist at %s, creating new database...", "dbPath", dbPath, "error", err)
 	}
 
 	dbCon, err := gorm.Open(sqlite.Open(dbPath), opts...)
@@ -43,13 +44,14 @@ func NewSessionLog(dbPath string, opts ...gorm.Option) (*SessionLog, error) {
 func (s *SessionLog) CreateSession() (uint, error) {
 	session := SessionHistory{}
 	if err := s.conn.Create(&session).Error; err != nil {
-		return 0, fmt.Errorf("failed to create session: %w", err)
+		slog.Error("Error creating session", "error", err)
+		return 0, err
 	}
 	return session.ID, nil
 }
 
 // SaveSessionMessage saves a message to the database
-func (s *SessionLog) SaveSessionMessage(sessionID uint, message string, role llms.ChatMessageType, modelName string, content string, inputTokens int, outputTokens int, totalTokens int) error {
+func (s *SessionLog) SaveSessionMessage(sessionID uint, message string, role llms.ChatMessageType, modelName string, inputTokens int, outputTokens int, totalTokens int) error {
 	// Convert ChatMessageType to string for database storage
 	roleStr := string(role)
 
@@ -58,14 +60,14 @@ func (s *SessionLog) SaveSessionMessage(sessionID uint, message string, role llm
 		Message:      message,
 		Role:         roleStr,
 		ModelName:    modelName,
-		Content:      content,
 		InputTokens:  inputTokens,
 		OutputTokens: outputTokens,
 		TotalTokens:  totalTokens,
 	}
 
 	if err := s.conn.Create(&sessionMessage).Error; err != nil {
-		return fmt.Errorf("failed to save session message: %w", err)
+		slog.Error("Error saving session message", "error", err)
+		return err
 	}
 
 	return nil
@@ -75,7 +77,8 @@ func (s *SessionLog) SaveSessionMessage(sessionID uint, message string, role llm
 func (s *SessionLog) GetSessionMessages(sessionID uint) ([]SessionMessage, error) {
 	var messages []SessionMessage
 	if err := s.conn.Where("session_id = ?", sessionID).Order("created_at ASC").Find(&messages).Error; err != nil {
-		return nil, fmt.Errorf("failed to get session messages: %w", err)
+		slog.Error("Error getting session messages", "error", err)
+		return nil, err
 	}
 	return messages, nil
 }
@@ -83,29 +86,38 @@ func (s *SessionLog) GetSessionMessages(sessionID uint) ([]SessionMessage, error
 // GetSessionStats returns statistics for a given session
 func (s *SessionLog) GetSessionStats(sessionID uint) (SessionStats, error) {
 	var count int64
-	var inputTokens, outputTokens int64
+	var inputTokens, outputTokens int
+	stats := SessionStats{
+		SessionID:    sessionID,
+		MessageCount: 0,
+		InputTokens:  0,
+		OutputTokens: 0,
+		TotalTokens:  0,
+	}
 
 	// Count messages
 	if err := s.conn.Model(&SessionMessage{}).Where("session_id = ?", sessionID).Count(&count).Error; err != nil {
-		return SessionStats{}, fmt.Errorf("failed to count session messages: %w", err)
+		slog.Error("Error counting session messages", "error", err)
+		return stats, err
 	}
 
 	// Sum input tokens
 	if err := s.conn.Model(&SessionMessage{}).Where("session_id = ?", sessionID).Select("COALESCE(SUM(input_tokens), 0)").Scan(&inputTokens).Error; err != nil {
-		return SessionStats{}, fmt.Errorf("failed to sum input tokens: %w", err)
+		slog.Error("Error summing input tokens", "error", err)
+		return stats, err
 	}
 
 	// Sum output tokens
 	if err := s.conn.Model(&SessionMessage{}).Where("session_id = ?", sessionID).Select("COALESCE(SUM(output_tokens), 0)").Scan(&outputTokens).Error; err != nil {
-		return SessionStats{}, fmt.Errorf("failed to sum output tokens: %w", err)
+		slog.Error("Error summing output tokens", "error", err)
+		return stats, err
 	}
 
-	return SessionStats{
-		SessionID:         sessionID,
-		MessageCount:      count,
-		TotalInputTokens:  inputTokens,
-		TotalOutputTokens: outputTokens,
-	}, nil
+	stats.MessageCount = int(count)
+	stats.InputTokens = inputTokens
+	stats.OutputTokens = outputTokens
+	stats.TotalTokens = inputTokens + outputTokens
+	return stats, nil
 }
 
 // GetAllSessions retrieves all chat sessions with their metadata
@@ -114,7 +126,8 @@ func (s *SessionLog) GetAllSessions() ([]SessionHistory, error) {
 
 	// Get all sessions ordered by most recent first
 	if err := s.conn.Order("updated_at DESC").Find(&sessions).Error; err != nil {
-		return nil, fmt.Errorf("failed to get sessions: %w", err)
+		slog.Error("Error getting sessions", "error", err)
+		return nil, err
 	}
 
 	return sessions, nil
@@ -133,7 +146,8 @@ func (s *SessionLog) GetNonEmptySessions() ([]SessionHistory, error) {
 	`
 
 	if err := s.conn.Raw(query).Scan(&sessions).Error; err != nil {
-		return nil, fmt.Errorf("failed to get non-empty sessions: %w", err)
+		slog.Error("Error getting non-empty sessions", "error", err)
+		return nil, err
 	}
 
 	return sessions, nil

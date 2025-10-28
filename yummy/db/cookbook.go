@@ -1,31 +1,34 @@
 package db
 
 import (
-	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"time"
 
+	"github.com/GarroshIcecream/yummy/yummy/config"
 	recipe "github.com/GarroshIcecream/yummy/yummy/recipe"
+	utils "github.com/GarroshIcecream/yummy/yummy/utils"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 
 // Creates new instance of CookBook struct
-func NewCookBook(dbPath string, opts ...gorm.Option) (*CookBook, error) {
-	dbPath = filepath.Join(dbPath, "cookbook.db")
+func NewCookBook(dbPath string, config *config.DatabaseConfig, opts ...gorm.Option) (*CookBook, error) {
+	dbPath = filepath.Join(dbPath, "db", config.RecipeDBName)
 	_, err := os.Stat(dbPath)
 	if err != nil {
-		log.Printf("Database does not exist at %s, creating new database...", dbPath)
+		slog.Info("Database does not exist at %s, creating new database...", "dbPath", dbPath, "error", err)
 	}
 
 	dbCon, err := gorm.Open(sqlite.Open(dbPath), opts...)
 	if err != nil {
+		slog.Error("Error opening database", "dbPath", dbPath, "error", err)
 		return nil, err
 	}
 
 	if err := dbCon.AutoMigrate(GetCookbookModels()...); err != nil {
+		slog.Error("Error migrating cookbook models", "error", err)
 		return nil, err
 	}
 
@@ -40,10 +43,18 @@ func (c *CookBook) GetDB() *gorm.DB {
 // GetAllCategories returns list of all categories in the database
 func (c *CookBook) GetAllCategories() ([]string, error) {
 	var categories []string
-	if err := c.conn.Model(&Category{}).Distinct("category_name").Where("category_name != ''").Pluck("category_name", &categories).Error; err != nil {
-		return nil, err
+	result := c.conn.
+		Model(&Category{}).
+		Distinct("category_name").
+		Where("category_name != ''").
+		Pluck("category_name", &categories)
+
+	if result.Error != nil {
+		slog.Error("Error fetching categories", "error", result.Error)
+		return nil, result.Error
 	}
 
+	slog.Debug("Categories fetched", "categories", categories)
 	return categories, nil
 }
 
@@ -51,8 +62,11 @@ func (c *CookBook) GetAllCategories() ([]string, error) {
 func (c *CookBook) GetAllAuthors() ([]string, error) {
 	var authors []string
 	if err := c.conn.Model(&RecipeMetadata{}).Distinct("author").Where("author != ''").Pluck("author", &authors).Error; err != nil {
+		slog.Error("Error fetching authors", "error", err)
 		return nil, err
 	}
+
+	slog.Debug("Authors fetched", "authors", authors)
 	return authors, nil
 }
 
@@ -60,8 +74,11 @@ func (c *CookBook) GetAllAuthors() ([]string, error) {
 func (c *CookBook) RecipeByName(recipeName string) (Recipe, error) {
 	var recipe Recipe
 	if err := c.conn.First(&recipe, "RecipeName = ?", recipeName).Error; err != nil {
+		slog.Error("Error fetching recipe by name", "recipe_name", recipeName, "error", err)
 		return Recipe{}, err
 	}
+
+	slog.Debug("Recipe fetched by name", "recipe_name", recipeName, "id", recipe.ID)
 	return recipe, nil
 }
 
@@ -91,87 +108,69 @@ func (c *CookBook) RecipeCount() (int64, error) {
 
 // DeleteRecipe deletes a recipe from the database by ID
 func (c *CookBook) DeleteRecipe(recipeID uint) error {
-	log.Printf("Starting deletion of recipe with ID: %d", recipeID)
+	slog.Debug("Starting deletion of recipe with ID", "id", recipeID)
 
 	tx := c.conn.Begin()
 	if tx.Error != nil {
-		log.Printf("Error starting transaction: %v", tx.Error)
-		return fmt.Errorf("failed to start transaction: %w", tx.Error)
+		slog.Error("Error starting transaction", "error", tx.Error)
+		return tx.Error
 	}
-	log.Printf("Transaction started successfully")
+	slog.Debug("Transaction started successfully")
 
 	// Delete recipe metadata
 	res := tx.Unscoped().Delete(&RecipeMetadata{}, "recipe_id = ?", recipeID)
 	if res.Error != nil {
-		log.Printf("Error deleting recipe metadata: %v", res.Error)
+		slog.Error("Error deleting recipe metadata", "error", res.Error)
 		tx.Rollback()
-		return fmt.Errorf("failed to delete recipe metadata: %w", res.Error)
+		return res.Error
 	}
-	log.Printf("Recipe metadata deleted successfully, with rows affected: %d", res.RowsAffected)
 
 	// Delete ingredients
 	res = tx.Unscoped().Delete(&Ingredients{}, "recipe_id = ?", recipeID)
 	if res.Error != nil {
-		log.Printf("Error deleting ingredients: %v", res.Error)
+		slog.Error("Error deleting ingredients", "error", res.Error)
 		tx.Rollback()
-		return fmt.Errorf("failed to delete ingredients: %w", res.Error)
+		return res.Error
 	}
-	log.Printf("Recipe ingredients deleted successfully, with rows affected: %d", res.RowsAffected)
 
 	// Delete instructions
 	res = tx.Unscoped().Delete(&Instructions{}, "recipe_id = ?", recipeID)
 	if res.Error != nil {
-		log.Printf("Error deleting instructions: %v", res.Error)
+		slog.Error("Error deleting instructions", "error", res.Error)
 		tx.Rollback()
-		return fmt.Errorf("failed to delete instructions: %w", res.Error)
+		return res.Error
 	}
-	log.Printf("Recipe instructions deleted successfully, with rows affected: %d", res.RowsAffected)
 
 	// Delete categories
 	res = tx.Unscoped().Delete(&Category{}, "recipe_id = ?", recipeID)
 	if res.Error != nil {
-		log.Printf("Error deleting categories: %v", res.Error)
+		slog.Error("Error deleting categories", "error", res.Error)
 		tx.Rollback()
-		return fmt.Errorf("failed to delete categories: %w", res.Error)
+		return res.Error
 	}
-	log.Printf("Recipe categories deleted successfully, with rows affected: %d", res.RowsAffected)
 
 	// Delete cuisines
 	res = tx.Unscoped().Delete(&Cuisine{}, "recipe_id = ?", recipeID)
 	if res.Error != nil {
-		log.Printf("Error deleting cuisines: %v", res.Error)
+		slog.Error("Error deleting cuisines", "error", res.Error)
 		tx.Rollback()
-		return fmt.Errorf("failed to delete cuisines: %w", res.Error)
+		return res.Error
 	}
-	log.Printf("Recipe cuisines deleted successfully, with rows affected: %d", res.RowsAffected)
 
 	// Delete the main recipe
 	res = tx.Unscoped().Delete(&Recipe{}, "id = ?", recipeID)
 	if res.Error != nil {
-		log.Printf("Error deleting main recipe: %v", res.Error)
+		slog.Error("Error deleting main recipe", "error", res.Error)
 		tx.Rollback()
-		return fmt.Errorf("failed to delete recipe: %w", res.Error)
+		return res.Error
 	}
-	log.Printf("Main recipe deleted successfully, with rows affected: %d", res.RowsAffected)
 
 	// Commit the transaction
 	if err := tx.Commit().Error; err != nil {
-		log.Printf("Error committing transaction: %v", err)
-		return fmt.Errorf("failed to commit transaction: %w", err)
+		slog.Error("Error committing transaction", "error", err)
+		return err
 	}
-	log.Printf("Transaction committed successfully. Recipe %d completely deleted", recipeID)
-
-	// Verify deletion
-	var count int64
-	if err := c.conn.Model(&Recipe{}).Where("id = ?", recipeID).Count(&count).Error; err != nil {
-		log.Printf("Error verifying deletion: %v", err)
-		return fmt.Errorf("failed to verify deletion: %w", err)
-	}
-	if count > 0 {
-		log.Printf("Warning: Recipe %d still exists after deletion!", recipeID)
-		return fmt.Errorf("recipe still exists after deletion")
-	}
-	log.Printf("Verified: Recipe %d no longer exists in database", recipeID)
+	slog.Debug("Transaction committed successfully", "id", recipeID)
 
 	return nil
 }
@@ -180,13 +179,31 @@ func (c *CookBook) DeleteRecipe(recipeID uint) error {
 func (c *CookBook) CreateNewRecipe(recipeName string) (uint, error) {
 	newRecipe := Recipe{RecipeName: recipeName}
 	if err := c.conn.Create(&newRecipe).Error; err != nil {
-		return 0, fmt.Errorf("failed to create recipe: %w", err)
+		slog.Error("Error creating recipe", "error", err)
+		return 0, err
 	}
 	return newRecipe.ID, nil
 }
 
+// AllFavouriteRecipes returns all favourite recipes with their metadata
+func (c *CookBook) AllFavouriteRecipes() ([]recipe.RecipeWithDescription, error) {
+	allRecipes, err := c.AllRecipes()
+	if err != nil {
+		return nil, err
+	}
+
+	var favouriteRecipes []recipe.RecipeWithDescription
+	for _, recipe := range allRecipes {
+		if recipe.IsFavourite {
+			favouriteRecipes = append(favouriteRecipes, recipe)
+		}
+	}
+
+	return favouriteRecipes, nil
+}
+
 // AllRecipes returns all recipes with their metadata
-func (c *CookBook) AllRecipes(favourite bool) ([]recipe.RecipeWithDescription, error) {
+func (c *CookBook) AllRecipes() ([]recipe.RecipeWithDescription, error) {
 	// Build the base query with JOINs to get all data in one query
 	query := c.conn.Table("recipes").
 		Select(`
@@ -204,11 +221,6 @@ func (c *CookBook) AllRecipes(favourite bool) ([]recipe.RecipeWithDescription, e
 		Joins("LEFT JOIN recipe_metadata ON recipes.id = recipe_metadata.recipe_id").
 		Order("recipes.recipe_name")
 
-	// Apply favourite filter at database level if requested
-	if favourite {
-		query = query.Where("recipe_metadata.favourite = ?", true)
-	}
-
 	// Execute the query to get all recipes with metadata
 	type RecipeWithMetadata struct {
 		ID          uint
@@ -225,11 +237,13 @@ func (c *CookBook) AllRecipes(favourite bool) ([]recipe.RecipeWithDescription, e
 
 	var recipesWithMetadata []RecipeWithMetadata
 	if err := query.Scan(&recipesWithMetadata).Error; err != nil {
+		slog.Error("Error fetching recipes with metadata", "error", err)
 		return nil, err
 	}
 
 	// If no recipes found, return empty slice
 	if len(recipesWithMetadata) == 0 {
+		slog.Debug("No recipes found")
 		return []recipe.RecipeWithDescription{}, nil
 	}
 
@@ -244,11 +258,16 @@ func (c *CookBook) AllRecipes(favourite bool) ([]recipe.RecipeWithDescription, e
 		RecipeID     uint   `gorm:"column:recipe_id"`
 		CategoryName string `gorm:"column:category_name"`
 	}
-	if err := c.conn.Model(&Category{}).
+
+	result := c.conn.
+		Model(&Category{}).
 		Select("recipe_id, category_name").
 		Where("recipe_id IN ?", recipeIDs).
-		Find(&categories).Error; err != nil {
-		return nil, err
+		Find(&categories)
+
+	if result.Error != nil {
+		slog.Error("Error fetching categories", "error", result.Error)
+		return nil, result.Error
 	}
 
 	// Group categories by recipe ID
@@ -258,7 +277,7 @@ func (c *CookBook) AllRecipes(favourite bool) ([]recipe.RecipeWithDescription, e
 	}
 
 	// Build the final result
-	result := make([]recipe.RecipeWithDescription, 0, len(recipesWithMetadata))
+	resultWithDescriptions := make([]recipe.RecipeWithDescription, 0, len(recipesWithMetadata))
 	for _, r := range recipesWithMetadata {
 		recipeCategories, exists := categoriesByRecipe[r.ID]
 		if !exists {
@@ -283,10 +302,11 @@ func (c *CookBook) AllRecipes(favourite bool) ([]recipe.RecipeWithDescription, e
 			},
 		}
 
-		result = append(result, recipeWithDesc)
+		resultWithDescriptions = append(resultWithDescriptions, recipeWithDesc)
 	}
 
-	return result, nil
+	slog.Debug("Recipes with descriptions fetched", "count", len(resultWithDescriptions))
+	return resultWithDescriptions, nil
 }
 
 // SetFavourite sets the favourite status of a recipe
@@ -294,15 +314,18 @@ func (c *CookBook) SetFavourite(recipeID uint) (bool, error) {
 	var metadata RecipeMetadata
 	err := c.conn.Where("recipe_id = ?", recipeID).First(&metadata).Error
 	if err != nil {
+		slog.Error("Error getting metadata", "error", err)
 		return false, err
 	}
 
 	newFavourite := !metadata.Favourite
 	err = c.conn.Model(&RecipeMetadata{}).Where("recipe_id = ?", recipeID).Update("favourite", newFavourite).Error
 	if err != nil {
+		slog.Error("Error setting favourite", "error", err)
 		return false, err
 	}
 
+	slog.Debug("SetFavourite completed successfully", "id", recipeID, "favourite", newFavourite)
 	return newFavourite, nil
 }
 
@@ -313,8 +336,8 @@ func (c *CookBook) SaveScrapedRecipe(recipeRaw *recipe.RecipeRaw) (uint, error) 
 		RecipeName: recipeRaw.Name,
 	}
 	if err := c.conn.Create(&recipe).Error; err != nil {
-		log.Fatalf("Failed to create recipe: %s", err)
-		return 0, fmt.Errorf("failed to create recipe: %w", err)
+		slog.Error("Error creating base recipe", "error", err)
+		return 0, err
 	}
 
 	// Save metadata
@@ -331,8 +354,8 @@ func (c *CookBook) SaveScrapedRecipe(recipeRaw *recipe.RecipeRaw) (uint, error) 
 		Rating:      0,
 	}
 	if err := c.conn.Create(&metadata).Error; err != nil {
-		log.Fatalf("Failed to create recipe metadata: %s", err)
-		return 0, fmt.Errorf("failed to create recipe metadata: %w", err)
+		slog.Error("Error creating metadata", "error", err)
+		return 0, err
 	}
 
 	// Save ingredients with parsed details
@@ -345,8 +368,8 @@ func (c *CookBook) SaveScrapedRecipe(recipeRaw *recipe.RecipeRaw) (uint, error) 
 			Unit:           ingredient.Unit,
 		}
 		if err := c.conn.Create(&ing).Error; err != nil {
-			log.Fatalf("Failed to create recipe ingredient: %s", err)
-			return 0, fmt.Errorf("failed to create ingredient: %w", err)
+			slog.Error("Error creating ingredient", "error", err)
+			return 0, err
 		}
 	}
 
@@ -359,7 +382,8 @@ func (c *CookBook) SaveScrapedRecipe(recipeRaw *recipe.RecipeRaw) (uint, error) 
 			Description: instruction,
 		}
 		if err := c.conn.Create(&inst).Error; err != nil {
-			return 0, fmt.Errorf("failed to create instruction: %w", err)
+			slog.Error("Error creating instruction", "error", err)
+			return 0, err
 		}
 	}
 
@@ -370,28 +394,29 @@ func (c *CookBook) SaveScrapedRecipe(recipeRaw *recipe.RecipeRaw) (uint, error) 
 			CategoryName: categoryName,
 		}
 		if err := c.conn.Create(&category).Error; err != nil {
-			return 0, fmt.Errorf("failed to create category: %w", err)
+			slog.Error("Error creating category", "error", err)
+			return 0, err
 		}
 	}
 
+	slog.Debug("Saved scraped recipe", "id", recipe.ID)
 	return recipe.ID, nil
 }
 
 // UpdateRecipe updates an existing recipe in the database
 func (c *CookBook) UpdateRecipe(recipeRaw *recipe.RecipeRaw) error {
-	if recipeRaw.ID == 0 {
-		return fmt.Errorf("recipe ID is required for update")
-	}
-
 	tx := c.conn.Begin()
 	if tx.Error != nil {
-		return fmt.Errorf("failed to start transaction: %w", tx.Error)
+		slog.Error("Error starting transaction", "error", tx.Error)
+		return tx.Error
 	}
+	slog.Debug("Transaction started successfully")
 
 	// Update the base recipe
 	if err := tx.Model(&Recipe{}).Where("id = ?", recipeRaw.ID).Update("recipe_name", recipeRaw.Name).Error; err != nil {
 		tx.Rollback()
-		return fmt.Errorf("failed to update recipe: %w", err)
+		slog.Error("Error updating recipe", "error", err)
+		return err
 	}
 
 	// Update metadata
@@ -406,13 +431,15 @@ func (c *CookBook) UpdateRecipe(recipeRaw *recipe.RecipeRaw) error {
 	}
 	if err := tx.Model(&RecipeMetadata{}).Where("recipe_id = ?", recipeRaw.ID).Updates(metadata).Error; err != nil {
 		tx.Rollback()
-		return fmt.Errorf("failed to update recipe metadata: %w", err)
+		slog.Error("Error updating recipe metadata", "error", err)
+		return err
 	}
 
 	// Delete existing ingredients
 	if err := tx.Unscoped().Delete(&Ingredients{}, "recipe_id = ?", recipeRaw.ID).Error; err != nil {
 		tx.Rollback()
-		return fmt.Errorf("failed to delete existing ingredients: %w", err)
+		slog.Error("Error deleting existing ingredients", "error", err)
+		return err
 	}
 
 	// Add new ingredients
@@ -426,14 +453,16 @@ func (c *CookBook) UpdateRecipe(recipeRaw *recipe.RecipeRaw) error {
 		}
 		if err := tx.Create(&ing).Error; err != nil {
 			tx.Rollback()
-			return fmt.Errorf("failed to create ingredient: %w", err)
+			slog.Error("Error creating ingredient", "error", err)
+			return err
 		}
 	}
 
 	// Delete existing instructions
 	if err := tx.Unscoped().Delete(&Instructions{}, "recipe_id = ?", recipeRaw.ID).Error; err != nil {
 		tx.Rollback()
-		return fmt.Errorf("failed to delete existing instructions: %w", err)
+		slog.Error("Error deleting existing instructions", "error", err)
+		return err
 	}
 
 	// Add new instructions
@@ -445,14 +474,16 @@ func (c *CookBook) UpdateRecipe(recipeRaw *recipe.RecipeRaw) error {
 		}
 		if err := tx.Create(&inst).Error; err != nil {
 			tx.Rollback()
-			return fmt.Errorf("failed to create instruction: %w", err)
+			slog.Error("Error creating instruction", "error", err)
+			return err
 		}
 	}
 
 	// Delete existing categories
 	if err := tx.Unscoped().Delete(&Category{}, "recipe_id = ?", recipeRaw.ID).Error; err != nil {
 		tx.Rollback()
-		return fmt.Errorf("failed to delete existing categories: %w", err)
+		slog.Error("Error deleting existing categories", "error", err)
+		return err
 	}
 
 	// Add new categories
@@ -463,62 +494,59 @@ func (c *CookBook) UpdateRecipe(recipeRaw *recipe.RecipeRaw) error {
 		}
 		if err := tx.Create(&category).Error; err != nil {
 			tx.Rollback()
-			return fmt.Errorf("failed to create category: %w", err)
+			slog.Error("Error creating category", "error", err)
+			return err
 		}
 	}
 
 	// Commit the transaction
 	if err := tx.Commit().Error; err != nil {
-		return fmt.Errorf("failed to commit transaction: %w", err)
+		slog.Error("Error committing transaction", "error", err)
+		return err
 	}
 
+	slog.Debug("Transaction committed successfully")
 	return nil
 }
 
 // GetFullRecipe retrieves a complete recipe with all its related data
 func (c *CookBook) GetFullRecipe(recipeID uint) (*recipe.RecipeRaw, error) {
 	// Get the base recipe
-	fmt.Printf("Fetching recipe with ID: %d\n", recipeID)
-	log.Printf("Starting GetFullRecipe for ID: %d", recipeID)
+	slog.Debug("Starting GetFullRecipe for ID", "id", recipeID)
 
 	var recipe_raw Recipe
 	if err := c.conn.First(&recipe_raw, recipeID).Error; err != nil {
-		log.Printf("Error fetching base recipe: %v", err)
-		return nil, fmt.Errorf("recipe not found: %w", err)
+		slog.Error("Error fetching base recipe", "error", err)
+		return nil, err
 	}
-	log.Printf("Base recipe loaded: %s", recipe_raw.RecipeName)
 
 	// Get metadata
 	var metadata RecipeMetadata
 	if err := c.conn.Where("recipe_id = ?", recipe_raw.ID).First(&metadata).Error; err != nil {
-		log.Printf("Error fetching metadata: %v", err)
-		return nil, fmt.Errorf("metadata not found: %w", err)
+		slog.Error("Error fetching metadata", "error", err)
+		return nil, err
 	}
-	log.Printf("Metadata loaded")
 
 	// Get ingredients
 	var ingredients []Ingredients
 	if err := c.conn.Where("recipe_id = ?", recipe_raw.ID).Find(&ingredients).Error; err != nil {
-		log.Printf("Error fetching ingredients: %v", err)
-		return nil, fmt.Errorf("failed to fetch ingredients: %w", err)
+		slog.Error("Error fetching ingredients", "error", err)
+		return nil, err
 	}
-	log.Printf("Ingredients loaded: %d items", len(ingredients))
 
 	// Get instructions
 	var instructions []Instructions
 	if err := c.conn.Where("recipe_id = ?", recipe_raw.ID).Find(&instructions).Error; err != nil {
-		log.Printf("Error fetching instructions: %v", err)
-		return nil, fmt.Errorf("failed to fetch instructions: %w", err)
+		slog.Error("Error fetching instructions", "error", err)
+		return nil, err
 	}
-	log.Printf("Instructions loaded: %d items", len(instructions))
 
 	// Get categories
 	var categories []Category
 	if err := c.conn.Where("recipe_id = ?", recipe_raw.ID).Find(&categories).Error; err != nil {
-		log.Printf("Error fetching categories: %v", err)
-		return nil, fmt.Errorf("failed to fetch categories: %w", err)
+		slog.Error("Error fetching categories", "error", err)
+		return nil, err
 	}
-	log.Printf("Categories loaded: %d items", len(categories))
 
 	// Convert to RecipeRaw
 	recipeRaw := &recipe.RecipeRaw{
@@ -534,9 +562,9 @@ func (c *CookBook) GetFullRecipe(recipeID uint) (*recipe.RecipeRaw, error) {
 	}
 
 	// Convert ingredients
-	recipeRaw.Ingredients = make([]recipe.Ingredient, len(ingredients))
+	recipeRaw.Ingredients = make([]utils.Ingredient, len(ingredients))
 	for i, ing := range ingredients {
-		recipeRaw.Ingredients[i] = recipe.Ingredient{
+		recipeRaw.Ingredients[i] = utils.Ingredient{
 			Amount:  ing.Amount,
 			Unit:    ing.Unit,
 			Name:    ing.IngredientName,
@@ -556,6 +584,6 @@ func (c *CookBook) GetFullRecipe(recipeID uint) (*recipe.RecipeRaw, error) {
 		recipeRaw.Categories[i] = cat.CategoryName
 	}
 
-	log.Printf("GetFullRecipe completed successfully")
+	slog.Debug("GetFullRecipe completed successfully", "id", recipeID)
 	return recipeRaw, nil
 }

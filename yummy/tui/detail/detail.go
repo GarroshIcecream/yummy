@@ -1,7 +1,6 @@
 package detail
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/GarroshIcecream/yummy/yummy/config"
@@ -16,39 +15,43 @@ import (
 )
 
 type DetailModel struct {
-	// Database
-	cookbook       *db.CookBook
-	CurrentRecipe  *recipes.RecipeRaw
-	content        string
-	err            error
-	scrollPosition int
-	renderer       *glamour.TermRenderer
-
-	width      int
-	height     int
+	// Configuration
+	cookbook   *db.CookBook
+	keyMap     config.KeyMap
+	theme      *themes.Theme
+	config     *config.DetailConfig
 	modelState consts.ModelState
 
+	// Recipe
+	Recipe          *recipes.RecipeRaw
+	renderedContent string
+	content         string
+
 	// UI
-	keyMap config.KeyMap
-	theme  *themes.Theme
+	width          int
+	height         int
+	scrollPosition int
+	renderer       *glamour.TermRenderer
 }
 
-func New(cookbook *db.CookBook, keymaps config.KeyMap, theme *themes.Theme) *DetailModel {
+func New(cookbook *db.CookBook, keymaps config.KeyMap, theme *themes.Theme, config *config.DetailConfig) *DetailModel {
 	renderer, _ := glamour.NewTermRenderer(
 		glamour.WithAutoStyle(),
 		glamour.WithEmoji(),
-		glamour.WithWordWrap(consts.DefaultViewportWidth),
+		glamour.WithWordWrap(config.ViewportWidth),
 	)
 
 	model := &DetailModel{
 		cookbook:       cookbook,
 		scrollPosition: 0,
-		width:          consts.DefaultViewportWidth,
-		height:         consts.DefaultViewportHeight,
+		Recipe:         nil,
+		width:          config.ViewportWidth,
+		height:         config.ViewportHeight,
 		keyMap:         keymaps,
 		modelState:     consts.ModelStateLoaded,
 		theme:          theme,
 		renderer:       renderer,
+		config:         config,
 	}
 
 	return model
@@ -63,36 +66,36 @@ func (m *DetailModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case messages.RecipeSelectedMsg:
-		cmd_load := messages.SendLoadRecipeMsg(m.FetchRecipe(msg.RecipeID))
-		cmds = append(cmds, cmd_load)
+		cmd := messages.SendLoadRecipeMsg(m.FetchRecipe(msg.RecipeID))
+		cmds = append(cmds, cmd)
 
 	case messages.LoadRecipeMsg:
 		m.scrollPosition = 0
-		m.CurrentRecipe = msg.Recipe
+		m.Recipe = msg.Recipe
 		m.content = msg.Content
-		m.err = msg.Err
+		m.renderedContent = msg.Markdown
 
 	case tea.KeyMsg:
 		switch {
 		case key.Matches(msg, m.keyMap.Edit):
-			if m.CurrentRecipe != nil {
-				cmd_state := messages.SendSessionStateMsg(consts.SessionStateEdit)
-				cmd_edit := messages.SendEditRecipeMsg(m.CurrentRecipe.ID)
-				cmds = append(cmds, cmd_state, cmd_edit)
+			if m.Recipe != nil {
+				cmdState := messages.SendSessionStateMsg(consts.SessionStateEdit)
+				cmdEdit := messages.SendEditRecipeMsg(m.Recipe.ID)
+				cmds = append(cmds, cmdState, cmdEdit)
 			}
 		case key.Matches(msg, m.keyMap.CursorUp):
-			m.ScrollUp(consts.DefaultScrollSpeed)
+			m.ScrollUp(m.config.ScrollSpeed)
 		case key.Matches(msg, m.keyMap.CursorDown):
-			m.ScrollDown(consts.DefaultScrollSpeed)
+			m.ScrollDown(m.config.ScrollSpeed)
 		}
 
 	case tea.MouseMsg:
 		if msg.Action == tea.MouseActionPress {
 			switch msg.Button {
 			case tea.MouseButtonWheelUp:
-				m.ScrollUp(consts.DefaultScrollSpeed)
+				m.ScrollUp(m.config.ScrollSpeed)
 			case tea.MouseButtonWheelDown:
-				m.ScrollDown(consts.DefaultScrollSpeed)
+				m.ScrollDown(m.config.ScrollSpeed)
 			}
 		}
 	}
@@ -101,11 +104,7 @@ func (m *DetailModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *DetailModel) View() string {
-	if m.err != nil {
-		return m.renderErrorView()
-	}
-
-	if m.CurrentRecipe == nil {
+	if m.Recipe == nil || m.renderedContent == "" {
 		return m.renderEmptyView()
 	}
 
@@ -113,19 +112,23 @@ func (m *DetailModel) View() string {
 }
 
 func (m *DetailModel) FetchRecipe(recipe_id uint) messages.LoadRecipeMsg {
+	msg := messages.LoadRecipeMsg{Recipe: nil, Markdown: "", Content: ""}
 	recipe, err := m.cookbook.GetFullRecipe(recipe_id)
 	if err != nil {
-		return messages.LoadRecipeMsg{Recipe: nil, Content: "", Err: err}
+		return msg
 	}
+	msg.Recipe = recipe
 
 	// Render markdown content immediately
-	markdown := recipes.FormatRecipeContent(recipe)
-	content, renderErr := m.renderer.Render(markdown)
-	if renderErr != nil {
-		content = markdown
+	content := recipes.FormatRecipeContent(recipe)
+	markdown, err := m.renderer.Render(content)
+	if err != nil {
+		return msg
 	}
 
-	return messages.LoadRecipeMsg{Recipe: recipe, Content: content, Err: nil}
+	msg.Markdown = markdown
+	msg.Content = content
+	return msg
 }
 
 func (m *DetailModel) ScrollUp(amount int) {
@@ -172,14 +175,14 @@ func (m *DetailModel) SetSize(width, height int) {
 	m.height = height
 
 	// Re-render content when size changes to ensure proper word wrapping
-	if m.width > 0 && m.CurrentRecipe != nil {
+	if m.width > 0 && m.Recipe != nil {
 		m.refreshContent()
 	}
 }
 
 // refreshContent re-renders the markdown content with current settings
 func (m *DetailModel) refreshContent() {
-	if m.CurrentRecipe == nil {
+	if m.Recipe == nil {
 		return
 	}
 
@@ -193,12 +196,39 @@ func (m *DetailModel) refreshContent() {
 	}
 
 	m.renderer = renderer
-	markdown := recipes.FormatRecipeContent(m.CurrentRecipe)
-	content, err := m.renderer.Render(markdown)
+	content, err := m.renderer.Render(m.content)
 	if err == nil {
-		m.content = content
+		m.renderedContent = content
 		m.scrollPosition = 0
 	}
+}
+
+// renderEmptyView renders the empty state
+func (m *DetailModel) renderEmptyView() string {
+	emptyMessage := m.theme.Loading.Render(m.config.NoRecipeSelectedMessage)
+	return m.theme.DetailContent.Render(emptyMessage)
+}
+
+// renderContentView renders the main content with proper markdown rendering
+func (m *DetailModel) renderContentView() string {
+	lines := strings.Split(m.renderedContent, "\n")
+	viewportHeight := m.GetViewportHeight()
+	start := m.scrollPosition
+	end := min(start+viewportHeight, len(lines))
+
+	var visibleContent string
+	if len(lines) == 0 {
+		visibleContent = m.config.NoContentAvailableMessage
+	} else {
+		visibleLines := make([]string, 0, end-start)
+		for i := start; i < end && i < len(lines); i++ {
+			visibleLines = append(visibleLines, lines[i])
+		}
+		visibleContent = strings.Join(visibleLines, "\n")
+	}
+
+	// Apply content styling
+	return m.theme.DetailContent.Render(visibleContent)
 }
 
 func (m *DetailModel) GetSessionState() consts.SessionState {
@@ -211,52 +241,4 @@ func (m *DetailModel) GetModelState() consts.ModelState {
 
 func (m *DetailModel) GetSize() (width, height int) {
 	return m.width, m.height
-}
-
-// renderErrorView renders the error state
-func (m *DetailModel) renderErrorView() string {
-	return m.theme.Error.Render(fmt.Sprintf("❌ Error: %v", m.err))
-}
-
-// renderEmptyView renders the empty state
-func (m *DetailModel) renderEmptyView() string {
-	emptyMessage := m.theme.Loading.Render("📖 No recipe selected - choose one from the list")
-	return m.theme.DetailContent.Render(emptyMessage)
-}
-
-// renderContentView renders the main content with proper markdown rendering
-func (m *DetailModel) renderContentView() string {
-	// Use the rendered content if available, otherwise render markdown on the fly
-	var content string
-	if m.content != "" {
-		content = m.content
-	} else if m.CurrentRecipe != nil {
-		// Fallback: render markdown if content is empty
-		markdown := recipes.FormatRecipeContent(m.CurrentRecipe)
-		if rendered, err := m.renderer.Render(markdown); err == nil {
-			content = rendered
-		} else {
-			content = markdown // Fallback to raw markdown
-		}
-	}
-
-	// Handle scrolling for the rendered content
-	lines := strings.Split(content, "\n")
-	viewportHeight := m.GetViewportHeight()
-	start := m.scrollPosition
-	end := min(start+viewportHeight, len(lines))
-
-	var visibleContent string
-	if len(lines) == 0 {
-		visibleContent = "📝 No content available"
-	} else {
-		visibleLines := make([]string, 0, end-start)
-		for i := start; i < end && i < len(lines); i++ {
-			visibleLines = append(visibleLines, lines[i])
-		}
-		visibleContent = strings.Join(visibleLines, "\n")
-	}
-
-	// Apply content styling
-	return m.theme.DetailContent.Render(visibleContent)
 }

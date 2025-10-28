@@ -2,6 +2,7 @@ package list
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/GarroshIcecream/yummy/yummy/config"
 	consts "github.com/GarroshIcecream/yummy/yummy/consts"
@@ -15,19 +16,19 @@ import (
 )
 
 type ListModel struct {
-	cookbook        *db.CookBook
-	err             error
-	RecipeList      list.Model
-	modelState      consts.ModelState
-	filterFavourite bool
-	width           int
-	height          int
-	keyMap          config.KeyMap
-	theme           *themes.Theme
+	cookbook   *db.CookBook
+	err        error
+	RecipeList list.Model
+	modelState consts.ModelState
+	config     *config.ListConfig
+	width      int
+	height     int
+	keyMap     config.KeyMap
+	theme      *themes.Theme
 }
 
-func New(cookbook *db.CookBook, keymaps config.KeyMap, theme *themes.Theme, filterFavourite bool) *ListModel {
-	recipes, err := cookbook.AllRecipes(filterFavourite)
+func New(cookbook *db.CookBook, keymaps config.KeyMap, theme *themes.Theme, config *config.ListConfig) *ListModel {
+	recipes, err := cookbook.AllRecipes()
 
 	var items []list.Item
 	for _, recipe := range recipes {
@@ -39,10 +40,10 @@ func New(cookbook *db.CookBook, keymaps config.KeyMap, theme *themes.Theme, filt
 
 	l := list.New(items, d, 80, 40)
 	l.Styles = theme.ListStyles
-	l.Title = consts.ListTitle
+	l.Title = config.Title
 	l.KeyMap = keymaps.ListKeyMap()
-	l.SetStatusBarItemName(consts.ListItemNameSingular, consts.ListItemNamePlural)
-	l.StatusMessageLifetime = consts.ListViewStatusMessageTTL
+	l.SetStatusBarItemName(config.ItemNameSingular, config.ItemNamePlural)
+	l.StatusMessageLifetime = time.Duration(config.ViewStatusMessageTTL) * time.Millisecond
 	l.Filter = CustomFilter
 	l.AdditionalShortHelpKeys = func() []key.Binding {
 		return []key.Binding{keymaps.Add, keymaps.Delete}
@@ -53,13 +54,13 @@ func New(cookbook *db.CookBook, keymaps config.KeyMap, theme *themes.Theme, filt
 	}
 
 	return &ListModel{
-		cookbook:        cookbook,
-		keyMap:          keymaps,
-		filterFavourite: filterFavourite,
-		modelState:      consts.ModelStateLoaded,
-		err:             err,
-		RecipeList:      l,
-		theme:           theme,
+		cookbook:   cookbook,
+		keyMap:     keymaps,
+		config:     config,
+		modelState: consts.ModelStateLoaded,
+		err:        err,
+		RecipeList: l,
+		theme:      theme,
 	}
 }
 
@@ -101,9 +102,9 @@ func (m *ListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmd = m.RefreshRecipeList()
 		cmds = append(cmds, cmd)
 		if newFavourite {
-			cmds = append(cmds, m.RecipeList.NewStatusMessage(consts.ListViewStatusMessageFavouriteSet))
+			cmds = append(cmds, m.RecipeList.NewStatusMessage(m.config.ViewStatusMessageFavouriteSet))
 		} else {
-			cmds = append(cmds, m.RecipeList.NewStatusMessage(consts.ListViewStatusMessageFavouriteRemoved))
+			cmds = append(cmds, m.RecipeList.NewStatusMessage(m.config.ViewStatusMessageFavouriteRemoved))
 		}
 
 	case tea.KeyMsg:
@@ -118,7 +119,7 @@ func (m *ListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 					cmd = m.RefreshRecipeList()
 					cmds = append(cmds, cmd)
-					cmds = append(cmds, m.RecipeList.NewStatusMessage(consts.ListViewStatusMessageRecipeDeleted))
+					cmds = append(cmds, m.RecipeList.NewStatusMessage(m.config.ViewStatusMessageRecipeDeleted))
 				}
 			}
 		case key.Matches(msg, m.keyMap.Enter):
@@ -156,7 +157,7 @@ func (m *ListModel) View() string {
 }
 
 func (m *ListModel) RefreshRecipeList() tea.Cmd {
-	recipes, err := m.cookbook.AllRecipes(m.filterFavourite)
+	recipes, err := m.cookbook.AllRecipes()
 	if err != nil {
 		m.err = err
 		return nil

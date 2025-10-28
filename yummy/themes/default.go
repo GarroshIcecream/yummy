@@ -6,8 +6,8 @@ import (
 )
 
 // NewDefaultTheme creates a new default theme with all styles initialized
-func NewDefaultTheme() *Theme {
-	t := &Theme{
+func NewDefaultTheme() Theme {
+	t := Theme{
 		Name: "default",
 	}
 
@@ -379,15 +379,12 @@ func NewDefaultTheme() *Theme {
 		Align(lipgloss.Center).
 		AlignVertical(lipgloss.Center).
 		Width(50).
-		Height(15).
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("#9370DB")).
-		Background(lipgloss.Color("#1A0B2E")).
-		Padding(2, 3)
+		Height(15)
 
 	t.StateSelectorDialog = lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(lipgloss.Color("#4a9eff")).
+		Background(lipgloss.Color("#1a1a2e")).
 		Padding(2, 3)
 
 	t.StateSelectorTitle = lipgloss.NewStyle().
@@ -403,16 +400,14 @@ func NewDefaultTheme() *Theme {
 		MarginTop(2)
 
 	t.StateSelectorItem = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#DDA0DD")).
-		Padding(0, 2).
-		Margin(0, 0, 1, 0)
+		Foreground(lipgloss.Color("#cccccc")).
+		Padding(0, 1)
 
 	t.StateSelectorSelectedItem = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#FFFFFF")).
-		Background(lipgloss.Color("#9370DB")).
+		Foreground(lipgloss.Color("#ffffff")).
+		Background(lipgloss.Color("#4a9eff")).
 		Bold(true).
-		Padding(0, 2).
-		Margin(0, 0, 1, 0)
+		Padding(0, 1)
 
 	t.StateSelectorIndicator = lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#FFD700")).
@@ -421,6 +416,19 @@ func NewDefaultTheme() *Theme {
 	t.StateSelectorSelectedIndicator = lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#FFFFFF")).
 		Bold(true)
+
+	// Session selector styles
+	t.SessionSelectorTitle = lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#04B575")).
+		Bold(true).
+		Margin(1, 0, 1, 2)
+
+	t.SessionSelectorPagination = lipgloss.NewStyle().
+		MarginLeft(2)
+
+	t.SessionSelectorHelp = lipgloss.NewStyle().
+		MarginLeft(2).
+		Foreground(lipgloss.Color("#626262"))
 
 	return t
 }

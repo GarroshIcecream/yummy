@@ -19,9 +19,9 @@ type SessionItem struct {
 	SessionID         uint
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
-	MessageCount      int64
-	TotalInputTokens  int64
-	TotalOutputTokens int64
+	MessageCount      int
+	TotalInputTokens  int
+	TotalOutputTokens int
 }
 
 func (s SessionItem) Title() string {
@@ -49,38 +49,28 @@ type SessionSelectorDialogCmp struct {
 	sessionLog *db.SessionLog
 	keyMap     config.KeyMap
 	list       list.Model
-	wWidth     int
-	wHeight    int
 	width      int
 	height     int
 	theme      *themes.Theme
 }
 
-func NewSessionSelectorDialog(sessionLog *db.SessionLog, keymaps config.KeyMap, theme *themes.Theme) *SessionSelectorDialogCmp {
+func NewSessionSelectorDialog(sessionLog *db.SessionLog, keymaps config.KeyMap, theme *themes.Theme, config *config.SessionSelectorDialogConfig) *SessionSelectorDialogCmp {
 	items := []list.Item{}
 
 	l := list.New(items, list.NewDefaultDelegate(), 0, 0)
 	l.Title = "📚 Select Previous Session"
 	l.SetShowStatusBar(false)
 	l.SetFilteringEnabled(true)
-	l.Styles.Title = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#04B575")).
-		Bold(true).
-		Margin(1, 0, 1, 2)
-
-	l.Styles.PaginationStyle = lipgloss.NewStyle().
-		MarginLeft(2)
-
-	l.Styles.HelpStyle = lipgloss.NewStyle().
-		MarginLeft(2).
-		Foreground(lipgloss.Color("#626262"))
+	l.Styles.Title = theme.SessionSelectorTitle
+	l.Styles.PaginationStyle = theme.SessionSelectorPagination
+	l.Styles.HelpStyle = theme.SessionSelectorHelp
 
 	return &SessionSelectorDialogCmp{
 		sessionLog: sessionLog,
 		keyMap:     keymaps,
 		list:       l,
-		width:      consts.DefaultViewportWidth,
-		height:     consts.DefaultViewportHeight,
+		width:      config.Width,
+		height:     config.Height,
 		theme:      theme,
 	}
 }
@@ -112,12 +102,6 @@ func (m *SessionSelectorDialogCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, tea.Batch(cmds...)
 			}
 		}
-
-	case tea.WindowSizeMsg:
-		m.wWidth = msg.Width
-		m.wHeight = msg.Height
-		m.list.SetWidth(msg.Width - 4)
-		m.list.SetHeight(msg.Height - 6)
 
 	case messages.LoadSessionsMsg:
 		m.loadSessions()
@@ -202,8 +186,8 @@ func (m *SessionSelectorDialogCmp) loadSessions() {
 			CreatedAt:         session.CreatedAt,
 			UpdatedAt:         session.UpdatedAt,
 			MessageCount:      stats.MessageCount,
-			TotalInputTokens:  stats.TotalInputTokens,
-			TotalOutputTokens: stats.TotalOutputTokens,
+			TotalInputTokens:  stats.InputTokens,
+			TotalOutputTokens: stats.OutputTokens,
 		}
 	}
 

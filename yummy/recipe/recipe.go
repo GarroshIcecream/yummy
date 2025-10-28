@@ -11,6 +11,7 @@ import (
 	"time"
 
 	consts "github.com/GarroshIcecream/yummy/yummy/consts"
+	utils "github.com/GarroshIcecream/yummy/yummy/utils"
 )
 
 type RecipeTableItem struct {
@@ -29,7 +30,7 @@ type RecipeRaw struct {
 	TotalTime    time.Duration
 	Quantity     string
 	URL          string
-	Ingredients  []Ingredient
+	Ingredients  []utils.Ingredient
 	Categories   []string
 	Instructions []string
 }
@@ -72,6 +73,7 @@ func (i RecipeWithDescription) FilterValue() string {
 		consts.CategoryField:    i.Metadata.Categories,
 		consts.IngredientsField: i.Metadata.Ingredients,
 		consts.FavouriteField:   i.IsFavourite,
+		consts.URLField:         i.Metadata.URL,
 	}
 
 	jsonBytes, err := json.Marshal(filterData)
@@ -202,7 +204,7 @@ func ParseMarkdownRecipe(filePath string, customName string) (*RecipeRaw, error)
 
 	text := string(content)
 	recipeData := &RecipeRaw{
-		Ingredients:  []Ingredient{},
+		Ingredients:  []utils.Ingredient{},
 		Instructions: []string{},
 		Categories:   []string{},
 	}
@@ -280,7 +282,7 @@ func ParseJSONRecipe(filePath string, customName string) (*RecipeRaw, error) {
 		Author:       jsonRecipe.Author,
 		Quantity:     jsonRecipe.Quantity,
 		URL:          jsonRecipe.URL,
-		Ingredients:  []Ingredient{},
+		Ingredients:  []utils.Ingredient{},
 		Instructions: jsonRecipe.Instructions,
 		Categories:   jsonRecipe.Categories,
 	}
@@ -297,7 +299,7 @@ func ParseJSONRecipe(filePath string, customName string) (*RecipeRaw, error) {
 
 	// Convert ingredients
 	for _, ing := range jsonRecipe.Ingredients {
-		recipeData.Ingredients = append(recipeData.Ingredients, Ingredient{
+		recipeData.Ingredients = append(recipeData.Ingredients, utils.Ingredient{
 			Amount:  ing.Amount,
 			Unit:    ing.Unit,
 			Name:    ing.Name,
@@ -363,7 +365,7 @@ func parseIngredients(text string, recipeData *RecipeRaw) {
 		line = strings.TrimSpace(line)
 		if strings.HasPrefix(line, "• ") {
 			ingredientText := strings.TrimPrefix(line, "• ")
-			ingredient := ParseIngredient(ingredientText)
+			ingredient := utils.ParseIngredient(ingredientText)
 			recipeData.Ingredients = append(recipeData.Ingredients, ingredient)
 		}
 	}

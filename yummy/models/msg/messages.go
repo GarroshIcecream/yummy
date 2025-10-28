@@ -1,25 +1,14 @@
 package messages
 
 import (
-	"errors"
-
 	consts "github.com/GarroshIcecream/yummy/yummy/consts"
 	recipes "github.com/GarroshIcecream/yummy/yummy/recipe"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-type SessionMessage struct {
-	SessionID    uint
-	Message      string
-	Role         string
-	ModelName    string
-	Content      string
-	InputTokens  int
-	OutputTokens int
-	TotalTokens  int
+type GenerateResponseMsg struct {
+	UserInput string
 }
-
-type GenerateResponseMsg struct{}
 
 type LoadSessionsMsg struct{}
 
@@ -44,7 +33,6 @@ type LoadRecipeMsg struct {
 	Recipe   *recipes.RecipeRaw
 	Markdown string
 	Content  string
-	Err      error
 }
 
 type CloseDialogMsg struct{}
@@ -56,11 +44,11 @@ type StatusInfoMsg struct {
 }
 
 type ResponseMsg struct {
-	Response         string
-	PromptTokens     int
-	CompletionTokens int
-	TotalTokens      int
-	Error            error
+	Response string
+}
+
+type StreamingChunkMsg struct {
+	Chunk string
 }
 
 type SetFavouriteMsg struct {
@@ -73,9 +61,9 @@ type SessionSelectedMsg struct {
 
 type LoadSessionMsg struct {
 	SessionID uint
-	Messages  []SessionMessage
-	Err       error
 }
+
+type RenderConversationAsMarkdownMsg struct{}
 
 func CmdHandler(msg tea.Msg) tea.Cmd {
 	return func() tea.Msg {
@@ -87,16 +75,16 @@ func SendCloseDialogMsg() tea.Cmd {
 	return CmdHandler(CloseDialogMsg{})
 }
 
-func SendRecipeSelectedMsg(recipe_id uint) tea.Cmd {
-	return CmdHandler(RecipeSelectedMsg{RecipeID: recipe_id})
+func SendRecipeSelectedMsg(recipeID uint) tea.Cmd {
+	return CmdHandler(RecipeSelectedMsg{RecipeID: recipeID})
 }
 
-func SendSessionStateMsg(session_state consts.SessionState) tea.Cmd {
-	return CmdHandler(SessionStateMsg{SessionState: session_state})
+func SendSessionStateMsg(sessionState consts.SessionState) tea.Cmd {
+	return CmdHandler(SessionStateMsg{SessionState: sessionState})
 }
 
-func SendEditRecipeMsg(recipe_id uint) tea.Cmd {
-	return CmdHandler(EditRecipeMsg{RecipeID: recipe_id})
+func SendEditRecipeMsg(recipeID uint) tea.Cmd {
+	return CmdHandler(EditRecipeMsg{RecipeID: recipeID})
 }
 
 func SendLoadRecipeMsg(msg LoadRecipeMsg) tea.Cmd {
@@ -115,37 +103,34 @@ func SendStatusInfoMsg(msg string, msgType int, ttl int) tea.Cmd {
 	})
 }
 
-func SendEmptyResponseMsg() tea.Cmd {
-	err := errors.New("empty response")
+func SendResponseMsg(response string) tea.Cmd {
 	return CmdHandler(ResponseMsg{
-		Response:         consts.EmptyResponse,
-		PromptTokens:     0,
-		CompletionTokens: 0,
-		TotalTokens:      0,
-		Error:            err,
+		Response: response,
 	})
 }
 
-func SendResponseMsg(response ResponseMsg) tea.Cmd {
-	return CmdHandler(response)
+func SendGenerateResponseMsg(userInput string) tea.Cmd {
+	return CmdHandler(GenerateResponseMsg{UserInput: userInput})
 }
 
-func SendGenerateResponseMsg() tea.Cmd {
-	return CmdHandler(GenerateResponseMsg{})
-}
-
-func SendSetFavouriteMsg(recipe_id uint) tea.Cmd {
-	return CmdHandler(SetFavouriteMsg{RecipeID: recipe_id})
+func SendSetFavouriteMsg(recipeID uint) tea.Cmd {
+	return CmdHandler(SetFavouriteMsg{RecipeID: recipeID})
 }
 
 func SendSessionSelectedMsg(sessionID uint) tea.Cmd {
 	return CmdHandler(SessionSelectedMsg{SessionID: sessionID})
 }
 
-func SendLoadSessionMsg(sessionID uint, messages []SessionMessage, err error) tea.Cmd {
+func SendLoadSessionMsg(sessionID uint) tea.Cmd {
 	return CmdHandler(LoadSessionMsg{
 		SessionID: sessionID,
-		Messages:  messages,
-		Err:       err,
 	})
+}
+
+func SendStreamingChunkMsg(chunk string) tea.Cmd {
+	return CmdHandler(StreamingChunkMsg{Chunk: chunk})
+}
+
+func SendRenderConversationAsMarkdownMsg() tea.Cmd {
+	return CmdHandler(RenderConversationAsMarkdownMsg{})
 }

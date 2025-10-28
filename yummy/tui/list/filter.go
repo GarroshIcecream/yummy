@@ -53,6 +53,14 @@ func CustomFilter(query string, targets []string) []list.Rank {
 		return filterByArrayField(ingredientsInput, targets, consts.IngredientsField)
 	}
 
+	if strings.HasPrefix(query, "@url ") {
+		url := strings.TrimSpace(strings.TrimPrefix(query, "@url "))
+		if url == "" {
+			return []list.Rank{}
+		}
+		return filterByJSONField(url, targets, consts.URLField)
+	}
+
 	// Default to fuzzy search on title field for regular text
 	return filterByJSONField(query, targets, consts.TitleField)
 }
@@ -161,14 +169,11 @@ func filterByJSONField(searchTerm string, targets []string, fieldName consts.Fil
 		// Try to parse the target as JSON
 		var filterData map[string]interface{}
 		if err := json.Unmarshal([]byte(target), &filterData); err != nil {
-			// If JSON parsing fails, fall back to simple string matching
-			if strings.Contains(strings.ToLower(target), strings.ToLower(searchTerm)) {
-				matchedIndexes := findMatchedIndices(target, searchTerm)
-				ranks = append(ranks, list.Rank{
-					Index:          i,
-					MatchedIndexes: matchedIndexes,
-				})
-			}
+			matchedIndexes := findMatchedIndices(target, searchTerm)
+			ranks = append(ranks, list.Rank{
+				Index:          i,
+				MatchedIndexes: matchedIndexes,
+			})
 			continue
 		}
 
@@ -219,7 +224,7 @@ func filterByJSONField(searchTerm string, targets []string, fieldName consts.Fil
 }
 
 // findMatchedIndices finds the indices of matched characters in the target string
-func findMatchedIndices(target, search string) []int {
+func findMatchedIndices(target string, search string) []int {
 	var indices []int
 	targetLower := strings.ToLower(target)
 	searchLower := strings.ToLower(search)

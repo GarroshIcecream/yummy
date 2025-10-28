@@ -14,21 +14,21 @@ import (
 )
 
 type StateSelectorDialogCmp struct {
-	wWidth  int
-	wHeight int
-
-	selectedIndex int
+	// State data
 	states        []consts.SessionState
-	stateNames    []string
-	keymap        config.KeyMap
-	height        int
-	width         int
-	emojis        []string
-	theme         *themes.Theme
+	selectedIndex int
+
+	// Config
+	keymap config.KeyMap
+	theme  *themes.Theme
+
+	// UI
+	height int
+	width  int
 }
 
 // NewStateSelectorDialog creates a new state selection dialog.
-func NewStateSelectorDialog(theme *themes.Theme) *StateSelectorDialogCmp {
+func NewStateSelectorDialog(theme *themes.Theme, config *config.StateSelectorDialogConfig, keymaps config.KeyMap) *StateSelectorDialogCmp {
 	states := []consts.SessionState{
 		consts.SessionStateMainMenu,
 		consts.SessionStateList,
@@ -37,30 +37,12 @@ func NewStateSelectorDialog(theme *themes.Theme) *StateSelectorDialogCmp {
 		consts.SessionStateChat,
 	}
 
-	stateNames := []string{
-		"Main Menu",
-		"Recipe List",
-		"Recipe Detail",
-		"Edit Recipe",
-		"Chat Assistant",
-	}
-
-	emojis := []string{
-		"🏠",
-		"📝",
-		"🔍",
-		"📝",
-		"💬",
-	}
-
 	return &StateSelectorDialogCmp{
 		selectedIndex: 0,
 		states:        states,
-		height:        consts.DefaultViewportHeight,
-		width:         consts.DefaultViewportWidth,
-		stateNames:    stateNames,
-		emojis:        emojis,
-		keymap:        config.DefaultKeyMap(),
+		height:        config.Height,
+		width:         config.Width,
+		keymap:        keymaps,
 		theme:         theme,
 	}
 }
@@ -92,8 +74,8 @@ func (s *StateSelectorDialogCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		s.wWidth = msg.Width
-		s.wHeight = msg.Height
+		s.width = msg.Width
+		s.height = msg.Height
 	case tea.KeyMsg:
 		switch {
 		case key.Matches(msg, s.keymap.CursorUp):
@@ -122,8 +104,6 @@ func (s *StateSelectorDialogCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				messages.SendSessionStateMsg(selectedState),
 				messages.SendCloseDialogMsg(),
 			))
-		case key.Matches(msg, s.keymap.Back, s.keymap.Quit):
-			cmds = append(cmds, messages.SendCloseDialogMsg())
 		}
 	}
 
@@ -136,25 +116,22 @@ func (s *StateSelectorDialogCmp) View() string {
 
 	// Create the list of states
 	var stateItems []string
-	for i, stateName := range s.stateNames {
-		style := lipgloss.NewStyle()
+	for i, state := range s.states {
+		// get state name and emoji from mapping
+		stateName := state.GetStateName()
+
+		var style lipgloss.Style
 		if i == s.selectedIndex {
-			style = style.
-				Foreground(lipgloss.Color("#ffffff")).
-				Background(lipgloss.Color("#0078d4")).
-				Bold(true).
-				Padding(0, 1)
+			style = s.theme.StateSelectorSelectedItem
 		} else {
-			style = style.
-				Foreground(lipgloss.Color("#cccccc")).
-				Padding(0, 1)
+			style = s.theme.StateSelectorItem
 		}
 
 		// Add number prefix and emoji
 		numberPrefix := fmt.Sprintf("%d. ", i+1)
 		indicator := "  "
 		if i == s.selectedIndex {
-			indicator = s.emojis[i] + " "
+			indicator = state.GetStateEmoji() + " "
 		}
 
 		stateItems = append(stateItems, style.Render(numberPrefix+indicator+stateName))
@@ -169,13 +146,7 @@ func (s *StateSelectorDialogCmp) View() string {
 	)
 
 	dialogBox := s.theme.StateSelectorDialog.Render(fullContent)
-	centeredDialogStyle := lipgloss.NewStyle().
-		Align(lipgloss.Center).
-		AlignVertical(lipgloss.Center).
-		Width(s.width).
-		Height(s.height)
-
-	return centeredDialogStyle.Render(dialogBox)
+	return dialogBox
 }
 
 func (s *StateSelectorDialogCmp) SetSize(width, height int) {
@@ -193,12 +164,4 @@ func (s *StateSelectorDialogCmp) GetModelState() consts.ModelState {
 
 func (s *StateSelectorDialogCmp) GetSelectedState() consts.SessionState {
 	return s.states[s.selectedIndex]
-}
-
-func (s *StateSelectorDialogCmp) GetSelectedStateName() string {
-	return s.stateNames[s.selectedIndex]
-}
-
-func (s *StateSelectorDialogCmp) GetSelectedStateEmoji() string {
-	return s.emojis[s.selectedIndex]
 }

@@ -2,7 +2,7 @@ package cmd
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -31,17 +31,19 @@ The markdown format should match the export format used by yummy export command.
 		yummy import recipe.md --name "My Custom Recipe"
   	`,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		// Get custom name if provided
+		customName, _ := cmd.Flags().GetString("name")
+
 		if len(args) == 0 {
+			slog.Error("File path is required", "args", args)
 			return fmt.Errorf("file path is required")
 		}
 
 		filePath := args[0]
 		if _, err := os.Stat(filePath); os.IsNotExist(err) {
+			slog.Error("File does not exist", "path", filePath, "error", err)
 			return fmt.Errorf("file does not exist: %s", filePath)
 		}
-
-		// Get custom name if provided
-		customName, _ := cmd.Flags().GetString("name")
 
 		// Determine file format
 		ext := strings.ToLower(filepath.Ext(filePath))
@@ -54,25 +56,30 @@ The markdown format should match the export format used by yummy export command.
 		case ".json":
 			recipeRaw, err = recipe.ParseJSONRecipe(filePath, customName)
 		default:
+			slog.Error("Unsupported file format", "format", ext)
 			return fmt.Errorf("unsupported file format: %s. Supported formats: .md, .json", ext)
 		}
 
 		if err != nil {
+			slog.Error("Failed to parse recipe", "filePath", filePath, "error", err)
 			return fmt.Errorf("failed to parse recipe: %v", err)
 		}
 
 		tui, err := setupApp(cmd)
 		if err != nil {
+			slog.Error("Failed to create TUI instance", "error", err)
 			return err
 		}
 
 		// Save the recipe
 		recipeID, err := tui.Cookbook.SaveScrapedRecipe(recipeRaw)
 		if err != nil {
-			log.Fatalf("failed to save recipe: %v", err)
+			slog.Error("Failed to save recipe", "error", err)
+			return fmt.Errorf("failed to save recipe: %v", err)
 		}
 
-		log.Printf("✅ Recipe imported successfully! ID: %d\n", recipeID)
+		slog.Info("Recipe imported successfully", "filePath", filePath, "id", recipeID)
+		fmt.Printf("✅ Recipe imported successfully! ID: %d\n", recipeID)
 		return nil
 	},
 }

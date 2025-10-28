@@ -1,6 +1,6 @@
-package recipe
+package utils
 
-var corpusMeasures = []string{
+var CorpusMeasures = []string{
 	"tablespoon",
 	"tablespoons",
 	"milliliter",
@@ -42,7 +42,7 @@ var corpusMeasures = []string{
 	"t",
 }
 
-var corpusMeasuresMap = map[string]string{
+var CorpusMeasuresMap = map[string]string{
 	"c":           "cup",
 	"can":         "can",
 	"canned":      "can",

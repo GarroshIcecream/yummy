@@ -28,6 +28,7 @@
 - **Powerful Search**: Quick search and categorization to find the recipe you need
 - **Export Options**: Export collections to JSON or CSV for sharing or migration
 - **Clean TUI**: Navigable interface with list/detail views, editable forms, and status indicators
+- **Customizable Configuration**: JSON-based configuration system for themes, key bindings, chat settings, and more
 - **Developer Friendly**: Small codebase with clear package boundaries — ideal for contributors and experimentation
 
 ## 📦 Installation
@@ -50,6 +51,37 @@ go build -o yummy
 
 ```bash
 go install github.com/GarroshIcecream/yummy@latest
+```
+
+## ⚙️ Configuration
+
+Yummy stores its configuration in `~/.yummy/config.json`. The configuration file is automatically created with default values on first run.
+
+### Key Features
+
+- **Theme Selection**: Choose from default, dark, light, monokai, or solarized themes
+- **Chat Customization**: Configure Ollama model, temperature, viewport size, and more
+- **Key Binding Customization**: Remap any key combination to your preference
+- **Database Settings**: Configure auto-backup intervals and retention
+- **General Settings**: Debug mode, log levels, and UI preferences
+
+### Example Configuration
+
+```json
+{
+  "theme": "dark",
+  "chat": {
+    "default_model": "gemma3:4b",
+    "temperature": 0.9,
+    "viewport_height": 30
+  },
+  "keymap": {
+    "custom_bindings": {
+      "quit": ["q", "esc"],
+      "add": ["ctrl+a"]
+    }
+  }
+}
 ```
 
 ## 🛠️ Development

@@ -1,0 +1,444 @@
+name: "dark"
+description: "Dark theme with a sleek, modern look"
+
+colors:
+  # Dark theme color palette
+  background: "#171923"
+  background_secondary: "#1A202C"
+  background_tertiary: "#2D3748"
+  foreground: "#E2E8F0"
+  foreground_secondary: "#A0AEC0"
+  foreground_tertiary: "#718096"
+  primary: "#68D391"
+  secondary: "#81E6D9"
+  accent: "#D6BCFA"
+  warning: "#F6E05E"
+  warning_secondary: "#F6AD55"
+  error: "#F56565"
+  success: "#68D391"
+  info: "#81E6D9"
+  border: "#4A5568"
+  white: "#FFFFFF"
+  black: "#000000"
+
+styles:
+  title:
+    foreground: "white"
+    background: "background_tertiary"
+    bold: true
+    padding: "0,4"
+
+  info:
+    foreground: "primary"
+    border: "rounded"
+
+  error:
+    foreground: "error"
+    padding: "0,2"
+
+  header:
+    foreground: "secondary"
+    bold: true
+    padding: "1,0"
+
+  ingredient:
+    foreground: "accent"
+    padding: "0,0,0,2"
+
+  doc:
+    margin: "1,2"
+
+  detail_content:
+    padding: "1,2"
+    margin: "0,1"
+
+  detail_header:
+    foreground: "white"
+    background: "background_tertiary"
+    bold: true
+    padding: "0,4"
+    margin: "0,0,1,0"
+
+  detail_footer:
+    foreground: "primary"
+    padding: "0,1"
+    margin: "1,0,0,0"
+
+  scroll_bar:
+    foreground: "primary"
+
+  loading:
+    foreground: "warning_secondary"
+    italic: true
+
+  instruction:
+    foreground: "warning"
+    padding: "0,0,0,2"
+
+  warning:
+    foreground: "warning"
+    background: "background_secondary"
+    padding: "0,1"
+
+  success:
+    foreground: "success"
+    background: "background_secondary"
+    padding: "0,1"
+
+  help:
+    foreground: "foreground_secondary"
+    background: "background_secondary"
+    padding: "0,1"
+
+  status_line:
+    foreground: "foreground_secondary"
+    background: "background_secondary"
+    padding: "0,1"
+
+  status_line_left:
+    foreground: "foreground_secondary"
+    background: "background"
+    padding: "0,1"
+
+  status_line_right:
+    foreground: "foreground_secondary"
+    background: "background"
+    padding: "0,1"
+
+  status_line_mode:
+    foreground: "black"
+    background: "background_tertiary"
+    bold: true
+    padding: "0,1"
+
+  status_line_file:
+    foreground: "primary"
+    background: "background"
+    padding: "0,1"
+
+  status_line_info:
+    foreground: "secondary"
+    background: "background"
+    padding: "0,1"
+
+  status_line_separator:
+    foreground: "foreground_secondary"
+    background: "background"
+
+  chat_title:
+    foreground: "accent"
+    bold: true
+    margin: "1,0"
+    border: "rounded"
+    border_color: "accent"
+    padding: "0,2"
+    align: "center"
+    background: "background_secondary"
+
+  chat:
+    border: "rounded"
+    border_color: "border"
+    padding: "1,2"
+    margin: "0,1,0,0"
+    foreground: "foreground"
+
+  sidebar:
+    border: "normal"
+    border_color: "border"
+    padding: "2,2,2,2"
+    margin: "1,1,0,0"
+    width: 28
+    background: "background"
+    foreground: "foreground"
+
+  sidebar_header:
+    foreground: "accent"
+    bold: true
+    align: "center"
+    margin: "0,0,2,0"
+    background: "background_secondary"
+    padding: "1,2"
+
+  sidebar_section:
+    foreground: "foreground"
+    bold: true
+    margin: "0,0,1,0"
+    border: "normal"
+    border_color: "border"
+    padding: "0,0,1,0"
+
+  sidebar_content:
+    foreground: "foreground_secondary"
+    margin: "0,0,0,2"
+
+  sidebar_success:
+    foreground: "success"
+    bold: true
+
+  sidebar_error:
+    foreground: "error"
+    bold: true
+
+  user_message:
+    foreground: "accent"
+    bold: true
+    align: "left"
+
+  user_content:
+    foreground: "foreground"
+    align: "left"
+    margin: "0,0,1,0"
+
+  assistant_message:
+    foreground: "secondary"
+    bold: true
+    align: "left"
+
+  assistant_content:
+    foreground: "foreground"
+    align: "left"
+    margin: "0,0,1,0"
+
+  user:
+    foreground: "error"
+    bold: true
+    padding: "0,1"
+    border: "rounded"
+    border_color: "error"
+    margin: "0,0,1,0"
+
+  assistant:
+    foreground: "secondary"
+    padding: "0,1"
+    border: "rounded"
+    border_color: "secondary"
+    margin: "0,0,1,0"
+
+  spinner:
+    foreground: "secondary"
+    bold: true
+
+  main_menu_border:
+    foreground: "primary"
+
+  main_menu_container:
+    background: "background"
+    padding: "1,2"
+
+  main_menu_separator:
+    foreground: "primary"
+
+  main_menu_welcome:
+    foreground: "foreground_secondary"
+    italic: true
+    padding: "1,0"
+
+  main_menu_logo:
+    foreground: "accent"
+    bold: true
+
+  main_menu_subtitle:
+    foreground: "foreground_secondary"
+    italic: true
+    padding: "1,0"
+
+  main_menu_title_border:
+    border: "double"
+    border_color: "primary"
+    align: "center"
+    padding: "1,2"
+    margin: "1,0"
+
+  main_menu_selected_arrow:
+    foreground: "warning"
+    bold: true
+
+  main_menu_selected_item:
+    border: "double"
+    border_color: "warning"
+
+  main_menu_unselected_item:
+    border: "normal"
+    border_color: "primary"
+
+  main_menu_selected_icon:
+    foreground: "warning"
+    bold: true
+
+  main_menu_unselected_icon:
+    foreground: "foreground_secondary"
+
+  main_menu_selected_title:
+    bold: true
+    foreground: "warning"
+
+  main_menu_unselected_title:
+    foreground: "foreground"
+
+  main_menu_selected_desc:
+    foreground: "warning_secondary"
+    italic: true
+    padding: "0,0,0,4,1"
+
+  main_menu_unselected_desc:
+    foreground: "foreground_secondary"
+    italic: true
+    padding: "0,0,0,4,1"
+
+  main_menu_help_header:
+    foreground: "primary"
+    bold: true
+    padding: "0,0,1,0"
+
+  main_menu_help_content:
+    foreground: "foreground_secondary"
+    padding: "0,0,0,2"
+
+  main_menu_help_border:
+    border: "double"
+    border_color: "primary"
+    background: "background_secondary"
+    padding: "1,2"
+    margin: "1,0"
+
+  main_menu_spinner:
+    foreground: "primary"
+
+  state_selector_container:
+    align: "center"
+    width: 50
+    height: 15
+    border: "rounded"
+    border_color: "primary"
+    background: "background"
+    padding: "2,3"
+
+  state_selector_dialog:
+    border: "rounded"
+    border_color: "secondary"
+    padding: "2,3"
+
+  state_selector_title:
+    bold: true
+    foreground: "secondary"
+    margin: "0,0,2,0"
+    align: "center"
+
+  state_selector_help:
+    foreground: "foreground_tertiary"
+    italic: true
+    align: "center"
+    margin: "2,0,0,0"
+
+  state_selector_item:
+    foreground: "foreground_secondary"
+    padding: "0,2"
+    margin: "0,0,1,0"
+
+  state_selector_selected_item:
+    foreground: "white"
+    background: "primary"
+    bold: true
+    padding: "0,2"
+    margin: "0,0,1,0"
+
+  state_selector_indicator:
+    foreground: "warning"
+    bold: true
+
+  state_selector_selected_indicator:
+    foreground: "white"
+    bold: true
+
+lists:
+  title_bar:
+    foreground: "primary"
+    background: "background_secondary"
+    bold: true
+    padding: "1,2"
+
+  title:
+    foreground: "primary"
+    bold: true
+    padding: "1,2"
+
+  spinner:
+    foreground: "primary"
+
+  filter_prompt:
+    foreground: "primary"
+    padding: "1,2"
+
+  filter_cursor:
+    foreground: "primary"
+    bold: true
+
+  default_filter_character_match:
+    foreground: "primary"
+
+  status_bar:
+    foreground: "foreground_secondary"
+    background: "background_secondary"
+
+  status_empty:
+    foreground: "error"
+
+  status_bar_active_filter:
+    foreground: "warning"
+
+  status_bar_filter_count:
+    foreground: "warning"
+
+  no_items:
+    foreground: "error"
+
+  pagination_style:
+    foreground: "primary"
+
+  help_style:
+    foreground: "foreground_secondary"
+    background: "background_secondary"
+
+  active_pagination_dot:
+    foreground: "primary"
+
+  inactive_pagination_dot:
+    foreground: "border"
+
+  arabic_pagination:
+    foreground: "primary"
+
+  divider_dot:
+    foreground: "primary"
+
+  normal_title:
+    foreground: "foreground"
+    padding: "0,2"
+
+  normal_desc:
+    foreground: "foreground_secondary"
+    padding: "0,2"
+
+  selected_title:
+    foreground: "primary"
+    border: "normal"
+    border_color: "primary"
+    padding: "0,2"
+
+  selected_desc:
+    foreground: "secondary"
+    border: "normal"
+    border_color: "primary"
+    padding: "0,2"
+
+  dimmed_title:
+    foreground: "foreground_secondary"
+    padding: "0,2"
+
+  dimmed_desc:
+    foreground: "foreground_secondary"
+    padding: "0,2"
+
+  filter_match:
+    foreground: "primary"
+    underline: true

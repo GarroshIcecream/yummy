@@ -2,7 +2,7 @@ package tui
 
 import (
 	"context"
-	"log"
+	"log/slog"
 
 	"github.com/GarroshIcecream/yummy/yummy/config"
 	consts "github.com/GarroshIcecream/yummy/yummy/consts"
@@ -29,8 +29,9 @@ type Manager struct {
 	CurrentSessionState  consts.SessionState
 	PreviousSessionState consts.SessionState
 	ThemeManager         *themes.ThemeManager
-	ModelState           consts.ModelState
+	ModalView            bool
 	models               map[consts.SessionState]common.TUIModel
+	config               *config.GeneralConfig
 
 	// Database and configuration
 	Cookbook   *db.CookBook
@@ -40,63 +41,60 @@ type Manager struct {
 
 	// UI components
 	statusLine          *status.StatusLine
-	width               int
-	height              int
 	overlayModel        *overlay.Model
 	stateSelectorDialog *dialog.StateSelectorDialogCmp
-	showStateSelector   bool
 }
 
-func New(cookbook *db.CookBook, sessionLog *db.SessionLog, themeManager *themes.ThemeManager, ctx context.Context) (*Manager, error) {
-	keymaps := config.DefaultKeyMap()
+func New(cookbook *db.CookBook, sessionLog *db.SessionLog, themeManager *themes.ThemeManager, cfg *config.Config, ctx context.Context) (*Manager, error) {
+	// Create keymap with custom bindings from config
+	keymaps := config.CreateKeyMapFromConfig(cfg.Keymap)
 	currentTheme := themeManager.GetCurrentTheme()
+
+	executorService, err := chat.NewExecutorService(cookbook, sessionLog, &cfg.Chat)
+	if err != nil {
+		slog.Error("Failed to create executor service", "error", err)
+		return nil, err
+	}
 
 	// Create models
 	models := map[consts.SessionState]common.TUIModel{
-		consts.SessionStateMainMenu: main_menu.New(cookbook, keymaps, currentTheme),
-		consts.SessionStateList:     yummy_list.New(cookbook, keymaps, currentTheme, false),
-		consts.SessionStateDetail:   detail.New(cookbook, keymaps, currentTheme),
-		consts.SessionStateEdit:     edit.New(cookbook, keymaps, currentTheme, nil),
-		consts.SessionStateChat:     chat.New(cookbook, sessionLog, keymaps, currentTheme),
+		consts.SessionStateMainMenu: main_menu.New(cookbook, keymaps, currentTheme, &cfg.MainMenu),
+		consts.SessionStateList:     yummy_list.New(cookbook, keymaps, currentTheme, &cfg.List),
+		consts.SessionStateDetail:   detail.New(cookbook, keymaps, currentTheme, &cfg.Detail),
+		consts.SessionStateEdit:     edit.New(cookbook, keymaps, currentTheme, 0),
+		consts.SessionStateChat:     chat.New(executorService, keymaps, currentTheme, &cfg.Chat),
 	}
 
-	// Create state selector dialog for overlay
-	stateSelectorDialog := dialog.NewStateSelectorDialog(currentTheme)
-
 	// Create status line
-	statusLine := status.New(currentTheme)
+	statusLine := status.New(currentTheme, &cfg.StatusLine)
+
+	// Create state selector dialog for overlay
+	stateSelectorDialog := dialog.NewStateSelectorDialog(currentTheme, &cfg.StateSelectorDialog, keymaps)
+	overlayModel := overlay.New(
+		stateSelectorDialog,
+		models[consts.SessionStateMainMenu],
+		overlay.Center,
+		overlay.Center,
+		0,
+		0,
+	)
 
 	manager := &Manager{
-		ThemeManager:        themeManager,
-		Cookbook:            cookbook,
-		keyMap:              keymaps,
-		models:              models,
-		statusLine:          statusLine,
-		width:               consts.MainMenuContentWidth,
-		height:              consts.DefaultViewportHeight,
-		ModelState:          consts.ModelStateLoaded,
-		Ctx:                 ctx,
-		stateSelectorDialog: stateSelectorDialog,
-		showStateSelector:   false,
+		ThemeManager:         themeManager,
+		CurrentSessionState:  consts.SessionStateMainMenu,
+		PreviousSessionState: consts.SessionStateMainMenu,
+		Cookbook:             cookbook,
+		keyMap:               keymaps,
+		models:               models,
+		statusLine:           statusLine,
+		Ctx:                  ctx,
+		stateSelectorDialog:  stateSelectorDialog,
+		ModalView:            false,
+		overlayModel:         overlayModel,
+		config:               &cfg.General,
 	}
 
 	return manager, nil
-}
-
-func (m *Manager) SetCurrentSessionState(state consts.SessionState) {
-	if m.CurrentSessionState == state {
-		return
-	}
-	m.PreviousSessionState = m.CurrentSessionState
-	m.CurrentSessionState = state
-}
-
-func (m *Manager) GetCurrentSessionState() consts.SessionState {
-	return m.CurrentSessionState
-}
-
-func (m *Manager) GetModel(state consts.SessionState) common.TUIModel {
-	return m.models[state]
 }
 
 func (m *Manager) Init() tea.Cmd {
@@ -114,66 +112,34 @@ func (m *Manager) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case messages.SessionStateMsg:
 		m.SetCurrentSessionState(consts.SessionState(msg.SessionState))
-		if m.showStateSelector {
-			m.showStateSelector = false
-			m.overlayModel = nil
+		if m.ModalView {
+			m.ModalView = false
 		}
 
 	case messages.CloseDialogMsg:
-		m.showStateSelector = false
-		m.overlayModel = nil
+		m.ModalView = false
 
 	case tea.WindowSizeMsg:
-		m.width = msg.Width
-		m.height = msg.Height
-		m.statusLine.SetSize(msg.Width, consts.StatusLineHeight)
+		m.statusLine.SetSize(msg.Width, m.config.Height)
 		for _, model := range m.models {
-			model.SetSize(msg.Width, msg.Height-consts.StatusLineHeight)
+			model.SetSize(msg.Width, msg.Height-m.config.Height)
 		}
 
 		// Update state selector dialog size
 		if m.stateSelectorDialog != nil {
-			m.stateSelectorDialog.SetSize(msg.Width, msg.Height-consts.StatusLineHeight)
+			m.stateSelectorDialog.SetSize(msg.Width, msg.Height-m.config.Height)
 		}
 
 	case tea.KeyMsg:
-		// If state selector overlay is showing, handle its input first
-		if m.showStateSelector {
-			var overlayModel tea.Model
-			overlayModel, cmd = m.overlayModel.Update(msg)
-			if updatedOverlay, ok := overlayModel.(*overlay.Model); ok {
-				m.overlayModel = updatedOverlay
-			}
-			cmds = append(cmds, cmd)
-			return m, tea.Batch(cmds...)
-		}
-
 		switch {
 		case key.Matches(msg, m.keyMap.ForceQuit):
 			return m, tea.Quit
-		case key.Matches(msg, m.keyMap.CursorUp):
-			if m.CurrentSessionState == consts.SessionStateDetail {
-				if detailModel, ok := m.models[consts.SessionStateDetail].(*detail.DetailModel); ok {
-					detailModel.ScrollUp(consts.DefaultScrollSpeed)
-				}
-			}
-		case key.Matches(msg, m.keyMap.CursorDown):
-			if m.CurrentSessionState == consts.SessionStateDetail {
-				if detailModel, ok := m.models[consts.SessionStateDetail].(*detail.DetailModel); ok {
-					detailModel.ScrollDown(consts.DefaultScrollSpeed)
-				}
-			}
-
-		case key.Matches(msg, m.keyMap.Edit):
-			if m.CurrentSessionState == consts.SessionStateDetail {
-				if detailModel, ok := m.models[consts.SessionStateDetail].(*detail.DetailModel); ok {
-					cmds = append(cmds, messages.SendSessionStateMsg(consts.SessionStateEdit))
-					cmds = append(cmds, messages.SendEditRecipeMsg(detailModel.CurrentRecipe.ID))
-				}
-			}
-			return m, tea.Batch(cmds...)
-
 		case key.Matches(msg, m.keyMap.Back):
+			if m.ModalView {
+				m.ModalView = false
+				return m, nil
+			}
+
 			if m.CurrentSessionState == consts.SessionStateList {
 				if listModel, ok := m.models[consts.SessionStateList].(*yummy_list.ListModel); ok {
 					if listModel.RecipeList.FilterState() != list.Filtering {
@@ -195,31 +161,30 @@ func (m *Manager) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 		case key.Matches(msg, m.keyMap.StateSelector):
-			// Create overlay with current model as background and state selector as foreground
-			m.showStateSelector = true
-			if currentModel, exists := m.models[m.CurrentSessionState]; exists {
-				m.overlayModel = overlay.New(
-					m.stateSelectorDialog, // foreground (state selector)
-					currentModel,          // background (current model)
-					overlay.Center,        // x position
-					overlay.Center,        // y position
-					0,                     // x offset
-					0,                     // y offset
-				)
+			if m.ModalView {
+				m.ModalView = false
+				return m, nil
+			} else {
+				m.ModalView = true
+				m.overlayModel.Background = m.GetCurrentModel()
+				return m, nil
 			}
-			return m, nil
 		}
 	}
 
-	// Update the current model (only if overlay is not showing)
-	if !m.showStateSelector {
+	if m.ModalView {
+		fg, fgCmd := m.overlayModel.Foreground.Update(msg)
+		m.overlayModel.Foreground = fg
+		cmds = append(cmds, fgCmd)
+	} else {
 		if currentModel, exists := m.models[m.CurrentSessionState]; exists {
 			var model tea.Model
 			model, cmd = currentModel.Update(msg)
 			if updatedModel, ok := model.(common.TUIModel); ok {
 				m.models[m.CurrentSessionState] = updatedModel
 			} else {
-				log.Printf("Model for state %v is not a TUIModel", m.CurrentSessionState)
+				slog.Error("Model for state is not a TUIModel", "state", m.CurrentSessionState)
+				return m, nil
 			}
 		}
 	}
@@ -232,22 +197,35 @@ func (m Manager) View() string {
 	var content string
 
 	// If state selector overlay is showing, render the overlay
-	if m.showStateSelector && m.overlayModel != nil {
+	if m.ModalView {
 		content = m.overlayModel.View()
 	} else {
-		// Render the current model normally
-		if currentModel, exists := m.models[m.CurrentSessionState]; exists {
-			content = currentModel.View()
-		}
+		content = m.GetCurrentModel().View()
 	}
 
-	// Render status line if not loading
-	if m.models[m.CurrentSessionState].GetModelState() != consts.ModelStateLoading {
-		currentModel := m.models[m.CurrentSessionState]
+	// Render status line
+	if m.GetCurrentModel().GetModelState() == consts.ModelStateLoaded {
+		currentModel := m.GetCurrentModel()
 		statusInfo := status.CreateStatusInfo(currentModel)
 		statusLine := m.statusLine.Render(statusInfo)
 		content = lipgloss.JoinVertical(lipgloss.Left, content, statusLine)
 	}
 
 	return content
+}
+
+func (m *Manager) SetCurrentSessionState(state consts.SessionState) {
+	if m.CurrentSessionState == state {
+		return
+	}
+	m.PreviousSessionState = m.CurrentSessionState
+	m.CurrentSessionState = state
+}
+
+func (m *Manager) GetCurrentModel() common.TUIModel {
+	return m.models[m.CurrentSessionState]
+}
+
+func (m *Manager) GetModel(state consts.SessionState) common.TUIModel {
+	return m.models[state]
 }

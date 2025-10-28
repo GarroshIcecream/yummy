@@ -70,126 +70,152 @@ func (k KeyMap) ListKeyMap() list.KeyMap {
 	return l
 }
 
+// DefaultKeyMap returns the default keymap with standard bindings
 func DefaultKeyMap() KeyMap {
+	return createKeyMap(nil)
+}
+
+// CreateKeyMap creates a keymap with optional custom bindings
+func CreateKeyMap(customBindings map[string][]string) KeyMap {
+	return createKeyMap(customBindings)
+}
+
+// CreateKeyMapFromConfig creates a keymap using the keymap configuration
+func CreateKeyMapFromConfig(keymapConfig KeymapConfig) KeyMap {
+	return createKeyMap(keymapConfig.CustomBindings)
+}
+
+// createKeyMap creates a keymap with the given custom bindings
+func createKeyMap(customBindings map[string][]string) KeyMap {
+	// Helper function to get keys for a binding, with fallback to defaults
+	getKeys := func(bindingName string, defaultKeys []string) []string {
+		if customBindings != nil {
+			if customKeys, exists := customBindings[bindingName]; exists {
+				return customKeys
+			}
+		}
+		return defaultKeys
+	}
+
 	return KeyMap{
 		CursorUp: key.NewBinding(
-			key.WithKeys("k", "up"),
+			key.WithKeys(getKeys("cursor_up", []string{"k", "up"})...),
 			key.WithHelp("↑/k", "move up"),
 		),
+		CursorDown: key.NewBinding(
+			key.WithKeys(getKeys("cursor_down", []string{"j", "down"})...),
+			key.WithHelp("↓/j", "move down"),
+		),
 		Yes: key.NewBinding(
-			key.WithKeys("y"),
+			key.WithKeys(getKeys("yes", []string{"y"})...),
 			key.WithHelp("y", "yes"),
 		),
 		No: key.NewBinding(
-			key.WithKeys("n"),
+			key.WithKeys(getKeys("no", []string{"n"})...),
 			key.WithHelp("n", "no"),
 		),
-		Edit: key.NewBinding(
-			key.WithKeys("ctrl+e"),
-			key.WithHelp("ctrl+e", "edit"),
-		),
-		PrevPage: key.NewBinding(
-			key.WithKeys("h", "pgup", "b", "u"),
-			key.WithHelp("h/pgup", "prev page"),
-		),
-		NextPage: key.NewBinding(
-			key.WithKeys("l", "pgdown", "f", "d"),
-			key.WithHelp("l/pgdn", "next page"),
-		),
-		CursorDown: key.NewBinding(
-			key.WithKeys("j", "down"),
-			key.WithHelp("↓/j", "move down"),
-		),
 		Add: key.NewBinding(
-			key.WithKeys("ctrl+a"),
+			key.WithKeys(getKeys("add", []string{"ctrl+a"})...),
 			key.WithHelp("ctrl+a", "add recipe"),
 		),
-		Quit: key.NewBinding(
-			key.WithKeys("q", "esc"),
-			key.WithHelp("esc/q", "quit"),
-		),
-		ForceQuit: key.NewBinding(
-			key.WithKeys("ctrl+c"),
-			key.WithHelp("ctrl+c", "force quit"),
-		),
-		Enter: key.NewBinding(
-			key.WithKeys("enter"),
-			key.WithHelp("enter", "select"),
-		),
 		Back: key.NewBinding(
-			key.WithKeys("esc", "q"),
+			key.WithKeys(getKeys("back", []string{"esc", "q"})...),
 			key.WithHelp("esc/q", "go back"),
 		),
-		ShowFullHelp: key.NewBinding(
-			key.WithKeys("?"),
-			key.WithHelp("?", "more"),
-		),
-		CloseFullHelp: key.NewBinding(
-			key.WithKeys("?"),
-			key.WithHelp("?", "close help"),
-		),
 		Delete: key.NewBinding(
-			key.WithKeys("ctrl+x"),
+			key.WithKeys(getKeys("delete", []string{"ctrl+x"})...),
 			key.WithHelp("ctrl+x", "delete recipe"),
 		),
+		Quit: key.NewBinding(
+			key.WithKeys(getKeys("quit", []string{"q", "esc"})...),
+			key.WithHelp("esc/q", "quit"),
+		),
+		Enter: key.NewBinding(
+			key.WithKeys(getKeys("enter", []string{"enter"})...),
+			key.WithHelp("enter", "select"),
+		),
+		Help: key.NewBinding(
+			key.WithKeys(getKeys("help", []string{"h", "?"})...),
+			key.WithHelp("h/?", "help"),
+		),
+		Edit: key.NewBinding(
+			key.WithKeys(getKeys("edit", []string{"ctrl+e"})...),
+			key.WithHelp("ctrl+e", "edit"),
+		),
 		StateSelector: key.NewBinding(
-			key.WithKeys("ctrl+s"),
+			key.WithKeys(getKeys("state_selector", []string{"ctrl+s"})...),
 			key.WithHelp("ctrl+s", "select state"),
 		),
 		SessionSelector: key.NewBinding(
-			key.WithKeys("ctrl+n"),
+			key.WithKeys(getKeys("session_selector", []string{"ctrl+n"})...),
 			key.WithHelp("ctrl+n", "select session"),
 		),
 		SetFavourite: key.NewBinding(
-			key.WithKeys("ctrl+t"),
+			key.WithKeys(getKeys("set_favourite", []string{"ctrl+t"})...),
 			key.WithHelp("ctrl+t", "set favourite"),
 		),
+		PrevPage: key.NewBinding(
+			key.WithKeys(getKeys("prev_page", []string{"h", "pgup", "b", "u"})...),
+			key.WithHelp("h/pgup", "prev page"),
+		),
+		NextPage: key.NewBinding(
+			key.WithKeys(getKeys("next_page", []string{"l", "pgdown", "f", "d"})...),
+			key.WithHelp("l/pgdn", "next page"),
+		),
+		ForceQuit: key.NewBinding(
+			key.WithKeys(getKeys("force_quit", []string{"ctrl+c"})...),
+			key.WithHelp("ctrl+c", "force quit"),
+		),
+		ShowFullHelp: key.NewBinding(
+			key.WithKeys(getKeys("show_full_help", []string{"?"})...),
+			key.WithHelp("?", "more"),
+		),
+		CloseFullHelp: key.NewBinding(
+			key.WithKeys(getKeys("close_full_help", []string{"?"})...),
+			key.WithHelp("?", "close help"),
+		),
 		CancelWhileFiltering: key.NewBinding(
-			key.WithKeys("esc"),
+			key.WithKeys(getKeys("cancel_while_filtering", []string{"esc"})...),
 			key.WithHelp("esc", "cancel"),
 		),
 		AcceptWhileFiltering: key.NewBinding(
-			key.WithKeys("enter", "tab", "shift+tab", "ctrl+k", "up", "ctrl+j", "down"),
+			key.WithKeys(getKeys("accept_while_filtering", []string{"enter", "tab", "shift+tab", "ctrl+k", "up", "ctrl+j", "down"})...),
 			key.WithHelp("enter", "apply filter"),
 		),
 		GoToStart: key.NewBinding(
-			key.WithKeys("home", "g"),
+			key.WithKeys(getKeys("go_to_start", []string{"home", "g"})...),
 			key.WithHelp("g/home", "go to start"),
 		),
 		GoToEnd: key.NewBinding(
-			key.WithKeys("end", "G"),
+			key.WithKeys(getKeys("go_to_end", []string{"end", "G"})...),
 			key.WithHelp("G/end", "go to end"),
 		),
 		Filter: key.NewBinding(
-			key.WithKeys("/"),
+			key.WithKeys(getKeys("filter", []string{"/"})...),
 			key.WithHelp("/", "filter"),
 		),
 		ClearFilter: key.NewBinding(
-			key.WithKeys("esc"),
+			key.WithKeys(getKeys("clear_filter", []string{"esc"})...),
 			key.WithHelp("esc", "clear filter"),
 		),
-		Help: key.NewBinding(
-			key.WithKeys("h", "?"),
-			key.WithHelp("h/?", "help"),
-		),
 		EditIngredients: key.NewBinding(
-			key.WithKeys("i"),
+			key.WithKeys(getKeys("edit_ingredients", []string{"i"})...),
 			key.WithHelp("i", "edit ingredients"),
 		),
 		EditInstructions: key.NewBinding(
-			key.WithKeys("s"),
+			key.WithKeys(getKeys("edit_instructions", []string{"s"})...),
 			key.WithHelp("s", "edit instructions"),
 		),
 		EditAdd: key.NewBinding(
-			key.WithKeys("a"),
+			key.WithKeys(getKeys("edit_add", []string{"a"})...),
 			key.WithHelp("a", "add item"),
 		),
 		EditEdit: key.NewBinding(
-			key.WithKeys("e"),
+			key.WithKeys(getKeys("edit_edit", []string{"e"})...),
 			key.WithHelp("e", "edit item"),
 		),
 		EditDelete: key.NewBinding(
-			key.WithKeys("d"),
+			key.WithKeys(getKeys("edit_delete", []string{"d"})...),
 			key.WithHelp("d", "delete item"),
 		),
 	}

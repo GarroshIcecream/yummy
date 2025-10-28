@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/GarroshIcecream/yummy/yummy/config"
 	db "github.com/GarroshIcecream/yummy/yummy/db"
 	log "github.com/GarroshIcecream/yummy/yummy/log"
 	themes "github.com/GarroshIcecream/yummy/yummy/themes"
@@ -19,8 +20,7 @@ import (
 )
 
 func init() {
-	rootCmd.PersistentFlags().BoolP("debug", "d", false, "Debug")
-	rootCmd.Flags().BoolP("help", "h", false, "Help")
+	rootCmd.PersistentFlags().BoolP("debug", "d", false, "Enable debug logging")
 	rootCmd.Flags().StringP("theme", "t", "default", "Theme to use (default, dark, light)")
 
 	rootCmd.AddCommand(exportCmd)
@@ -50,11 +50,11 @@ Cook boldly. Ship deliciousness.`,
 # Run in interactive mode
 yummy
 
-# Print version
-yummy -v
-
 # Run with debug logging
 yummy -d
+
+# Run with a theme
+yummy -t dark
   `,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		app, err := setupApp(cmd)
@@ -90,75 +90,66 @@ func Execute() {
 	}
 }
 
-func ResolveCwd(cmd *cobra.Command) (string, error) {
-	cwd, _ := cmd.Flags().GetString("cwd")
-	if cwd != "" {
-		err := os.Chdir(cwd)
-		if err != nil {
-			return "", fmt.Errorf("failed to change directory: %v", err)
-		}
-		return cwd, nil
-	}
-
-	cwd, err := os.UserHomeDir()
-	if err != nil {
-		return "", fmt.Errorf("failed to get user home directory: %v", err)
-	}
-	return cwd, nil
-}
-
 func setupApp(cmd *cobra.Command) (*tui.Manager, error) {
 	ctx := cmd.Context()
 
-	cwd, err := ResolveCwd(cmd)
+	// Get user home directory for data storage
+	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get user home directory: %v", err)
 	}
 
+	datadir := filepath.Join(homeDir, ".yummy")
+	if err := os.MkdirAll(datadir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create Yummy data directory: %v", err)
+	}
+
+	// Load configuration
+	cfg, err := config.LoadConfig(datadir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load configuration: %v", err)
+	}
+
+	// Override config with command line flags if provided
 	theme, err := cmd.Flags().GetString("theme")
 	if err != nil {
 		return nil, err
+	} else {
+		cfg.Theme = theme
 	}
 
-	themeManager := themes.NewThemeManager()
-	if err := themeManager.SetThemeByName(theme); err != nil {
-		return nil, err
+	// Setup logging first before any other operations
+	debug, _ := cmd.Flags().GetBool("debug")
+	log.Setup(datadir, debug)
+
+	themeManager := themes.NewThemeManager(filepath.Join(datadir, "themes"))
+	if err := themeManager.SetThemeByName(cfg.Theme); err != nil {
+		slog.Error("Failed to set theme", "theme", cfg.Theme, "error", err)
+		return nil, fmt.Errorf("failed to set theme '%s': %v", cfg.Theme, err)
 	}
 
-	//debug, _ := cmd.Flags().GetBool("debug")
-	// cfg, err := config.Init(cwd, debug)
-	// if err != nil {
-	// 	return nil, err
-	// }
-
-	datadir := filepath.Join(cwd, ".yummy")
-	if err := os.MkdirAll(datadir, 0755); err != nil {
-		slog.Error("Error creating database directory", "error", err)
-	}
-
-	// setup log
-	log.Setup(datadir, true)
-
-	cookbook, err := db.NewCookBook(datadir)
+	cookbook, err := db.NewCookBook(datadir, &cfg.Database)
 	if err != nil {
-		return nil, err
+		slog.Error("Failed to initialize cookbook", "error", err)
+		return nil, fmt.Errorf("failed to initialize cookbook: %v", err)
 	}
 
-	sessionLog, err := db.NewSessionLog(datadir)
+	sessionLog, err := db.NewSessionLog(datadir, &cfg.Database)
 	if err != nil {
-		return nil, err
+		slog.Error("Failed to initialize session log", "error", err)
+		return nil, fmt.Errorf("failed to initialize session log: %v", err)
 	}
 
-	ollamaStatus := chat.GetOllamaServiceStatus()
-	if ollamaStatus.Error != nil {
-		slog.Error("Ollama service status", "error", ollamaStatus.Error)
-		return nil, fmt.Errorf("ollama service status: %v", ollamaStatus.Error)
+	_, err = chat.GetOllamaServiceStatus(cfg.Chat.DefaultModel)
+	if err != nil {
+		slog.Error("Failed to get ollama service status", "error", err)
+		return nil, fmt.Errorf("failed to get ollama service status: %v", err)
 	}
 
-	tuiInstance, err := tui.New(cookbook, sessionLog, themeManager, ctx)
+	tuiInstance, err := tui.New(cookbook, sessionLog, themeManager, cfg, ctx)
 	if err != nil {
 		slog.Error("Failed to create tui instance", "error", err)
-		return nil, err
+		return nil, fmt.Errorf("failed to create TUI instance: %v", err)
 	}
 
 	return tuiInstance, nil

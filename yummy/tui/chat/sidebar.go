@@ -4,17 +4,12 @@ import (
 	"fmt"
 	"strings"
 
+	db "github.com/GarroshIcecream/yummy/yummy/db"
 	themes "github.com/GarroshIcecream/yummy/yummy/themes"
 )
 
-func RenderSidebar(messageCount int, tokenCount int, ollamaStatus OllamaServiceStatus, llmService *LLMService, theme *themes.Theme, sidebarWidth int, sidebarHeight int) string {
+func RenderSidebar(sessionStats db.SessionStats, ollamaStatus OllamaServiceStatus, executorService *ExecutorService, theme *themes.Theme, sidebarWidth int, sidebarHeight int) string {
 	var sidebar strings.Builder
-
-	// Model Information
-	if llmService != nil {
-		sidebar.WriteString(theme.SidebarSection.Render(fmt.Sprintf("🧠 Model: %s", llmService.modelName)))
-		sidebar.WriteString("\n\n")
-	}
 
 	// Ollama Health Status
 	status := ollamaStatus
@@ -23,21 +18,17 @@ func RenderSidebar(messageCount int, tokenCount int, ollamaStatus OllamaServiceS
 	} else {
 		sidebar.WriteString(theme.SidebarSection.Render("🔧 Ollama Status: ❌"))
 		sidebar.WriteString("\n")
-		if status.Error != nil {
-			sidebar.WriteString(theme.SidebarError.Render(fmt.Sprintf("   • %s", status.Error)))
-			sidebar.WriteString("\n")
-		}
 	}
 	sidebar.WriteString("\n")
 
 	// Available Tools
 	sidebar.WriteString(theme.SidebarSection.Render("🛠️  Available Tools"))
 	sidebar.WriteString("\n")
-	if llmService != nil && llmService.toolManager != nil {
-		tools := llmService.toolManager.GetTools()
+	if executorService != nil {
+		tools := executorService.toolManager.GetTools()
 		if len(tools) > 0 {
 			for _, tool := range tools {
-				sidebar.WriteString(theme.SidebarContent.Render(fmt.Sprintf("   • %s", tool.Function.Name)))
+				sidebar.WriteString(theme.SidebarContent.Render(fmt.Sprintf("   • %s", tool.Name())))
 				sidebar.WriteString("\n")
 			}
 		} else {
@@ -53,9 +44,9 @@ func RenderSidebar(messageCount int, tokenCount int, ollamaStatus OllamaServiceS
 	// Session Stats
 	sidebar.WriteString(theme.SidebarSection.Render("📊 Session Stats"))
 	sidebar.WriteString("\n")
-	sidebar.WriteString(theme.SidebarContent.Render(fmt.Sprintf("   Messages: %d", messageCount)))
+	sidebar.WriteString(theme.SidebarContent.Render(fmt.Sprintf("   Messages: %d", sessionStats.MessageCount)))
 	sidebar.WriteString("\n")
-	sidebar.WriteString(theme.SidebarContent.Render(fmt.Sprintf("   Tokens: %s", formatTokenCount(tokenCount))))
+	sidebar.WriteString(theme.SidebarContent.Render(fmt.Sprintf("   Tokens: %s", formatTokenCount(sessionStats.TotalTokens))))
 	sidebar.WriteString("\n\n")
 
 	// Controls

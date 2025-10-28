@@ -1,0 +1,51 @@
+{
+  "theme": "default",
+  "chat": {
+    "default_model": "gemma3:4b",
+    "temperature": 0.9,
+    "max_tokens": 1000,
+    "viewport_height": 30,
+    "viewport_width": 80,
+    "scroll_speed": 3,
+    "move_speed": 1,
+    "text_area_height": 3,
+    "text_area_max_char": 400,
+    "sidebar_width": 30,
+    "min_width_for_sidebar": 100
+  },
+  "database": {
+    "auto_backup": true,
+    "backup_interval_hours": 24,
+    "max_backups": 7
+  },
+  "keymap": {
+    "custom_bindings": {
+      "quit": ["q", "esc"],
+      "force_quit": ["ctrl+c"],
+      "add": ["ctrl+a"],
+      "edit": ["ctrl+e"],
+      "delete": ["ctrl+x"],
+      "state_selector": ["ctrl+s"],
+      "session_selector": ["ctrl+n"],
+      "set_favourite": ["ctrl+t"],
+      "help": ["h", "?"],
+      "filter": ["/"],
+      "cursor_up": ["k", "up"],
+      "cursor_down": ["j", "down"],
+      "prev_page": ["h", "pgup", "b", "u"],
+      "next_page": ["l", "pgdown", "f", "d"],
+      "go_to_start": ["home", "g"],
+      "go_to_end": ["end", "G"],
+      "edit_ingredients": ["i"],
+      "edit_instructions": ["s"],
+      "edit_add": ["a"],
+      "edit_edit": ["e"],
+      "edit_delete": ["d"]
+    }
+  },
+  "general": {
+    "debug": false,
+    "status_line_height": 1,
+    "status_line_padding": 2
+  }
+}

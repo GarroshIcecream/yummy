@@ -91,7 +91,6 @@ type SessionMessage struct {
 	Message      string
 	Role         string
 	ModelName    string
-	Content      string
 	InputTokens  int
 	OutputTokens int
 	TotalTokens  int

@@ -3,6 +3,7 @@ package recipe
 import (
 	"time"
 
+	utils "github.com/GarroshIcecream/yummy/yummy/utils"
 	scrape "github.com/kkyr/go-recipe"
 	recipe "github.com/kkyr/go-recipe/pkg/recipe"
 )
@@ -78,9 +79,9 @@ func GetRecipeFromURL(url string) (*RecipeRaw, error) {
 		recipeRaw.Instructions = *instructions
 	}
 	if ingredients := GetIngredients(recipe); ingredients != nil {
-		parsedIngredients := make([]Ingredient, len(*ingredients))
+		parsedIngredients := make([]utils.Ingredient, len(*ingredients))
 		for i, ing := range *ingredients {
-			parsedIngredients[i] = ParseIngredient(ing)
+			parsedIngredients[i] = utils.ParseIngredient(ing)
 		}
 		recipeRaw.Ingredients = parsedIngredients
 	}
