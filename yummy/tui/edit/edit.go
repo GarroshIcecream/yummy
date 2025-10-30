@@ -6,10 +6,9 @@ import (
 	"time"
 
 	"github.com/GarroshIcecream/yummy/yummy/config"
-	consts "github.com/GarroshIcecream/yummy/yummy/consts"
 	db "github.com/GarroshIcecream/yummy/yummy/db"
+	common "github.com/GarroshIcecream/yummy/yummy/models/common"
 	messages "github.com/GarroshIcecream/yummy/yummy/models/msg"
-	recipes "github.com/GarroshIcecream/yummy/yummy/recipe"
 	themes "github.com/GarroshIcecream/yummy/yummy/themes"
 	utils "github.com/GarroshIcecream/yummy/yummy/utils"
 	tea "github.com/charmbracelet/bubbletea"
@@ -28,7 +27,7 @@ const (
 type EditModel struct {
 	// Configuration
 	cookbook   *db.CookBook
-	modelState consts.ModelState
+	modelState common.ModelState
 	theme      *themes.Theme
 	keyMap     config.KeyMap
 
@@ -76,7 +75,7 @@ func New(cookbook *db.CookBook, keymaps config.KeyMap, theme *themes.Theme, reci
 		isNew:                   recipeID == 0,
 		state:                   EditStateMainForm,
 		showHelp:                false,
-		modelState:              consts.ModelStateLoaded,
+		modelState:              common.ModelStateLoaded,
 		theme:                   theme,
 		ingredients:             []utils.Ingredient{},
 		instructions:            []string{},
@@ -106,7 +105,7 @@ func (m *EditModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case messages.SaveMsg:
-		cmds = append(cmds, messages.SendSessionStateMsg(consts.SessionStateDetail))
+		cmds = append(cmds, messages.SendSessionStateMsg(common.SessionStateDetail))
 		if m.recipeID != nil {
 			cmds = append(cmds, messages.SendRecipeSelectedMsg(*m.recipeID))
 		}
@@ -170,7 +169,7 @@ func (m *EditModel) View() string {
 	return m.mainForm.View()
 }
 
-func (m *EditModel) FetchRecipe(recipeID uint) (*recipes.RecipeRaw, error) {
+func (m *EditModel) FetchRecipe(recipeID uint) (*utils.RecipeRaw, error) {
 	recipe, err := m.cookbook.GetFullRecipe(recipeID)
 	if err != nil {
 		slog.Error("Failed to fetch recipe: %s", "error", err)
@@ -179,18 +178,18 @@ func (m *EditModel) FetchRecipe(recipeID uint) (*recipes.RecipeRaw, error) {
 	return recipe, nil
 }
 
-func (m *EditModel) loadRecipe(recipe *recipes.RecipeRaw) {
-	m.recipeID = &recipe.ID
-	m.name = recipe.Name
-	m.description = recipe.Description
-	m.author = recipe.Author
-	m.prepTime = recipe.PrepTime.String()
-	m.cookTime = recipe.CookTime.String()
-	m.servings = recipe.Quantity
-	m.url = recipe.URL
-	m.categories = recipe.Categories
-	m.ingredients = recipe.Ingredients
-	m.instructions = recipe.Instructions
+func (m *EditModel) loadRecipe(recipe *utils.RecipeRaw) {
+	m.recipeID = &recipe.RecipeID
+	m.name = recipe.RecipeName
+	m.description = recipe.RecipeDescription
+	m.author = recipe.Metadata.Author
+	m.prepTime = recipe.Metadata.PrepTime.String()
+	m.cookTime = recipe.Metadata.CookTime.String()
+	m.servings = recipe.Metadata.Quantity
+	m.url = recipe.Metadata.URL
+	m.categories = recipe.Metadata.Categories
+	m.ingredients = recipe.Metadata.Ingredients
+	m.instructions = recipe.Metadata.Instructions
 }
 
 func (m *EditModel) saveRecipe() (tea.Msg, error) {
@@ -204,18 +203,20 @@ func (m *EditModel) saveRecipe() (tea.Msg, error) {
 		return nil, err
 	}
 
-	recipe := &recipes.RecipeRaw{
-		Name:         m.name,
-		Description:  m.description,
-		Author:       m.author,
-		PrepTime:     prepTime,
-		CookTime:     cookTime,
-		TotalTime:    prepTime + cookTime,
-		Quantity:     m.servings,
-		URL:          m.url,
-		Categories:   m.categories,
-		Ingredients:  m.ingredients,
-		Instructions: m.instructions,
+	recipe := &utils.RecipeRaw{
+		RecipeName:        m.name,
+		RecipeDescription: m.description,
+		Metadata: utils.RecipeMetadata{
+			Author:       m.author,
+			PrepTime:     prepTime,
+			CookTime:     cookTime,
+			TotalTime:    prepTime + cookTime,
+			Quantity:     m.servings,
+			URL:          m.url,
+			Categories:   m.categories,
+			Ingredients:  m.ingredients,
+			Instructions: m.instructions,
+		},
 	}
 
 	// Save to database
@@ -224,9 +225,9 @@ func (m *EditModel) saveRecipe() (tea.Msg, error) {
 		if err != nil {
 			return nil, err
 		}
-		recipe.ID = recipeID
+		recipe.RecipeID = recipeID
 	} else {
-		recipe.ID = *m.recipeID
+		recipe.RecipeID = *m.recipeID
 		err := m.cookbook.UpdateRecipe(recipe)
 		if err != nil {
 			return nil, err
@@ -379,12 +380,12 @@ func (m *EditModel) setupForms() {
 	// ).WithTheme(huh.ThemeCharm())
 }
 
-func (m *EditModel) GetModelState() consts.ModelState {
+func (m *EditModel) GetModelState() common.ModelState {
 	return m.modelState
 }
 
-func (m *EditModel) GetSessionState() consts.SessionState {
-	return consts.SessionStateEdit
+func (m *EditModel) GetSessionState() common.SessionState {
+	return common.SessionStateEdit
 }
 
 // GetSize returns the current width and height of the model

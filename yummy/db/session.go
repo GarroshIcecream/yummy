@@ -4,11 +4,14 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/GarroshIcecream/yummy/yummy/config"
+	"github.com/GarroshIcecream/yummy/yummy/log"
 	"github.com/tmc/langchaingo/llms"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
+	gormlogger "gorm.io/gorm/logger"
 )
 
 // SessionStats struct for session statistics
@@ -22,7 +25,13 @@ type SessionStats struct {
 
 // Creates new instance of SessionLog struct
 func NewSessionLog(dbPath string, config *config.DatabaseConfig, opts ...gorm.Option) (*SessionLog, error) {
-	dbPath = filepath.Join(dbPath, "db", config.SessionLogDBName)
+	dbDir := filepath.Join(dbPath, "db")
+	if err := os.MkdirAll(dbDir, 0755); err != nil {
+		slog.Error("Failed to create database directory", "dir", dbDir, "error", err)
+		return nil, err
+	}
+
+	dbPath = filepath.Join(dbDir, config.SessionLogDBName)
 	_, err := os.Stat(dbPath)
 	if err != nil {
 		slog.Info("Database does not exist at %s, creating new database...", "dbPath", dbPath, "error", err)
@@ -32,6 +41,9 @@ func NewSessionLog(dbPath string, config *config.DatabaseConfig, opts ...gorm.Op
 	if err != nil {
 		return nil, err
 	}
+
+	// Configure GORM to use slog logger (logs to file via slog setup, not stdout)
+	dbCon.Logger = log.NewGormLogger(200*time.Millisecond, true, gormlogger.Info)
 
 	if err := dbCon.AutoMigrate(GetSessionLogModels()...); err != nil {
 		return nil, err

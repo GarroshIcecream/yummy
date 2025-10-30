@@ -77,19 +77,17 @@ type SessionSelectorDialogConfig struct {
 
 // ChatConfig contains chat-related settings
 type ChatConfig struct {
-	DefaultModel        string  `json:"default_model"`
-	Temperature         float64 `json:"temperature"`
-	MaxTokens           int     `json:"max_tokens"`
-	ViewportHeight      int     `json:"viewport_height"`
-	ViewportWidth       int     `json:"viewport_width"`
-	ScrollSpeed         int     `json:"scroll_speed"`
-	MoveSpeed           int     `json:"move_speed"`
-	TextAreaHeight      int     `json:"text_area_height"`
-	TextAreaMaxChar     int     `json:"text_area_max_char"`
-	SidebarWidth        int     `json:"sidebar_width"`
-	MinWidthForSidebar  int     `json:"min_width_for_sidebar"`
-	SystemPrompt        string  `json:"system_prompt"`
-	TextAreaPlaceholder string  `json:"text_area_placeholder"`
+	DefaultModel             string  `json:"default_model"`
+	Temperature              float64 `json:"temperature"`
+	MaxTokens                int     `json:"max_tokens"`
+	SystemPrompt             string  `json:"system_prompt"`
+	TextAreaPlaceholder      string  `json:"text_area_placeholder"`
+	TextAreaMaxChar          int     `json:"text_area_max_char"`
+	UserName                 string  `json:"user_name"`
+	AssistantName            string  `json:"assistant_name"`
+	AssistantAvatar          string  `json:"assistant_avatar"`
+	UserAvatar               string  `json:"user_avatar"`
+	AssistantThinkingMessage string  `json:"assistant_thinking_message"`
 
 	// UI Layout constants
 	UILayout UILayoutConfig `json:"ui_layout"`
@@ -121,8 +119,6 @@ type UILayoutConfig struct {
 	// Viewport constraints
 	ViewportHeight     int `json:"viewport_height"`
 	ViewportWidth      int `json:"viewport_width"`
-	TextAreaHeight     int `json:"text_area_height"`
-	TextAreaMaxChar    int `json:"text_area_max_char"`
 	SidebarWidth       int `json:"sidebar_width"`
 	MinWidthForSidebar int `json:"min_width_for_sidebar"`
 }
@@ -205,7 +201,13 @@ func NewDefaultConfig() *Config {
 
 			Remember: You are a cooking expert, so provide accurate, helpful information and be enthusiastic about food and cooking!`,
 
-			TextAreaPlaceholder: "Ask anything about cooking, recipes, ingredients, or anything else you want to know about food... 🍳 ",
+			TextAreaPlaceholder:      "Ask anything about cooking, recipes, ingredients, or anything else you want to know about food... 🍳 ",
+			TextAreaMaxChar:          400,
+			UserName:                 "User",
+			AssistantName:            "Assistant",
+			AssistantAvatar:          "🤖",
+			UserAvatar:               "👤",
+			AssistantThinkingMessage: "Thinking...",
 			UILayout: UILayoutConfig{
 				ContentPadding:              8,
 				MarkdownPadding:             8,
@@ -214,18 +216,15 @@ func NewDefaultConfig() *Config {
 				MinViewportHeight:           8,
 				MinMarkdownWidthForRenderer: 8,
 				TitleHeight:                 5,
-				InputHeight:                 6,
+				InputHeight:                 5,
 				BorderPadding:               6,
 				TotalUIHeight:               13,
-				MinSidebarWidth:             25,
-				MaxSidebarWidth:             40,
-				SidebarWidthRatio:           3,
-				ViewportHeight:              30,
-				ViewportWidth:               80,
-				TextAreaHeight:              3,
-				TextAreaMaxChar:             400,
 				SidebarWidth:                30,
 				MinWidthForSidebar:          100,
+				MinSidebarWidth:             25,
+				MaxSidebarWidth:             40,
+				ViewportHeight:              30,
+				ViewportWidth:               80,
 			},
 		},
 		Database: DatabaseConfig{

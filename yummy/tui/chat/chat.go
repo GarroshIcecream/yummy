@@ -1,6 +1,7 @@
 package chat
 
 import (
+	"fmt"
 	"log/slog"
 	"os"
 	"strings"
@@ -17,7 +18,7 @@ import (
 	"github.com/tmc/langchaingo/llms"
 
 	"github.com/GarroshIcecream/yummy/yummy/config"
-	consts "github.com/GarroshIcecream/yummy/yummy/consts"
+	common "github.com/GarroshIcecream/yummy/yummy/models/common"
 	messages "github.com/GarroshIcecream/yummy/yummy/models/msg"
 	themes "github.com/GarroshIcecream/yummy/yummy/themes"
 	"github.com/GarroshIcecream/yummy/yummy/utils"
@@ -39,7 +40,7 @@ type ChatModel struct {
 	ExecutorService *ExecutorService
 
 	// UI state
-	modelState         consts.ModelState
+	modelState         common.ModelState
 	waitingForResponse bool
 	width              int
 	height             int
@@ -54,8 +55,8 @@ type ChatModel struct {
 func New(executorService *ExecutorService, keymaps config.KeyMap, theme *themes.Theme, chatConfig *config.ChatConfig) *ChatModel {
 	windowWidth, windowHeight, err := term.GetSize(int(os.Stdout.Fd()))
 	if err != nil {
-		windowWidth = chatConfig.ViewportWidth
-		windowHeight = chatConfig.ViewportHeight
+		windowWidth = chatConfig.UILayout.ViewportWidth
+		windowHeight = chatConfig.UILayout.ViewportHeight
 	}
 
 	// Calculate markdown width accounting for message formatting
@@ -83,15 +84,14 @@ func New(executorService *ExecutorService, keymaps config.KeyMap, theme *themes.
 		contentWidth = chatConfig.UILayout.MinContentWidth
 	}
 	ta.SetWidth(contentWidth)
-	ta.SetHeight(chatConfig.TextAreaHeight)
+	ta.SetHeight(chatConfig.UILayout.InputHeight)
 	ta.FocusedStyle.CursorLine = lipgloss.NewStyle()
 	ta.ShowLineNumbers = false
 
-	// Calculate viewport height with proper space allocation
+	// Calculate viewport height to fully utilize available terminal height
 	titleHeight := chatConfig.UILayout.TitleHeight
-	inputHeight := chatConfig.UILayout.InputHeight
-	borderPadding := chatConfig.UILayout.BorderPadding
-	viewportHeight := windowHeight - titleHeight - inputHeight - borderPadding
+	inputHeight := ta.Height()
+	viewportHeight := windowHeight - titleHeight - inputHeight
 	if viewportHeight < chatConfig.UILayout.MinViewportHeight {
 		viewportHeight = chatConfig.UILayout.MinViewportHeight
 	}
@@ -111,9 +111,9 @@ func New(executorService *ExecutorService, keymaps config.KeyMap, theme *themes.
 		spinner:            s,
 		ExecutorService:    executorService,
 		markdownRenderer:   markdownRenderer,
-		modelState:         consts.ModelStateLoaded,
-		sidebarWidth:       chatConfig.SidebarWidth,
-		showSidebar:        windowWidth >= chatConfig.MinWidthForSidebar,
+		modelState:         common.ModelStateLoaded,
+		sidebarWidth:       chatConfig.UILayout.SidebarWidth,
+		showSidebar:        windowWidth >= chatConfig.UILayout.MinWidthForSidebar,
 		theme:              theme,
 		waitingForResponse: false,
 		isStreaming:        false,
@@ -174,6 +174,18 @@ func (m *ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		switch {
+		case key.Matches(msg, m.keyMap.NewSession):
+			err := m.ExecutorService.NewSession()
+			if err != nil {
+				slog.Error("Error creating new session", "error", err)
+				return m, nil
+			}
+			// Reset streaming state when creating a new session
+			m.waitingForResponse = false
+			m.isStreaming = false
+			m.streamingResponse = ""
+			cmds = append(cmds, messages.SendRenderConversationAsMarkdownMsg())
+
 		case key.Matches(msg, m.keyMap.Enter):
 			userInput := strings.TrimSpace(m.textarea.Value())
 			m.textarea.Reset()
@@ -230,6 +242,7 @@ func (m *ChatModel) SendGenerateResponseMsg(userInput string) tea.Cmd {
 }
 
 func (m *ChatModel) RenderConversationAsMarkdown() error {
+	// Check if user is at the bottom before updating
 	var conversation strings.Builder
 	conversationMessages, err := m.ExecutorService.GetMemoryConversation()
 	if err != nil {
@@ -237,6 +250,8 @@ func (m *ChatModel) RenderConversationAsMarkdown() error {
 		return err
 	}
 
+	userNameFull := fmt.Sprintf("%s %s:", m.chatConfig.UserAvatar, m.chatConfig.UserName)
+	assistantNameFull := fmt.Sprintf("%s %s:", m.chatConfig.AssistantAvatar, m.chatConfig.AssistantName)
 	for i, message := range conversationMessages {
 		role := message.GetType()
 		content := message.GetContent()
@@ -248,9 +263,9 @@ func (m *ChatModel) RenderConversationAsMarkdown() error {
 		var header string
 		switch role {
 		case llms.ChatMessageTypeHuman:
-			header = m.theme.UserMessage.Render("👤 You:")
+			header = m.theme.UserMessage.Render(userNameFull)
 		case llms.ChatMessageTypeAI:
-			header = m.theme.AssistantMessage.Render("🤖 Assistant:")
+			header = m.theme.AssistantMessage.Render(assistantNameFull)
 		default:
 			header = ""
 		}
@@ -272,7 +287,7 @@ func (m *ChatModel) RenderConversationAsMarkdown() error {
 	// Add streaming response or thinking indicator if loading
 	if m.waitingForResponse || m.isStreaming {
 		conversation.WriteString("\n")
-		assistantHeader := m.theme.AssistantMessage.Render("🤖 Assistant:")
+		assistantHeader := m.theme.AssistantMessage.Render(assistantNameFull)
 		conversation.WriteString(assistantHeader + "\n\n")
 
 		if m.isStreaming && m.streamingResponse != "" {
@@ -287,14 +302,17 @@ func (m *ChatModel) RenderConversationAsMarkdown() error {
 			conversation.WriteString("▋")
 		} else {
 			// Show thinking indicator
-			thinkingContent := m.spinner.View() + " Thinking..."
+			thinkingContent := m.spinner.View() + " " + m.chatConfig.AssistantThinkingMessage
 			conversation.WriteString(thinkingContent)
 		}
 	}
 
-	result := conversation.String()
-	m.viewport.SetContent(result)
-	m.viewport.GotoBottom()
+	// Only auto-scroll to bottom if user was already at the bottom
+	wasAtBottom := m.viewport.AtBottom()
+	m.viewport.SetContent(conversation.String())
+	if wasAtBottom {
+		m.viewport.GotoBottom()
+	}
 	return nil
 }
 
@@ -302,8 +320,8 @@ func (m *ChatModel) SetSize(width, height int) {
 	m.width = width
 	m.height = height
 
-	m.showSidebar = width >= m.chatConfig.MinWidthForSidebar
-	m.sidebarWidth = max(m.chatConfig.UILayout.MinSidebarWidth, min(m.chatConfig.UILayout.MaxSidebarWidth, width/m.chatConfig.UILayout.SidebarWidthRatio))
+	m.showSidebar = width >= m.chatConfig.UILayout.MinWidthForSidebar
+	m.sidebarWidth = max(m.chatConfig.UILayout.MinSidebarWidth, min(m.chatConfig.UILayout.MaxSidebarWidth, width/3))
 
 	contentWidth := width - m.chatConfig.UILayout.ContentPadding
 	if m.showSidebar {
@@ -311,7 +329,12 @@ func (m *ChatModel) SetSize(width, height int) {
 	}
 
 	contentWidth = max(m.chatConfig.UILayout.MinContentWidth, contentWidth)
-	viewportHeight := max(m.chatConfig.UILayout.MinViewportHeight, height-m.chatConfig.UILayout.TotalUIHeight)
+	desiredInputHeight := m.chatConfig.UILayout.InputHeight
+	m.textarea.SetHeight(desiredInputHeight)
+	viewportHeight := max(
+		m.chatConfig.UILayout.MinViewportHeight,
+		height-m.chatConfig.UILayout.TitleHeight-desiredInputHeight,
+	)
 
 	m.viewport.Width = contentWidth
 	m.viewport.Height = viewportHeight
@@ -330,10 +353,10 @@ func (m *ChatModel) GetSize() (width, height int) {
 	return m.width, m.height
 }
 
-func (m *ChatModel) GetModelState() consts.ModelState {
+func (m *ChatModel) GetModelState() common.ModelState {
 	return m.modelState
 }
 
-func (m *ChatModel) GetSessionState() consts.SessionState {
-	return consts.SessionStateChat
+func (m *ChatModel) GetSessionState() common.SessionState {
+	return common.SessionStateChat
 }

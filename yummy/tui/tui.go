@@ -5,7 +5,6 @@ import (
 	"log/slog"
 
 	"github.com/GarroshIcecream/yummy/yummy/config"
-	consts "github.com/GarroshIcecream/yummy/yummy/consts"
 	db "github.com/GarroshIcecream/yummy/yummy/db"
 	common "github.com/GarroshIcecream/yummy/yummy/models/common"
 	messages "github.com/GarroshIcecream/yummy/yummy/models/msg"
@@ -26,11 +25,11 @@ import (
 
 type Manager struct {
 	// Session state management
-	CurrentSessionState  consts.SessionState
-	PreviousSessionState consts.SessionState
+	CurrentSessionState  common.SessionState
+	PreviousSessionState common.SessionState
 	ThemeManager         *themes.ThemeManager
 	ModalView            bool
-	models               map[consts.SessionState]common.TUIModel
+	models               map[common.SessionState]common.TUIModel
 	config               *config.GeneralConfig
 
 	// Database and configuration
@@ -50,19 +49,19 @@ func New(cookbook *db.CookBook, sessionLog *db.SessionLog, themeManager *themes.
 	keymaps := config.CreateKeyMapFromConfig(cfg.Keymap)
 	currentTheme := themeManager.GetCurrentTheme()
 
-	executorService, err := chat.NewExecutorService(cookbook, sessionLog, &cfg.Chat)
+	executorService, err := chat.NewExecutorService(cookbook, sessionLog, cfg.Chat.DefaultModel, cfg.Chat.SystemPrompt)
 	if err != nil {
 		slog.Error("Failed to create executor service", "error", err)
 		return nil, err
 	}
 
 	// Create models
-	models := map[consts.SessionState]common.TUIModel{
-		consts.SessionStateMainMenu: main_menu.New(cookbook, keymaps, currentTheme, &cfg.MainMenu),
-		consts.SessionStateList:     yummy_list.New(cookbook, keymaps, currentTheme, &cfg.List),
-		consts.SessionStateDetail:   detail.New(cookbook, keymaps, currentTheme, &cfg.Detail),
-		consts.SessionStateEdit:     edit.New(cookbook, keymaps, currentTheme, 0),
-		consts.SessionStateChat:     chat.New(executorService, keymaps, currentTheme, &cfg.Chat),
+	models := map[common.SessionState]common.TUIModel{
+		common.SessionStateMainMenu: main_menu.New(cookbook, keymaps, currentTheme, &cfg.MainMenu),
+		common.SessionStateList:     yummy_list.New(cookbook, keymaps, currentTheme, &cfg.List),
+		common.SessionStateDetail:   detail.New(cookbook, keymaps, currentTheme, &cfg.Detail),
+		common.SessionStateEdit:     edit.New(cookbook, keymaps, currentTheme, 0),
+		common.SessionStateChat:     chat.New(executorService, keymaps, currentTheme, &cfg.Chat),
 	}
 
 	// Create status line
@@ -72,7 +71,7 @@ func New(cookbook *db.CookBook, sessionLog *db.SessionLog, themeManager *themes.
 	stateSelectorDialog := dialog.NewStateSelectorDialog(currentTheme, &cfg.StateSelectorDialog, keymaps)
 	overlayModel := overlay.New(
 		stateSelectorDialog,
-		models[consts.SessionStateMainMenu],
+		models[common.SessionStateMainMenu],
 		overlay.Center,
 		overlay.Center,
 		0,
@@ -81,8 +80,8 @@ func New(cookbook *db.CookBook, sessionLog *db.SessionLog, themeManager *themes.
 
 	manager := &Manager{
 		ThemeManager:         themeManager,
-		CurrentSessionState:  consts.SessionStateMainMenu,
-		PreviousSessionState: consts.SessionStateMainMenu,
+		CurrentSessionState:  common.SessionStateMainMenu,
+		PreviousSessionState: common.SessionStateMainMenu,
 		Cookbook:             cookbook,
 		keyMap:               keymaps,
 		models:               models,
@@ -111,7 +110,7 @@ func (m *Manager) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 
 	case messages.SessionStateMsg:
-		m.SetCurrentSessionState(consts.SessionState(msg.SessionState))
+		m.SetCurrentSessionState(common.SessionState(msg.SessionState))
 		if m.ModalView {
 			m.ModalView = false
 		}
@@ -140,10 +139,12 @@ func (m *Manager) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 
-			if m.CurrentSessionState == consts.SessionStateList {
-				if listModel, ok := m.models[consts.SessionStateList].(*yummy_list.ListModel); ok {
+			if m.CurrentSessionState == common.SessionStateList {
+				if listModel, ok := m.models[common.SessionStateList].(*yummy_list.ListModel); ok {
 					if listModel.RecipeList.FilterState() != list.Filtering {
 						m.SetCurrentSessionState(m.PreviousSessionState)
+					} else {
+						listModel.RecipeList.SetFilterState(list.Unfiltered)
 					}
 				}
 			} else {
@@ -152,8 +153,8 @@ func (m *Manager) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			return m, nil
 		case key.Matches(msg, m.keyMap.Add):
-			if m.CurrentSessionState == consts.SessionStateList {
-				if listModel, ok := m.models[consts.SessionStateList].(*yummy_list.ListModel); ok {
+			if m.CurrentSessionState == common.SessionStateList {
+				if listModel, ok := m.models[common.SessionStateList].(*yummy_list.ListModel); ok {
 					if listModel.RecipeList.FilterState() != list.Filtering {
 						m.SetCurrentSessionState(m.PreviousSessionState)
 					}
@@ -204,7 +205,7 @@ func (m Manager) View() string {
 	}
 
 	// Render status line
-	if m.GetCurrentModel().GetModelState() == consts.ModelStateLoaded {
+	if m.GetCurrentModel().GetModelState() == common.ModelStateLoaded {
 		currentModel := m.GetCurrentModel()
 		statusInfo := status.CreateStatusInfo(currentModel)
 		statusLine := m.statusLine.Render(statusInfo)
@@ -214,7 +215,7 @@ func (m Manager) View() string {
 	return content
 }
 
-func (m *Manager) SetCurrentSessionState(state consts.SessionState) {
+func (m *Manager) SetCurrentSessionState(state common.SessionState) {
 	if m.CurrentSessionState == state {
 		return
 	}
@@ -226,6 +227,6 @@ func (m *Manager) GetCurrentModel() common.TUIModel {
 	return m.models[m.CurrentSessionState]
 }
 
-func (m *Manager) GetModel(state consts.SessionState) common.TUIModel {
+func (m *Manager) GetModel(state common.SessionState) common.TUIModel {
 	return m.models[state]
 }

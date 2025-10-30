@@ -143,29 +143,25 @@ func NewDefaultTheme() Theme {
 
 	// Delegate styles for lists
 	normalTitle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#FFFFFF")).
-		Padding(0, 2)
+		Foreground(lipgloss.Color("#FFFFFF"))
 
 	normalDesc := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#A0A0A0")).
-		Padding(0, 2)
+		Foreground(lipgloss.Color("#A0A0A0"))
 
 	selectedColor := lipgloss.Color("#FF6B6B")
 	selectedTitle := lipgloss.NewStyle().
 		Foreground(selectedColor).
 		BorderLeftForeground(selectedColor).
 		BorderStyle(lipgloss.NormalBorder()).
-		BorderLeft(true).
-		Padding(0, 2)
+		BorderLeft(true)
 
-	selectedDesc := selectedTitle.
+	selectedDesc := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#FFB6B6"))
 
 	dimmedTitle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#A0A0A0")).
-		Padding(0, 2)
+		Foreground(lipgloss.Color("#A0A0A0"))
 
-	dimmedDesc := dimmedTitle.
+	dimmedDesc := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#A0A0A0"))
 
 	filterMatch := lipgloss.NewStyle().

@@ -8,6 +8,7 @@ import (
 	"github.com/GarroshIcecream/yummy/yummy/config"
 	consts "github.com/GarroshIcecream/yummy/yummy/consts"
 	db "github.com/GarroshIcecream/yummy/yummy/db"
+	common "github.com/GarroshIcecream/yummy/yummy/models/common"
 	messages "github.com/GarroshIcecream/yummy/yummy/models/msg"
 	"github.com/GarroshIcecream/yummy/yummy/themes"
 	"github.com/charmbracelet/bubbles/key"
@@ -22,7 +23,7 @@ type MainMenuModel struct {
 	theme      *themes.Theme
 	keyMap     config.KeyMap
 	config     *config.MainMenuConfig
-	modelState consts.ModelState
+	modelState common.ModelState
 
 	// UI components
 	items    []menuItem
@@ -38,7 +39,7 @@ type MainMenuModel struct {
 type menuItem struct {
 	title       string
 	description string
-	state       consts.SessionState
+	state       common.SessionState
 	handler     func() tea.Cmd
 	icon        string
 }
@@ -48,21 +49,21 @@ func New(cookbook *db.CookBook, keymaps config.KeyMap, theme *themes.Theme, conf
 		{
 			title:       "Browse Your Cookbook",
 			description: "Explore your personal collection of saved recipes",
-			state:       consts.SessionStateList,
+			state:       common.SessionStateList,
 			icon:        "📚",
 			handler:     nil,
 		},
 		{
 			title:       "Discover Random Recipe",
 			description: "Get inspired with a surprise recipe from the web",
-			state:       consts.SessionStateDetail,
+			state:       common.SessionStateDetail,
 			icon:        "🎲",
 			handler:     func() tea.Cmd { return RandomRecipeCmd(cookbook) },
 		},
 		{
 			title:       "AI Cooking Assistant",
 			description: "Chat with our AI for cooking tips and recipe advice",
-			state:       consts.SessionStateChat,
+			state:       common.SessionStateChat,
 			icon:        "🤖",
 			handler:     nil,
 		},
@@ -89,7 +90,7 @@ func New(cookbook *db.CookBook, keymaps config.KeyMap, theme *themes.Theme, conf
 		selected:   0,
 		keyMap:     keymaps,
 		spinner:    spinnerModel,
-		modelState: consts.ModelStateLoading,
+		modelState: common.ModelStateLoading,
 		loadingMsg: loadingMsg,
 		theme:      theme,
 		config:     config,
@@ -134,22 +135,14 @@ func (m *MainMenuModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	if m.width > 0 && m.height > 0 {
-		m.modelState = consts.ModelStateLoaded
+		m.modelState = common.ModelStateLoaded
 	}
 
 	return m, tea.Sequence(cmds...)
 }
 
-func RandomRecipeCmd(cookbook *db.CookBook) tea.Cmd {
-	recipe, err := cookbook.RandomRecipe()
-	if err == nil {
-		return messages.SendRecipeSelectedMsg(recipe.ID)
-	}
-	return nil
-}
-
 func (m *MainMenuModel) View() string {
-	if m.modelState == consts.ModelStateLoading {
+	if m.modelState == common.ModelStateLoading {
 		return m.spinner.View() + " " + m.loadingMsg
 	}
 
@@ -208,6 +201,14 @@ func (m *MainMenuModel) renderMenuItems() string {
 	return items.String()
 }
 
+func RandomRecipeCmd(cookbook *db.CookBook) tea.Cmd {
+	recipe, err := cookbook.RandomRecipe()
+	if err == nil {
+		return messages.SendRecipeSelectedMsg(recipe.ID)
+	}
+	return nil
+}
+
 // SetSize sets the width and height of the model
 func (m *MainMenuModel) SetSize(width, height int) {
 	m.width = width
@@ -219,10 +220,10 @@ func (m *MainMenuModel) GetSize() (width, height int) {
 	return m.width, m.height
 }
 
-func (m *MainMenuModel) GetModelState() consts.ModelState {
+func (m *MainMenuModel) GetModelState() common.ModelState {
 	return m.modelState
 }
 
-func (m *MainMenuModel) GetSessionState() consts.SessionState {
-	return consts.SessionStateMainMenu
+func (m *MainMenuModel) GetSessionState() common.SessionState {
+	return common.SessionStateMainMenu
 }

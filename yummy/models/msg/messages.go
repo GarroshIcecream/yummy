@@ -1,8 +1,8 @@
 package messages
 
 import (
-	consts "github.com/GarroshIcecream/yummy/yummy/consts"
-	recipes "github.com/GarroshIcecream/yummy/yummy/recipe"
+	common "github.com/GarroshIcecream/yummy/yummy/models/common"
+	utils "github.com/GarroshIcecream/yummy/yummy/utils"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -17,7 +17,7 @@ type RecipeSelectedMsg struct {
 }
 
 type SessionStateMsg struct {
-	SessionState consts.SessionState
+	SessionState common.SessionState
 }
 
 type EditRecipeMsg struct {
@@ -25,12 +25,12 @@ type EditRecipeMsg struct {
 }
 
 type SaveMsg struct {
-	Recipe *recipes.RecipeRaw
+	Recipe *utils.RecipeRaw
 	Err    error
 }
 
 type LoadRecipeMsg struct {
-	Recipe   *recipes.RecipeRaw
+	Recipe   *utils.RecipeRaw
 	Markdown string
 	Content  string
 }
@@ -79,7 +79,7 @@ func SendRecipeSelectedMsg(recipeID uint) tea.Cmd {
 	return CmdHandler(RecipeSelectedMsg{RecipeID: recipeID})
 }
 
-func SendSessionStateMsg(sessionState consts.SessionState) tea.Cmd {
+func SendSessionStateMsg(sessionState common.SessionState) tea.Cmd {
 	return CmdHandler(SessionStateMsg{SessionState: sessionState})
 }
 

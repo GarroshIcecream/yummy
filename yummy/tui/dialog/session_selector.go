@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/GarroshIcecream/yummy/yummy/config"
-	consts "github.com/GarroshIcecream/yummy/yummy/consts"
 	db "github.com/GarroshIcecream/yummy/yummy/db"
+	common "github.com/GarroshIcecream/yummy/yummy/models/common"
 	messages "github.com/GarroshIcecream/yummy/yummy/models/msg"
 	themes "github.com/GarroshIcecream/yummy/yummy/themes"
 	"github.com/charmbracelet/bubbles/key"
@@ -87,16 +87,16 @@ func (m *SessionSelectorDialogCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch {
 		case key.Matches(msg, m.keyMap.Back, m.keyMap.Quit):
-			cmds = append(cmds, messages.SendSessionStateMsg(consts.SessionStateChat))
+			cmds = append(cmds, messages.SendSessionStateMsg(common.SessionStateChat))
 			return m, tea.Batch(cmds...)
 
 		case key.Matches(msg, m.keyMap.SessionSelector):
-			cmds = append(cmds, messages.SendSessionStateMsg(consts.SessionStateChat))
+			cmds = append(cmds, messages.SendSessionStateMsg(common.SessionStateChat))
 			return m, tea.Batch(cmds...)
 		case key.Matches(msg, m.keyMap.Enter):
 			if selectedItem, ok := m.list.SelectedItem().(SessionItem); ok {
 				cmds = append(cmds, tea.Sequence(
-					messages.SendSessionStateMsg(consts.SessionStateChat),
+					messages.SendSessionStateMsg(common.SessionStateChat),
 					messages.SendSessionSelectedMsg(selectedItem.SessionID),
 				))
 				return m, tea.Batch(cmds...)
@@ -163,8 +163,8 @@ func (m *SessionSelectorDialogCmp) GetSize() (int, int) {
 	return m.width, m.height
 }
 
-func (m *SessionSelectorDialogCmp) GetModelState() consts.ModelState {
-	return consts.ModelStateLoaded
+func (m *SessionSelectorDialogCmp) GetModelState() common.ModelState {
+	return common.ModelStateLoaded
 }
 
 func (m *SessionSelectorDialogCmp) loadSessions() {

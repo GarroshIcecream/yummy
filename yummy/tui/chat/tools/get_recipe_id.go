@@ -7,7 +7,6 @@ import (
 	"strconv"
 
 	"github.com/GarroshIcecream/yummy/yummy/db"
-	"github.com/GarroshIcecream/yummy/yummy/recipe"
 	"github.com/tmc/langchaingo/callbacks"
 	"github.com/tmc/langchaingo/tools"
 )
@@ -48,5 +47,5 @@ func (t *GetRecipeIdTool) Call(ctx context.Context, input string) (string, error
 	if err != nil {
 		return fmt.Sprintf("Recipe with ID %d not found", recipeIDInt), nil
 	}
-	return recipe.FormatRecipeContent(recipeRaw), nil
+	return recipeRaw.FormatRecipeMarkdown(), nil
 }

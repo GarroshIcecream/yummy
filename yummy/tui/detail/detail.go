@@ -4,11 +4,11 @@ import (
 	"strings"
 
 	"github.com/GarroshIcecream/yummy/yummy/config"
-	consts "github.com/GarroshIcecream/yummy/yummy/consts"
 	db "github.com/GarroshIcecream/yummy/yummy/db"
+	common "github.com/GarroshIcecream/yummy/yummy/models/common"
 	messages "github.com/GarroshIcecream/yummy/yummy/models/msg"
-	recipes "github.com/GarroshIcecream/yummy/yummy/recipe"
 	themes "github.com/GarroshIcecream/yummy/yummy/themes"
+	utils "github.com/GarroshIcecream/yummy/yummy/utils"
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
@@ -20,10 +20,10 @@ type DetailModel struct {
 	keyMap     config.KeyMap
 	theme      *themes.Theme
 	config     *config.DetailConfig
-	modelState consts.ModelState
+	modelState common.ModelState
 
 	// Recipe
-	Recipe          *recipes.RecipeRaw
+	Recipe          *utils.RecipeRaw
 	renderedContent string
 	content         string
 
@@ -48,7 +48,7 @@ func New(cookbook *db.CookBook, keymaps config.KeyMap, theme *themes.Theme, conf
 		width:          config.ViewportWidth,
 		height:         config.ViewportHeight,
 		keyMap:         keymaps,
-		modelState:     consts.ModelStateLoaded,
+		modelState:     common.ModelStateLoaded,
 		theme:          theme,
 		renderer:       renderer,
 		config:         config,
@@ -66,8 +66,7 @@ func (m *DetailModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case messages.RecipeSelectedMsg:
-		cmd := messages.SendLoadRecipeMsg(m.FetchRecipe(msg.RecipeID))
-		cmds = append(cmds, cmd)
+		cmds = append(cmds, m.FetchRecipeData(msg.RecipeID))
 
 	case messages.LoadRecipeMsg:
 		m.scrollPosition = 0
@@ -79,8 +78,8 @@ func (m *DetailModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch {
 		case key.Matches(msg, m.keyMap.Edit):
 			if m.Recipe != nil {
-				cmdState := messages.SendSessionStateMsg(consts.SessionStateEdit)
-				cmdEdit := messages.SendEditRecipeMsg(m.Recipe.ID)
+				cmdState := messages.SendSessionStateMsg(common.SessionStateEdit)
+				cmdEdit := messages.SendEditRecipeMsg(m.Recipe.RecipeID)
 				cmds = append(cmds, cmdState, cmdEdit)
 			}
 		case key.Matches(msg, m.keyMap.CursorUp):
@@ -111,24 +110,22 @@ func (m *DetailModel) View() string {
 	return m.renderContentView()
 }
 
-func (m *DetailModel) FetchRecipe(recipe_id uint) messages.LoadRecipeMsg {
-	msg := messages.LoadRecipeMsg{Recipe: nil, Markdown: "", Content: ""}
-	recipe, err := m.cookbook.GetFullRecipe(recipe_id)
-	if err != nil {
-		return msg
-	}
-	msg.Recipe = recipe
+func (m *DetailModel) FetchRecipeData(recipe_id uint) tea.Cmd {
+	return func() tea.Msg {
+		recipe, err := m.cookbook.GetFullRecipe(recipe_id)
+		if err != nil {
+			return messages.LoadRecipeMsg{Recipe: nil, Markdown: "", Content: ""}
+		}
 
-	// Render markdown content immediately
-	content := recipes.FormatRecipeContent(recipe)
-	markdown, err := m.renderer.Render(content)
-	if err != nil {
-		return msg
-	}
+		// Render markdown content immediately
+		content := recipe.FormatRecipeMarkdown()
+		markdown, err := m.renderer.Render(content)
+		if err != nil {
+			return messages.LoadRecipeMsg{Recipe: recipe, Markdown: "", Content: ""}
+		}
 
-	msg.Markdown = markdown
-	msg.Content = content
-	return msg
+		return messages.LoadRecipeMsg{Recipe: recipe, Markdown: markdown, Content: content}
+	}
 }
 
 func (m *DetailModel) ScrollUp(amount int) {
@@ -155,10 +152,10 @@ func (m *DetailModel) ScrollDown(amount int) {
 
 // getContentHeight returns the height of the content in lines
 func (m *DetailModel) GetContentHeight() int {
-	if m.content == "" {
+	if m.renderedContent == "" {
 		return 0
 	}
-	return len(strings.Split(m.content, "\n"))
+	return len(strings.Split(m.renderedContent, "\n"))
 }
 
 func (m *DetailModel) GetViewportHeight() int {
@@ -231,11 +228,11 @@ func (m *DetailModel) renderContentView() string {
 	return m.theme.DetailContent.Render(visibleContent)
 }
 
-func (m *DetailModel) GetSessionState() consts.SessionState {
-	return consts.SessionStateDetail
+func (m *DetailModel) GetSessionState() common.SessionState {
+	return common.SessionStateDetail
 }
 
-func (m *DetailModel) GetModelState() consts.ModelState {
+func (m *DetailModel) GetModelState() common.ModelState {
 	return m.modelState
 }
 

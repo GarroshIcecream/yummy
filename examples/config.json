@@ -4,48 +4,82 @@
     "default_model": "gemma3:4b",
     "temperature": 0.9,
     "max_tokens": 1000,
+    "system_prompt": "You are a helpful cooking assistant specialized in recipes, ingredients, and culinary knowledge. You have access to a personal cookbook database and can help users with various cooking-related tasks.\n\n\t\t\tYour capabilities include:\n\t\t\t- Finding recipes by name or ID\n\t\t\t- Listing all available recipes\n\t\t\t- Providing cooking advice and ingredient information\n\t\t\t- Helping with meal planning and recipe suggestions\n\t\t\t- Answering questions about cooking techniques and food preparation\n\n\t\t\tAvailable tools:\n\t\t\t- searchRecipeByName: Search for recipes by name (case-insensitive)\n\t\t\t- getRecipeById: Get a specific recipe by its unique ID\n\t\t\t- listAllRecipes: List all recipes in the cookbook\n\n\t\t\tGuidelines for responses:\n\t\t\t- Always format your responses using markdown for better readability\n\t\t\t- Use headers, lists, and emphasis where appropriate\n\t\t\t- Be helpful and encouraging when providing cooking advice\n\t\t\t- If you need to search for recipes, use the available tools\n\t\t\t- Provide detailed information about ingredients, cooking methods, and serving suggestions\n\t\t\t- If a recipe isn't found, suggest similar alternatives or offer to help with general cooking questions\n\n\t\t\tRemember: You are a cooking expert, so provide accurate, helpful information and be enthusiastic about food and cooking!",
+    "text_area_placeholder": "Ask anything about cooking, recipes, ingredients, or anything else you want to know about food... 🍳 ",
+    "text_area_max_char": 400,
+    "user_name":            "User",
+    "assistant_name":       "Cringe Chef",
+    "assistant_avatar":     "🤖",
+    "user_avatar":          "👤",
+    "assistant_thinking_message":   "Poo poo poo...",
+    "ui_layout": {
+      "content_padding": 8,
+      "markdown_padding": 8,
+      "min_content_width": 20,
+      "min_markdown_width": 20,
+      "min_viewport_height": 8,
+      "min_markdown_width_for_renderer": 8,
+      "title_height": 5,
+      "input_height": 5,
+      "border_padding": 6,
+      "total_ui_height": 13,
+      "min_sidebar_width": 25,
+      "max_sidebar_width": 40,
+      "sidebar_width_ratio": 0,
+      "viewport_height": 30,
+      "viewport_width": 80,
+      "sidebar_width": 30,
+      "min_width_for_sidebar": 100
+    }
+  },
+  "database": {
+    "recipe_db_name": "cookbook.db",
+    "session_log_db_name": "session_log.db"
+  },
+  "keymap": {},
+  "general": {
+    "status_line_height": 0,
+    "status_line_padding": 0,
+    "status_line_content_width": 0,
+    "scroll_speed": 3,
+    "move_speed": 1
+  },
+  "state_selector_dialog": {
+    "height": 30,
+    "width": 80
+  },
+  "status_line": {
+    "height": 1,
+    "padding": 2,
+    "content_width": 80
+  },
+  "main_menu": {
+    "content_width": 0,
+    "menu_item_width": 60,
+    "main_menu_content_width": 80,
+    "main_menu_welcome_text": "🌟 Welcome to your culinary journey! Choose an option below to get started:",
+    "main_menu_subtitle_text": "🍳 Your Personal Culinary Companion 🍳",
+    "main_menu_help_text": "🎮 Navigation Controls"
+  },
+  "detail": {
     "viewport_height": 30,
     "viewport_width": 80,
     "scroll_speed": 3,
     "move_speed": 1,
-    "text_area_height": 3,
-    "text_area_max_char": 400,
-    "sidebar_width": 30,
-    "min_width_for_sidebar": 100
+    "no_recipe_selected_message": "📖 There is no recipe selected. Please select a recipe from the Recipe List",
+    "no_content_available_message": "📝 No content available"
   },
-  "database": {
-    "auto_backup": true,
-    "backup_interval_hours": 24,
-    "max_backups": 7
+  "list": {
+    "list_view_status_message_ttl": 1500,
+    "list_view_status_message_favourite_set": " ⭐️ Favourite set!",
+    "list_view_status_message_favourite_removed": " ❌ Favourite removed!",
+    "list_view_status_message_recipe_deleted": " ❌ Recipe deleted!",
+    "list_title": "📚 My Cookbook",
+    "list_item_name_singular": "recipe",
+    "list_item_name_plural": "recipes"
   },
-  "keymap": {
-    "custom_bindings": {
-      "quit": ["q", "esc"],
-      "force_quit": ["ctrl+c"],
-      "add": ["ctrl+a"],
-      "edit": ["ctrl+e"],
-      "delete": ["ctrl+x"],
-      "state_selector": ["ctrl+s"],
-      "session_selector": ["ctrl+n"],
-      "set_favourite": ["ctrl+t"],
-      "help": ["h", "?"],
-      "filter": ["/"],
-      "cursor_up": ["k", "up"],
-      "cursor_down": ["j", "down"],
-      "prev_page": ["h", "pgup", "b", "u"],
-      "next_page": ["l", "pgdown", "f", "d"],
-      "go_to_start": ["home", "g"],
-      "go_to_end": ["end", "G"],
-      "edit_ingredients": ["i"],
-      "edit_instructions": ["s"],
-      "edit_add": ["a"],
-      "edit_edit": ["e"],
-      "edit_delete": ["d"]
-    }
-  },
-  "general": {
-    "debug": false,
-    "status_line_height": 1,
-    "status_line_padding": 2
+  "session_selector_dialog": {
+    "height": 30,
+    "width": 80
   }
 }

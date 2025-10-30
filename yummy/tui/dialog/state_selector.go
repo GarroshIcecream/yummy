@@ -5,7 +5,7 @@ import (
 	"strconv"
 
 	config "github.com/GarroshIcecream/yummy/yummy/config"
-	consts "github.com/GarroshIcecream/yummy/yummy/consts"
+	common "github.com/GarroshIcecream/yummy/yummy/models/common"
 	messages "github.com/GarroshIcecream/yummy/yummy/models/msg"
 	themes "github.com/GarroshIcecream/yummy/yummy/themes"
 	"github.com/charmbracelet/bubbles/key"
@@ -15,7 +15,7 @@ import (
 
 type StateSelectorDialogCmp struct {
 	// State data
-	states        []consts.SessionState
+	states        []common.SessionState
 	selectedIndex int
 
 	// Config
@@ -29,12 +29,12 @@ type StateSelectorDialogCmp struct {
 
 // NewStateSelectorDialog creates a new state selection dialog.
 func NewStateSelectorDialog(theme *themes.Theme, config *config.StateSelectorDialogConfig, keymaps config.KeyMap) *StateSelectorDialogCmp {
-	states := []consts.SessionState{
-		consts.SessionStateMainMenu,
-		consts.SessionStateList,
-		consts.SessionStateDetail,
-		consts.SessionStateEdit,
-		consts.SessionStateChat,
+	states := []common.SessionState{
+		common.SessionStateMainMenu,
+		common.SessionStateList,
+		common.SessionStateDetail,
+		common.SessionStateEdit,
+		common.SessionStateChat,
 	}
 
 	return &StateSelectorDialogCmp{
@@ -158,10 +158,10 @@ func (s *StateSelectorDialogCmp) GetSize() (int, int) {
 	return s.width, s.height
 }
 
-func (s *StateSelectorDialogCmp) GetModelState() consts.ModelState {
-	return consts.ModelStateLoaded
+func (s *StateSelectorDialogCmp) GetModelState() common.ModelState {
+	return common.ModelStateLoaded
 }
 
-func (s *StateSelectorDialogCmp) GetSelectedState() consts.SessionState {
+func (s *StateSelectorDialogCmp) GetSelectedState() common.SessionState {
 	return s.states[s.selectedIndex]
 }

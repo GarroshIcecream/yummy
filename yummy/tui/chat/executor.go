@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"slices"
 
-	"github.com/GarroshIcecream/yummy/yummy/config"
 	db "github.com/GarroshIcecream/yummy/yummy/db"
 	"github.com/GarroshIcecream/yummy/yummy/tui/chat/callbacks"
 	tools "github.com/GarroshIcecream/yummy/yummy/tui/chat/tools"
@@ -27,14 +26,14 @@ type ExecutorService struct {
 	modelName    string
 	ctx          context.Context
 	sessionStats db.SessionStats
+	systemPrompt string
 }
 
 // NewExecutorService creates a new executor service instance
-func NewExecutorService(cookbook *db.CookBook, sessionLog *db.SessionLog, chatConfig *config.ChatConfig) (*ExecutorService, error) {
+func NewExecutorService(cookbook *db.CookBook, sessionLog *db.SessionLog, modelName string, systemPrompt string) (*ExecutorService, error) {
 	ctx := context.Background()
 
 	// Get Ollama service status
-	modelName := chatConfig.DefaultModel
 	ollamaStatus, err := GetOllamaServiceStatus(modelName)
 	if err != nil {
 		slog.Error("Failed to get ollama service status", "error", err)
@@ -53,17 +52,28 @@ func NewExecutorService(cookbook *db.CookBook, sessionLog *db.SessionLog, chatCo
 		return nil, err
 	}
 
-	// Create memory buffer for conversation history
-	mem := memory.NewConversationBuffer(
-		memory.WithInputKey("input"),
-		memory.WithOutputKey("output"),
-	)
-
-	// Add system prompt to memory buffer
-	systemMessage := llms.SystemChatMessage{Content: chatConfig.SystemPrompt}
-	err = mem.ChatHistory.AddMessage(ctx, systemMessage)
+	// Create a new session for this chat
+	sessionID, err := sessionLog.CreateSession()
 	if err != nil {
-		slog.Error("Failed to add system prompt to memory", "error", err)
+		slog.Error("Failed to create chat session", "error", err)
+		return nil, err
+	}
+
+	sessionStats, err := sessionLog.GetSessionStats(sessionID)
+	if err != nil {
+		slog.Error("Failed to get session stats", "error", err)
+		return nil, err
+	}
+
+	mem, err := GetConversationalBuffer(ctx, systemPrompt)
+	if err != nil {
+		slog.Error("Failed to create conversational buffer", "error", err)
+		return nil, err
+	}
+
+	err = sessionLog.SaveSessionMessage(sessionID, systemPrompt, llms.ChatMessageTypeSystem, modelName, 0, 0, 0)
+	if err != nil {
+		slog.Error("Failed to save system prompt to database", "error", err)
 		return nil, err
 	}
 
@@ -91,19 +101,6 @@ func NewExecutorService(cookbook *db.CookBook, sessionLog *db.SessionLog, chatCo
 		),
 	)
 
-	// Create a new session for this chat
-	sessionID, err := sessionLog.CreateSession()
-	if err != nil {
-		slog.Error("Failed to create chat session", "error", err)
-		return nil, err
-	}
-
-	sessionStats, err := sessionLog.GetSessionStats(sessionID)
-	if err != nil {
-		slog.Error("Failed to get session stats", "error", err)
-		return nil, err
-	}
-
 	service := &ExecutorService{
 		executor:     executor,
 		llm:          llm,
@@ -113,9 +110,14 @@ func NewExecutorService(cookbook *db.CookBook, sessionLog *db.SessionLog, chatCo
 		toolManager:  toolManager,
 		ollamaStatus: ollamaStatus,
 		sessionStats: sessionStats,
+		systemPrompt: systemPrompt,
 	}
 
 	return service, nil
+}
+
+func (e *ExecutorService) GetSystemPrompt() string {
+	return e.systemPrompt
 }
 
 func (e *ExecutorService) GetMemory() *memory.ConversationBuffer {
@@ -200,6 +202,29 @@ func (e *ExecutorService) SetMemory(conversation []llms.ChatMessage) error {
 	return nil
 }
 
+func (e *ExecutorService) NewSession() error {
+	sessionID, err := e.sessionLog.CreateSession()
+	if err != nil {
+		slog.Error("Failed to create session", "error", err)
+		return err
+	}
+
+	newSessionStats, err := e.sessionLog.GetSessionStats(sessionID)
+	if err != nil {
+		slog.Error("Failed to get session stats", "error", err)
+		return err
+	}
+
+	e.sessionStats = newSessionStats
+	err = e.GetMemory().Clear(e.ctx)
+	if err != nil {
+		slog.Error("Failed to clear memory", "error", err)
+		return err
+	}
+
+	return nil
+}
+
 // LoadSession loads a session into the executor service
 func (e *ExecutorService) LoadSession(sessionID uint) error {
 	sessionMessages, err := e.sessionLog.GetSessionMessages(sessionID)
@@ -260,6 +285,10 @@ func (e *ExecutorService) GetCurrentModelName() string {
 	return e.modelName
 }
 
+func (e *ExecutorService) GetSessionLog() *db.SessionLog {
+	return e.sessionLog
+}
+
 // HasSystemPrompt checks if a system prompt is present in the conversation
 func (e *ExecutorService) HasSystemPrompt() bool {
 	messages, err := e.GetMemory().ChatHistory.Messages(e.ctx)
@@ -310,4 +339,22 @@ func (e *ExecutorService) SetModelByName(modelName string, ollamaStatus *OllamaS
 	)
 
 	return nil
+}
+
+func GetConversationalBuffer(ctx context.Context, systemPrompt string) (*memory.ConversationBuffer, error) {
+	// Create memory buffer for conversation history
+	mem := memory.NewConversationBuffer(
+		memory.WithInputKey("input"),
+		memory.WithOutputKey("output"),
+	)
+
+	// Add system prompt to memory buffer
+	systemMessage := llms.SystemChatMessage{Content: systemPrompt}
+	err := mem.ChatHistory.AddMessage(ctx, systemMessage)
+	if err != nil {
+		slog.Error("Failed to add system prompt to memory", "error", err)
+		return nil, err
+	}
+
+	return mem, nil
 }

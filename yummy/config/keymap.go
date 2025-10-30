@@ -11,6 +11,7 @@ type KeyMap struct {
 	Yes                  key.Binding
 	No                   key.Binding
 	Add                  key.Binding
+	NewSession           key.Binding
 	Back                 key.Binding
 	Delete               key.Binding
 	Quit                 key.Binding
@@ -118,6 +119,10 @@ func createKeyMap(customBindings map[string][]string) KeyMap {
 			key.WithKeys(getKeys("add", []string{"ctrl+a"})...),
 			key.WithHelp("ctrl+a", "add recipe"),
 		),
+		NewSession: key.NewBinding(
+			key.WithKeys(getKeys("new_session", []string{"ctrl+a"})...),
+			key.WithHelp("ctrl+a", "new session"),
+		),
 		Back: key.NewBinding(
 			key.WithKeys(getKeys("back", []string{"esc", "q"})...),
 			key.WithHelp("esc/q", "go back"),
@@ -151,8 +156,8 @@ func createKeyMap(customBindings map[string][]string) KeyMap {
 			key.WithHelp("ctrl+n", "select session"),
 		),
 		SetFavourite: key.NewBinding(
-			key.WithKeys(getKeys("set_favourite", []string{"ctrl+t"})...),
-			key.WithHelp("ctrl+t", "set favourite"),
+			key.WithKeys(getKeys("set_favourite", []string{"ctrl+f"})...),
+			key.WithHelp("ctrl+f", "set favourite"),
 		),
 		PrevPage: key.NewBinding(
 			key.WithKeys(getKeys("prev_page", []string{"h", "pgup", "b", "u"})...),

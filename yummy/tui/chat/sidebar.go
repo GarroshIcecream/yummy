@@ -57,6 +57,8 @@ func RenderSidebar(sessionStats db.SessionStats, ollamaStatus OllamaServiceStatu
 	sidebar.WriteString(theme.SidebarContent.Render("   ↑/↓        Scroll"))
 	sidebar.WriteString("\n")
 	sidebar.WriteString(theme.SidebarContent.Render("   Ctrl+N     Load Session"))
+	sidebar.WriteString("\n")
+	sidebar.WriteString(theme.SidebarContent.Render("   Ctrl+A     New Session"))
 
 	// Create a dynamic sidebar style based on the current width
 	sidebarStyle := theme.Sidebar.Width(sidebarWidth - 4).Height(sidebarHeight)

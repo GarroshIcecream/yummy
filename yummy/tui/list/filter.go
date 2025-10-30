@@ -2,9 +2,10 @@ package list
 
 import (
 	"encoding/json"
+	"log/slog"
 	"strings"
 
-	consts "github.com/GarroshIcecream/yummy/yummy/consts"
+	common "github.com/GarroshIcecream/yummy/yummy/models/common"
 	"github.com/charmbracelet/bubbles/list"
 )
 
@@ -18,7 +19,7 @@ func CustomFilter(query string, targets []string) []list.Rank {
 		if author == "" {
 			return []list.Rank{}
 		}
-		return filterByJSONField(author, targets, consts.AuthorField)
+		return filterByJSONField(author, targets, common.AuthorField)
 	}
 
 	if strings.HasPrefix(query, "@category ") {
@@ -26,15 +27,7 @@ func CustomFilter(query string, targets []string) []list.Rank {
 		if categoryInput == "" {
 			return []list.Rank{}
 		}
-		return filterByArrayField(categoryInput, targets, consts.CategoryField)
-	}
-
-	if strings.HasPrefix(query, "@title ") {
-		title := strings.TrimSpace(strings.TrimPrefix(query, "@title "))
-		if title == "" {
-			return []list.Rank{}
-		}
-		return filterByJSONField(title, targets, consts.TitleField)
+		return filterByArrayField(categoryInput, targets, common.CategoryField)
 	}
 
 	if strings.HasPrefix(query, "@description ") {
@@ -42,7 +35,7 @@ func CustomFilter(query string, targets []string) []list.Rank {
 		if description == "" {
 			return []list.Rank{}
 		}
-		return filterByJSONField(description, targets, consts.DescriptionField)
+		return filterByJSONField(description, targets, common.DescriptionField)
 	}
 
 	if strings.HasPrefix(query, "@ingredients ") {
@@ -50,7 +43,7 @@ func CustomFilter(query string, targets []string) []list.Rank {
 		if ingredientsInput == "" {
 			return []list.Rank{}
 		}
-		return filterByArrayField(ingredientsInput, targets, consts.IngredientsField)
+		return filterByArrayField(ingredientsInput, targets, common.IngredientsField)
 	}
 
 	if strings.HasPrefix(query, "@url ") {
@@ -58,15 +51,41 @@ func CustomFilter(query string, targets []string) []list.Rank {
 		if url == "" {
 			return []list.Rank{}
 		}
-		return filterByJSONField(url, targets, consts.URLField)
+		return filterByJSONField(url, targets, common.URLField)
+	}
+
+	if strings.HasPrefix(query, "@fav") {
+		return filterFieldBool(targets, common.FavouriteField)
 	}
 
 	// Default to fuzzy search on title field for regular text
-	return filterByJSONField(query, targets, consts.TitleField)
+	return filterByJSONField(query, targets, common.TitleField)
+}
+
+func filterFieldBool(targets []string, fieldName common.FilterField) []list.Rank {
+	var ranks []list.Rank
+	for i, target := range targets {
+		var filterData map[string]any
+		if err := json.Unmarshal([]byte(target), &filterData); err != nil {
+			continue
+		}
+
+		value, exists := filterData[string(fieldName)]
+		if !exists {
+			continue
+		}
+
+		if b, ok := value.(bool); ok && b {
+			ranks = append(ranks, list.Rank{
+				Index: i,
+			})
+		}
+	}
+	return ranks
 }
 
 // filterByArrayField filters recipes by a comma-separated list for array fields (categories, ingredients)
-func filterByArrayField(input string, targets []string, fieldName consts.FilterField) []list.Rank {
+func filterByArrayField(input string, targets []string, fieldName common.FilterField) []list.Rank {
 	var ranks []list.Rank
 
 	// Split the input by commas and trim whitespace
@@ -162,61 +181,36 @@ func filterByArrayField(input string, targets []string, fieldName consts.FilterF
 }
 
 // filterByJSONField filters recipes by a specific field in the JSON filter data
-func filterByJSONField(searchTerm string, targets []string, fieldName consts.FilterField) []list.Rank {
+func filterByJSONField(searchTerm string, targets []string, fieldName common.FilterField) []list.Rank {
 	var ranks []list.Rank
 
 	for i, target := range targets {
-		// Try to parse the target as JSON
-		var filterData map[string]interface{}
-		if err := json.Unmarshal([]byte(target), &filterData); err != nil {
-			matchedIndexes := findMatchedIndices(target, searchTerm)
-			ranks = append(ranks, list.Rank{
-				Index:          i,
-				MatchedIndexes: matchedIndexes,
-			})
+		var filterData map[string]any
+
+		err := json.Unmarshal([]byte(target), &filterData)
+		if err != nil {
+			slog.Error("Failed to unmarshal filter data", "error", err)
 			continue
 		}
 
-		// Get the field value from the JSON
 		fieldValue, exists := filterData[string(fieldName)]
 		if !exists {
+			slog.Error("Failed to get field value", "field name", fieldName, "error", err)
 			continue
 		}
 
-		// Handle different field types
-		var searchableValue string
-		switch v := fieldValue.(type) {
-		case string:
-			searchableValue = v
-		case []interface{}:
-			// Handle arrays (like categories)
-			var stringSlice []string
-			for _, item := range v {
-				if str, ok := item.(string); ok {
-					stringSlice = append(stringSlice, str)
-				}
-			}
-			searchableValue = strings.Join(stringSlice, " ")
-		case bool:
-			// Handle boolean fields (like favourite)
-			if v {
-				searchableValue = "true"
-			} else {
-				searchableValue = "false"
-			}
-		default:
-			searchableValue = ""
+		fieldValueString, ok := fieldValue.(string)
+		if !ok {
+			slog.Error("Failed to convert field value to string", "field value", fieldValue, "error", err)
+			continue
 		}
 
-		// Check if the search term matches the field value
-		if strings.Contains(strings.ToLower(searchableValue), strings.ToLower(searchTerm)) {
-			// For JSON-based filtering, we'll use simple matching indices
-			// since the original target is JSON, not the field value
-			matchedIndexes := findMatchedIndices(searchableValue, searchTerm)
-			ranks = append(ranks, list.Rank{
-				Index:          i,
-				MatchedIndexes: matchedIndexes,
-			})
+		matchedIndexes := findMatchedIndices(fieldValueString, searchTerm)
+		if len(matchedIndexes) > 0 {
+			if fieldName != common.TitleField {
+				matchedIndexes = []int{}
+			}
+			ranks = append(ranks, list.Rank{Index: i, MatchedIndexes: matchedIndexes})
 		}
 	}
 

@@ -5,11 +5,11 @@ import (
 	"time"
 
 	"github.com/GarroshIcecream/yummy/yummy/config"
-	consts "github.com/GarroshIcecream/yummy/yummy/consts"
 	db "github.com/GarroshIcecream/yummy/yummy/db"
+	common "github.com/GarroshIcecream/yummy/yummy/models/common"
 	messages "github.com/GarroshIcecream/yummy/yummy/models/msg"
-	"github.com/GarroshIcecream/yummy/yummy/recipe"
 	themes "github.com/GarroshIcecream/yummy/yummy/themes"
+	"github.com/GarroshIcecream/yummy/yummy/utils"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
@@ -19,7 +19,7 @@ type ListModel struct {
 	cookbook   *db.CookBook
 	err        error
 	RecipeList list.Model
-	modelState consts.ModelState
+	modelState common.ModelState
 	config     *config.ListConfig
 	width      int
 	height     int
@@ -57,7 +57,7 @@ func New(cookbook *db.CookBook, keymaps config.KeyMap, theme *themes.Theme, conf
 		cookbook:   cookbook,
 		keyMap:     keymaps,
 		config:     config,
-		modelState: consts.ModelStateLoaded,
+		modelState: common.ModelStateLoaded,
 		err:        err,
 		RecipeList: l,
 		theme:      theme,
@@ -68,21 +68,21 @@ func (m *ListModel) Init() tea.Cmd {
 	return nil
 }
 
-func (m *ListModel) SelectedItemToRecipeWithDescription() (recipe.RecipeWithDescription, bool) {
+func (m *ListModel) SelectedItemToRecipeWithDescription() (utils.RecipeRaw, bool) {
 	if len(m.RecipeList.Items()) == 0 {
-		return recipe.RecipeWithDescription{}, false
+		return utils.RecipeRaw{}, false
 	}
 
 	selectedItem := m.RecipeList.SelectedItem()
 	if selectedItem == nil {
-		return recipe.RecipeWithDescription{}, false
+		return utils.RecipeRaw{}, false
 	}
 
-	if i, ok := selectedItem.(recipe.RecipeWithDescription); ok {
+	if i, ok := selectedItem.(utils.RecipeRaw); ok {
 		return i, true
 	}
 
-	return recipe.RecipeWithDescription{}, false
+	return utils.RecipeRaw{}, false
 }
 
 func (m *ListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -125,7 +125,7 @@ func (m *ListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keyMap.Enter):
 			if m.RecipeList.FilterState() != list.Filtering {
 				if i, ok := m.SelectedItemToRecipeWithDescription(); ok {
-					cmds = append(cmds, messages.SendSessionStateMsg(consts.SessionStateDetail))
+					cmds = append(cmds, messages.SendSessionStateMsg(common.SessionStateDetail))
 					cmds = append(cmds, messages.SendRecipeSelectedMsg(i.RecipeID))
 				}
 			}
@@ -169,7 +169,6 @@ func (m *ListModel) RefreshRecipeList() tea.Cmd {
 	}
 
 	cmd := m.RecipeList.SetItems(items)
-	m.RecipeList.ResetSelected()
 	return cmd
 }
 
@@ -188,10 +187,10 @@ func (m *ListModel) GetSize() (width, height int) {
 	return m.width, m.height
 }
 
-func (m *ListModel) GetModelState() consts.ModelState {
+func (m *ListModel) GetModelState() common.ModelState {
 	return m.modelState
 }
 
-func (m *ListModel) GetSessionState() consts.SessionState {
-	return consts.SessionStateList
+func (m *ListModel) GetSessionState() common.SessionState {
+	return common.SessionStateList
 }

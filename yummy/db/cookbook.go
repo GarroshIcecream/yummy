@@ -7,15 +7,22 @@ import (
 	"time"
 
 	"github.com/GarroshIcecream/yummy/yummy/config"
-	recipe "github.com/GarroshIcecream/yummy/yummy/recipe"
+	"github.com/GarroshIcecream/yummy/yummy/log"
 	utils "github.com/GarroshIcecream/yummy/yummy/utils"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
+	gormlogger "gorm.io/gorm/logger"
 )
 
 // Creates new instance of CookBook struct
 func NewCookBook(dbPath string, config *config.DatabaseConfig, opts ...gorm.Option) (*CookBook, error) {
-	dbPath = filepath.Join(dbPath, "db", config.RecipeDBName)
+	dbDir := filepath.Join(dbPath, "db")
+	if err := os.MkdirAll(dbDir, 0755); err != nil {
+		slog.Error("Failed to create database directory", "dir", dbDir, "error", err)
+		return nil, err
+	}
+
+	dbPath = filepath.Join(dbDir, config.RecipeDBName)
 	_, err := os.Stat(dbPath)
 	if err != nil {
 		slog.Info("Database does not exist at %s, creating new database...", "dbPath", dbPath, "error", err)
@@ -26,6 +33,9 @@ func NewCookBook(dbPath string, config *config.DatabaseConfig, opts ...gorm.Opti
 		slog.Error("Error opening database", "dbPath", dbPath, "error", err)
 		return nil, err
 	}
+
+	// Configure GORM to use slog logger (logs to file via slog setup, not stdout)
+	dbCon.Logger = log.NewGormLogger(200*time.Millisecond, true, gormlogger.Info)
 
 	if err := dbCon.AutoMigrate(GetCookbookModels()...); err != nil {
 		slog.Error("Error migrating cookbook models", "error", err)
@@ -186,13 +196,13 @@ func (c *CookBook) CreateNewRecipe(recipeName string) (uint, error) {
 }
 
 // AllFavouriteRecipes returns all favourite recipes with their metadata
-func (c *CookBook) AllFavouriteRecipes() ([]recipe.RecipeWithDescription, error) {
+func (c *CookBook) AllFavouriteRecipes() ([]utils.RecipeRaw, error) {
 	allRecipes, err := c.AllRecipes()
 	if err != nil {
 		return nil, err
 	}
 
-	var favouriteRecipes []recipe.RecipeWithDescription
+	var favouriteRecipes []utils.RecipeRaw
 	for _, recipe := range allRecipes {
 		if recipe.IsFavourite {
 			favouriteRecipes = append(favouriteRecipes, recipe)
@@ -203,7 +213,7 @@ func (c *CookBook) AllFavouriteRecipes() ([]recipe.RecipeWithDescription, error)
 }
 
 // AllRecipes returns all recipes with their metadata
-func (c *CookBook) AllRecipes() ([]recipe.RecipeWithDescription, error) {
+func (c *CookBook) AllRecipes() ([]utils.RecipeRaw, error) {
 	// Build the base query with JOINs to get all data in one query
 	query := c.conn.Table("recipes").
 		Select(`
@@ -244,7 +254,7 @@ func (c *CookBook) AllRecipes() ([]recipe.RecipeWithDescription, error) {
 	// If no recipes found, return empty slice
 	if len(recipesWithMetadata) == 0 {
 		slog.Debug("No recipes found")
-		return []recipe.RecipeWithDescription{}, nil
+		return []utils.RecipeRaw{}, nil
 	}
 
 	// Collect all recipe IDs for batch category query
@@ -277,20 +287,19 @@ func (c *CookBook) AllRecipes() ([]recipe.RecipeWithDescription, error) {
 	}
 
 	// Build the final result
-	resultWithDescriptions := make([]recipe.RecipeWithDescription, 0, len(recipesWithMetadata))
+	resultWithDescriptions := make([]utils.RecipeRaw, 0, len(recipesWithMetadata))
 	for _, r := range recipesWithMetadata {
 		recipeCategories, exists := categoriesByRecipe[r.ID]
 		if !exists {
 			recipeCategories = []string{}
 		}
 
-		recipeWithDesc := recipe.RecipeWithDescription{
+		recipeWithDesc := utils.RecipeRaw{
 			RecipeID:          r.ID,
 			RecipeName:        r.RecipeName,
-			AuthorName:        r.Author,
 			RecipeDescription: r.Description,
 			IsFavourite:       r.Favourite,
-			Metadata: recipe.RecipeMetadata{
+			Metadata: utils.RecipeMetadata{
 				Categories: recipeCategories,
 				Author:     r.Author,
 				CookTime:   r.CookTime,
@@ -330,10 +339,10 @@ func (c *CookBook) SetFavourite(recipeID uint) (bool, error) {
 }
 
 // SaveScrapedRecipe saves a scraped recipe to the database and returns ID
-func (c *CookBook) SaveScrapedRecipe(recipeRaw *recipe.RecipeRaw) (uint, error) {
+func (c *CookBook) SaveScrapedRecipe(recipeRaw *utils.RecipeRaw) (uint, error) {
 	// Create the base recipe
 	recipe := Recipe{
-		RecipeName: recipeRaw.Name,
+		RecipeName: recipeRaw.RecipeName,
 	}
 	if err := c.conn.Create(&recipe).Error; err != nil {
 		slog.Error("Error creating base recipe", "error", err)
@@ -343,13 +352,13 @@ func (c *CookBook) SaveScrapedRecipe(recipeRaw *recipe.RecipeRaw) (uint, error) 
 	// Save metadata
 	metadata := RecipeMetadata{
 		RecipeID:    recipe.ID,
-		Description: recipeRaw.Description,
-		Author:      recipeRaw.Author,
-		CookTime:    recipeRaw.CookTime,
-		PrepTime:    recipeRaw.PrepTime,
-		TotalTime:   recipeRaw.TotalTime,
-		Quantity:    recipeRaw.Quantity,
-		URL:         recipeRaw.URL,
+		Description: recipeRaw.RecipeDescription,
+		Author:      recipeRaw.Metadata.Author,
+		CookTime:    recipeRaw.Metadata.CookTime,
+		PrepTime:    recipeRaw.Metadata.PrepTime,
+		TotalTime:   recipeRaw.Metadata.TotalTime,
+		Quantity:    recipeRaw.Metadata.Quantity,
+		URL:         recipeRaw.Metadata.URL,
 		Favourite:   false,
 		Rating:      0,
 	}
@@ -359,7 +368,7 @@ func (c *CookBook) SaveScrapedRecipe(recipeRaw *recipe.RecipeRaw) (uint, error) 
 	}
 
 	// Save ingredients with parsed details
-	for _, ingredient := range recipeRaw.Ingredients {
+	for _, ingredient := range recipeRaw.Metadata.Ingredients {
 		ing := Ingredients{
 			RecipeID:       recipe.ID,
 			IngredientName: ingredient.Name,
@@ -375,7 +384,7 @@ func (c *CookBook) SaveScrapedRecipe(recipeRaw *recipe.RecipeRaw) (uint, error) 
 
 	// Save instructions
 	// add step number to each instruction
-	for i, instruction := range recipeRaw.Instructions {
+	for i, instruction := range recipeRaw.Metadata.Instructions {
 		inst := Instructions{
 			RecipeID:    recipe.ID,
 			Step:        i + 1,
@@ -388,7 +397,7 @@ func (c *CookBook) SaveScrapedRecipe(recipeRaw *recipe.RecipeRaw) (uint, error) 
 	}
 
 	// Save categories
-	for _, categoryName := range recipeRaw.Categories {
+	for _, categoryName := range recipeRaw.Metadata.Categories {
 		category := Category{
 			RecipeID:     recipe.ID,
 			CategoryName: categoryName,
@@ -404,7 +413,7 @@ func (c *CookBook) SaveScrapedRecipe(recipeRaw *recipe.RecipeRaw) (uint, error) 
 }
 
 // UpdateRecipe updates an existing recipe in the database
-func (c *CookBook) UpdateRecipe(recipeRaw *recipe.RecipeRaw) error {
+func (c *CookBook) UpdateRecipe(recipeRaw *utils.RecipeRaw) error {
 	tx := c.conn.Begin()
 	if tx.Error != nil {
 		slog.Error("Error starting transaction", "error", tx.Error)
@@ -413,7 +422,7 @@ func (c *CookBook) UpdateRecipe(recipeRaw *recipe.RecipeRaw) error {
 	slog.Debug("Transaction started successfully")
 
 	// Update the base recipe
-	if err := tx.Model(&Recipe{}).Where("id = ?", recipeRaw.ID).Update("recipe_name", recipeRaw.Name).Error; err != nil {
+	if err := tx.Model(&Recipe{}).Where("id = ?", recipeRaw.RecipeID).Update("recipe_name", recipeRaw.RecipeName).Error; err != nil {
 		tx.Rollback()
 		slog.Error("Error updating recipe", "error", err)
 		return err
@@ -421,31 +430,30 @@ func (c *CookBook) UpdateRecipe(recipeRaw *recipe.RecipeRaw) error {
 
 	// Update metadata
 	metadata := RecipeMetadata{
-		Description: recipeRaw.Description,
-		Author:      recipeRaw.Author,
-		CookTime:    recipeRaw.CookTime,
-		PrepTime:    recipeRaw.PrepTime,
-		TotalTime:   recipeRaw.TotalTime,
-		Quantity:    recipeRaw.Quantity,
-		URL:         recipeRaw.URL,
+		Description: recipeRaw.RecipeDescription,
+		CookTime:    recipeRaw.Metadata.CookTime,
+		PrepTime:    recipeRaw.Metadata.PrepTime,
+		TotalTime:   recipeRaw.Metadata.TotalTime,
+		Quantity:    recipeRaw.Metadata.Quantity,
+		URL:         recipeRaw.Metadata.URL,
 	}
-	if err := tx.Model(&RecipeMetadata{}).Where("recipe_id = ?", recipeRaw.ID).Updates(metadata).Error; err != nil {
+	if err := tx.Model(&RecipeMetadata{}).Where("recipe_id = ?", recipeRaw.RecipeID).Updates(metadata).Error; err != nil {
 		tx.Rollback()
 		slog.Error("Error updating recipe metadata", "error", err)
 		return err
 	}
 
 	// Delete existing ingredients
-	if err := tx.Unscoped().Delete(&Ingredients{}, "recipe_id = ?", recipeRaw.ID).Error; err != nil {
+	if err := tx.Unscoped().Delete(&Ingredients{}, "recipe_id = ?", recipeRaw.RecipeID).Error; err != nil {
 		tx.Rollback()
 		slog.Error("Error deleting existing ingredients", "error", err)
 		return err
 	}
 
 	// Add new ingredients
-	for _, ingredient := range recipeRaw.Ingredients {
+	for _, ingredient := range recipeRaw.Metadata.Ingredients {
 		ing := Ingredients{
-			RecipeID:       recipeRaw.ID,
+			RecipeID:       recipeRaw.RecipeID,
 			IngredientName: ingredient.Name,
 			Detail:         ingredient.Details,
 			Amount:         ingredient.Amount,
@@ -459,16 +467,16 @@ func (c *CookBook) UpdateRecipe(recipeRaw *recipe.RecipeRaw) error {
 	}
 
 	// Delete existing instructions
-	if err := tx.Unscoped().Delete(&Instructions{}, "recipe_id = ?", recipeRaw.ID).Error; err != nil {
+	if err := tx.Unscoped().Delete(&Instructions{}, "recipe_id = ?", recipeRaw.RecipeID).Error; err != nil {
 		tx.Rollback()
 		slog.Error("Error deleting existing instructions", "error", err)
 		return err
 	}
 
 	// Add new instructions
-	for i, instruction := range recipeRaw.Instructions {
+	for i, instruction := range recipeRaw.Metadata.Instructions {
 		inst := Instructions{
-			RecipeID:    recipeRaw.ID,
+			RecipeID:    recipeRaw.RecipeID,
 			Step:        i + 1,
 			Description: instruction,
 		}
@@ -480,16 +488,16 @@ func (c *CookBook) UpdateRecipe(recipeRaw *recipe.RecipeRaw) error {
 	}
 
 	// Delete existing categories
-	if err := tx.Unscoped().Delete(&Category{}, "recipe_id = ?", recipeRaw.ID).Error; err != nil {
+	if err := tx.Unscoped().Delete(&Category{}, "recipe_id = ?", recipeRaw.RecipeID).Error; err != nil {
 		tx.Rollback()
 		slog.Error("Error deleting existing categories", "error", err)
 		return err
 	}
 
 	// Add new categories
-	for _, categoryName := range recipeRaw.Categories {
+	for _, categoryName := range recipeRaw.Metadata.Categories {
 		category := Category{
-			RecipeID:     recipeRaw.ID,
+			RecipeID:     recipeRaw.RecipeID,
 			CategoryName: categoryName,
 		}
 		if err := tx.Create(&category).Error; err != nil {
@@ -510,7 +518,7 @@ func (c *CookBook) UpdateRecipe(recipeRaw *recipe.RecipeRaw) error {
 }
 
 // GetFullRecipe retrieves a complete recipe with all its related data
-func (c *CookBook) GetFullRecipe(recipeID uint) (*recipe.RecipeRaw, error) {
+func (c *CookBook) GetFullRecipe(recipeID uint) (*utils.RecipeRaw, error) {
 	// Get the base recipe
 	slog.Debug("Starting GetFullRecipe for ID", "id", recipeID)
 
@@ -548,40 +556,46 @@ func (c *CookBook) GetFullRecipe(recipeID uint) (*recipe.RecipeRaw, error) {
 		return nil, err
 	}
 
-	// Convert to RecipeRaw
-	recipeRaw := &recipe.RecipeRaw{
-		ID:          recipe_raw.ID,
-		Name:        recipe_raw.RecipeName,
-		Description: metadata.Description,
-		Author:      metadata.Author,
-		CookTime:    metadata.CookTime,
-		PrepTime:    metadata.PrepTime,
-		TotalTime:   metadata.TotalTime,
-		Quantity:    metadata.Quantity,
-		URL:         metadata.URL,
-	}
-
-	// Convert ingredients
-	recipeRaw.Ingredients = make([]utils.Ingredient, len(ingredients))
-	for i, ing := range ingredients {
-		recipeRaw.Ingredients[i] = utils.Ingredient{
-			Amount:  ing.Amount,
-			Unit:    ing.Unit,
-			Name:    ing.IngredientName,
-			Details: ing.Detail,
-		}
-	}
-
 	// Convert instructions
-	recipeRaw.Instructions = make([]string, len(instructions))
+	instructionDescriptions := make([]string, len(instructions))
 	for i, inst := range instructions {
-		recipeRaw.Instructions[i] = inst.Description
+		instructionDescriptions[i] = inst.Description
 	}
 
 	// Convert categories
-	recipeRaw.Categories = make([]string, len(categories))
+	categoryNames := make([]string, len(categories))
 	for i, cat := range categories {
-		recipeRaw.Categories[i] = cat.CategoryName
+		categoryNames[i] = cat.CategoryName
+	}
+
+	// Convert ingredients
+	parsedIngredients := make([]utils.Ingredient, len(ingredients))
+	for i, ing := range ingredients {
+		parsedIngredients[i] = utils.Ingredient{
+			Name:    ing.IngredientName,
+			Details: ing.Detail,
+			Amount:  ing.Amount,
+			Unit:    ing.Unit,
+		}
+	}
+
+	// Convert to RecipeRaw
+	recipeRaw := &utils.RecipeRaw{
+		RecipeID:          recipe_raw.ID,
+		RecipeName:        recipe_raw.RecipeName,
+		RecipeDescription: metadata.Description,
+		Metadata: utils.RecipeMetadata{
+			Author:       metadata.Author,
+			CookTime:     metadata.CookTime,
+			PrepTime:     metadata.PrepTime,
+			TotalTime:    metadata.TotalTime,
+			Quantity:     metadata.Quantity,
+			URL:          metadata.URL,
+			Favourite:    metadata.Favourite,
+			Categories:   categoryNames,
+			Instructions: instructionDescriptions,
+			Ingredients:  parsedIngredients,
+		},
 	}
 
 	slog.Debug("GetFullRecipe completed successfully", "id", recipeID)

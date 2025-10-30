@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strings"
 
-	consts "github.com/GarroshIcecream/yummy/yummy/consts"
-	recipes "github.com/GarroshIcecream/yummy/yummy/recipe"
-	"github.com/GarroshIcecream/yummy/yummy/tui/detail"
+	"github.com/GarroshIcecream/yummy/yummy/config"
+	db "github.com/GarroshIcecream/yummy/yummy/db"
 	"github.com/spf13/cobra"
 )
 
@@ -32,21 +32,34 @@ var exportCmd = &cobra.Command{
 			return fmt.Errorf("invalid recipe ID: %s", args[0])
 		}
 
-		tui, err := setupApp(cmd)
+		// Resolve user directory for data storage
+		datadir, err := resolveUserDir()
 		if err != nil {
-			slog.Error("Failed to create TUI instance", "error", err)
-			return err
+			return fmt.Errorf("failed to resolve user directory: %v", err)
 		}
 
-		msg := tui.GetModel(consts.SessionStateDetail).(*detail.DetailModel).FetchRecipe(recipe_id)
-		if msg.Recipe == nil {
-			slog.Error("Failed to fetch recipe", "recipeID", recipe_id)
-			return fmt.Errorf("failed to fetch recipe")
+		// Load configuration
+		cfg, err := config.LoadConfig(datadir)
+		if err != nil {
+			return fmt.Errorf("failed to load configuration: %v", err)
+		}
+
+		cookbook, err := db.NewCookBook(datadir, &cfg.Database)
+		if err != nil {
+			slog.Error("Failed to initialize cookbook", "error", err)
+			return fmt.Errorf("failed to initialize cookbook: %v", err)
+		}
+
+		recipe, err := cookbook.GetFullRecipe(recipe_id)
+		if err != nil {
+			slog.Error("Failed to fetch recipe", "recipeID", recipe_id, "error", err)
+			return fmt.Errorf("failed to fetch recipe: %v", err)
 		}
 
 		// Export the recipe to a file
-		filename := fmt.Sprintf("recipe_%d.md", recipe_id)
-		content := recipes.FormatRecipeContent(msg.Recipe)
+		normalizedName := strings.ToLower(strings.ReplaceAll(recipe.RecipeName, " ", "_"))
+		filename := fmt.Sprintf("%s.md", normalizedName)
+		content := recipe.FormatRecipeMarkdown()
 
 		if err := os.WriteFile(filename, []byte(content), 0644); err != nil {
 			slog.Error("Failed to write file", "filename", filename, "error", err)
@@ -54,7 +67,7 @@ var exportCmd = &cobra.Command{
 		}
 
 		slog.Info("Recipe exported successfully", "filename", filename)
-		fmt.Printf("Recipe exported to %s\n", filename)
+		fmt.Printf("✅ Recipe exported to %s\n", filename)
 		return nil
 	},
 }

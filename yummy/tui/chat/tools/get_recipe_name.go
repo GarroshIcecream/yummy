@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/GarroshIcecream/yummy/yummy/db"
-	"github.com/GarroshIcecream/yummy/yummy/recipe"
+	"github.com/GarroshIcecream/yummy/yummy/utils"
 	"github.com/tmc/langchaingo/callbacks"
 	"github.com/tmc/langchaingo/tools"
 )
@@ -45,7 +45,7 @@ func (t *GetRecipeNameTool) Call(ctx context.Context, input string) (string, err
 	}
 
 	// Filter recipes by name (case-insensitive partial match)
-	var matches []recipe.RecipeWithDescription
+	var matches []utils.RecipeRaw
 	searchName := strings.ToLower(input)
 
 	for _, r := range allRecipes {
@@ -71,8 +71,8 @@ func (t *GetRecipeNameTool) Call(ctx context.Context, input string) (string, err
 		if match.RecipeDescription != "" {
 			result.WriteString(fmt.Sprintf("   Description: %s\n", match.RecipeDescription))
 		}
-		if match.AuthorName != "" {
-			result.WriteString(fmt.Sprintf("   Author: %s\n", match.AuthorName))
+		if match.Metadata.Author != "" {
+			result.WriteString(fmt.Sprintf("   Author: %s\n", match.Metadata.Author))
 		}
 		if len(match.Metadata.Categories) > 0 {
 			result.WriteString(fmt.Sprintf("   Categories: %s\n", strings.Join(match.Metadata.Categories, ", ")))

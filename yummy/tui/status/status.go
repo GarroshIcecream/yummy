@@ -5,13 +5,12 @@ import (
 	"strings"
 
 	"github.com/GarroshIcecream/yummy/yummy/config"
-	consts "github.com/GarroshIcecream/yummy/yummy/consts"
 	common "github.com/GarroshIcecream/yummy/yummy/models/common"
-	"github.com/GarroshIcecream/yummy/yummy/recipe"
 	themes "github.com/GarroshIcecream/yummy/yummy/themes"
 	"github.com/GarroshIcecream/yummy/yummy/tui/chat"
 	"github.com/GarroshIcecream/yummy/yummy/tui/detail"
 	yummy_list "github.com/GarroshIcecream/yummy/yummy/tui/list"
+	"github.com/GarroshIcecream/yummy/yummy/utils"
 	"github.com/charmbracelet/lipgloss"
 )
 
@@ -24,7 +23,7 @@ type StatusLine struct {
 
 // this sucks as we need to think of some other fields that are applicable to us
 type StatusInfo struct {
-	Mode        consts.StatusMode
+	Mode        common.StatusMode
 	FileName    string
 	FileInfo    string
 	Position    string
@@ -118,20 +117,20 @@ func CreateStatusInfo(currentModel common.TUIModel) StatusInfo {
 
 	// Add specific information based on current session state
 	switch currentModel.GetSessionState() {
-	case consts.SessionStateMainMenu:
-		info.Mode = consts.StatusModeMenu
-		info.FileName = consts.SessionStateMainMenu.GetStateName()
+	case common.SessionStateMainMenu:
+		info.Mode = common.StatusModeMenu
+		info.FileName = common.SessionStateMainMenu.GetStateName()
 		info.FileInfo = "Ready"
 
-	case consts.SessionStateList:
-		info.Mode = consts.StatusModeList
-		info.FileName = consts.SessionStateList.GetStateName()
+	case common.SessionStateList:
+		info.Mode = common.StatusModeList
+		info.FileName = common.SessionStateList.GetStateName()
 		if listModel, ok := currentModel.(*yummy_list.ListModel); ok {
 			count := len(listModel.RecipeList.Items())
 			selectedItem := listModel.RecipeList.SelectedItem()
 			info.FileInfo = fmt.Sprintf("%d recipes", count)
 			if selectedItem != nil {
-				if recipeItem, ok := selectedItem.(recipe.RecipeWithDescription); ok {
+				if recipeItem, ok := selectedItem.(utils.RecipeRaw); ok {
 					info.FileName = recipeItem.Title()
 				}
 			} else {
@@ -139,14 +138,14 @@ func CreateStatusInfo(currentModel common.TUIModel) StatusInfo {
 			}
 		}
 
-	case consts.SessionStateDetail:
-		info.Mode = consts.StatusModeRecipe
-		info.FileName = consts.SessionStateDetail.GetStateName()
+	case common.SessionStateDetail:
+		info.Mode = common.StatusModeRecipe
+		info.FileName = common.SessionStateDetail.GetStateName()
 		if detailModel, ok := currentModel.(*detail.DetailModel); ok {
 			if detailModel.Recipe != nil {
-				recipeName := detailModel.Recipe.Name
-				recipeID := detailModel.Recipe.ID
-				author := detailModel.Recipe.Author
+				recipeName := detailModel.Recipe.RecipeName
+				recipeID := detailModel.Recipe.RecipeID
+				author := detailModel.Recipe.Metadata.Author
 				if author != "" {
 					author = fmt.Sprintf("(by %s)", author)
 				}
@@ -163,14 +162,14 @@ func CreateStatusInfo(currentModel common.TUIModel) StatusInfo {
 			info.FileInfo = fmt.Sprintf("%d lines", totalLines)
 		}
 
-	case consts.SessionStateEdit:
-		info.Mode = consts.StatusModeEdit
-		info.FileName = consts.SessionStateEdit.GetStateName()
+	case common.SessionStateEdit:
+		info.Mode = common.StatusModeEdit
+		info.FileName = common.SessionStateEdit.GetStateName()
 		info.Modified = true
 		info.FileInfo = "Modified"
 
-	case consts.SessionStateChat:
-		info.Mode = consts.StatusModeChat
+	case common.SessionStateChat:
+		info.Mode = common.StatusModeChat
 		if chatModel, ok := currentModel.(*chat.ChatModel); ok {
 			info.FileName = chatModel.ExecutorService.GetCurrentModelName()
 		} else {

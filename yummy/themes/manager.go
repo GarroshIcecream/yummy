@@ -3,6 +3,7 @@ package themes
 import (
 	"fmt"
 	"log/slog"
+	"os"
 )
 
 // ThemeManager handles theme operations
@@ -13,7 +14,14 @@ type ThemeManager struct {
 }
 
 // NewThemeManagerWithDir creates a new theme manager with a specific themes directory
-func NewThemeManager(themesDir string) *ThemeManager {
+func NewThemeManager(themesDir string) (*ThemeManager, error) {
+	if _, err := os.Stat(themesDir); os.IsNotExist(err) {
+		if err := os.MkdirAll(themesDir, 0755); err != nil {
+			slog.Error("Failed to create themes directory", "dir", themesDir, "error", err)
+			return nil, err
+		}
+	}
+
 	themes := make([]Theme, 0)
 	themes = append(themes, NewDefaultTheme())
 
@@ -23,17 +31,15 @@ func NewThemeManager(themesDir string) *ThemeManager {
 	}
 
 	// Load custom themes if directory exists
-	if themesDir != "" {
-		customThemes, err := LoadThemesFromDirectory(themesDir)
-		if err == nil {
-			slog.Info("Loaded custom themes", "count", len(customThemes))
-			manager.themes = append(manager.themes, customThemes...)
-		} else {
-			slog.Error("Failed to load custom themes", "error", err)
-		}
+	customThemes, err := LoadThemesFromDirectory(themesDir)
+	if err == nil {
+		slog.Info("Loaded custom themes", "count", len(customThemes))
+		manager.themes = append(manager.themes, customThemes...)
+	} else {
+		slog.Error("Failed to load custom themes", "error", err)
 	}
 
-	return manager
+	return manager, nil
 }
 
 // RegisterTheme registers a new theme

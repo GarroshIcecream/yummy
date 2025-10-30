@@ -25,7 +25,6 @@ func init() {
 
 	rootCmd.AddCommand(exportCmd)
 	rootCmd.AddCommand(importCmd)
-	rootCmd.AddCommand(groceryCmd)
 }
 
 var rootCmd = &cobra.Command{
@@ -90,18 +89,27 @@ func Execute() {
 	}
 }
 
-func setupApp(cmd *cobra.Command) (*tui.Manager, error) {
-	ctx := cmd.Context()
-
-	// Get user home directory for data storage
+func resolveUserDir() (string, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get user home directory: %v", err)
+		return "", fmt.Errorf("failed to get user home directory: %v", err)
 	}
 
 	datadir := filepath.Join(homeDir, ".yummy")
 	if err := os.MkdirAll(datadir, 0755); err != nil {
-		return nil, fmt.Errorf("failed to create Yummy data directory: %v", err)
+		return "", fmt.Errorf("failed to create Yummy data directory: %v", err)
+	}
+
+	return datadir, nil
+}
+
+func setupApp(cmd *cobra.Command) (*tui.Manager, error) {
+	ctx := cmd.Context()
+
+	// Resolve user directory for data storage
+	datadir, err := resolveUserDir()
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve user directory: %v", err)
 	}
 
 	// Load configuration
@@ -122,7 +130,13 @@ func setupApp(cmd *cobra.Command) (*tui.Manager, error) {
 	debug, _ := cmd.Flags().GetBool("debug")
 	log.Setup(datadir, debug)
 
-	themeManager := themes.NewThemeManager(filepath.Join(datadir, "themes"))
+	themesDir := filepath.Join(datadir, "themes")
+	themeManager, err := themes.NewThemeManager(themesDir)
+	if err != nil {
+		slog.Error("Failed to create theme manager", "error", err)
+		return nil, fmt.Errorf("failed to create theme manager: %v", err)
+	}
+
 	if err := themeManager.SetThemeByName(cfg.Theme); err != nil {
 		slog.Error("Failed to set theme", "theme", cfg.Theme, "error", err)
 		return nil, fmt.Errorf("failed to set theme '%s': %v", cfg.Theme, err)

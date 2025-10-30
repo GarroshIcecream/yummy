@@ -7,7 +7,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/GarroshIcecream/yummy/yummy/recipe"
+	"github.com/GarroshIcecream/yummy/yummy/config"
+	db "github.com/GarroshIcecream/yummy/yummy/db"
+	"github.com/GarroshIcecream/yummy/yummy/utils"
 	"github.com/spf13/cobra"
 )
 
@@ -31,7 +33,6 @@ The markdown format should match the export format used by yummy export command.
 		yummy import recipe.md --name "My Custom Recipe"
   	`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// Get custom name if provided
 		customName, _ := cmd.Flags().GetString("name")
 
 		if len(args) == 0 {
@@ -47,14 +48,14 @@ The markdown format should match the export format used by yummy export command.
 
 		// Determine file format
 		ext := strings.ToLower(filepath.Ext(filePath))
-		var recipeRaw *recipe.RecipeRaw
+		var recipeRaw *utils.RecipeRaw
 		var err error
 
 		switch ext {
 		case ".md":
-			recipeRaw, err = recipe.ParseMarkdownRecipe(filePath, customName)
+			recipeRaw, err = utils.ParseMarkdownRecipe(filePath, customName)
 		case ".json":
-			recipeRaw, err = recipe.ParseJSONRecipe(filePath, customName)
+			recipeRaw, err = utils.ParseJSONRecipe(filePath, customName)
 		default:
 			slog.Error("Unsupported file format", "format", ext)
 			return fmt.Errorf("unsupported file format: %s. Supported formats: .md, .json", ext)
@@ -65,14 +66,26 @@ The markdown format should match the export format used by yummy export command.
 			return fmt.Errorf("failed to parse recipe: %v", err)
 		}
 
-		tui, err := setupApp(cmd)
+		// Resolve user directory for data storage
+		datadir, err := resolveUserDir()
 		if err != nil {
-			slog.Error("Failed to create TUI instance", "error", err)
-			return err
+			return fmt.Errorf("failed to resolve user directory: %v", err)
+		}
+
+		// Load configuration
+		cfg, err := config.LoadConfig(datadir)
+		if err != nil {
+			return fmt.Errorf("failed to load configuration: %v", err)
+		}
+
+		cookbook, err := db.NewCookBook(datadir, &cfg.Database)
+		if err != nil {
+			slog.Error("Failed to initialize cookbook", "error", err)
+			return fmt.Errorf("failed to initialize cookbook: %v", err)
 		}
 
 		// Save the recipe
-		recipeID, err := tui.Cookbook.SaveScrapedRecipe(recipeRaw)
+		recipeID, err := cookbook.SaveScrapedRecipe(recipeRaw)
 		if err != nil {
 			slog.Error("Failed to save recipe", "error", err)
 			return fmt.Errorf("failed to save recipe: %v", err)
