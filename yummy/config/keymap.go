@@ -72,7 +72,7 @@ func (k KeyMap) ListKeyMap() list.KeyMap {
 }
 
 // DefaultKeyMap returns the default keymap with standard bindings
-func DefaultKeyMap() KeyMap {
+func NewDefaultKeyMap() KeyMap {
 	return createKeyMap(nil)
 }
 

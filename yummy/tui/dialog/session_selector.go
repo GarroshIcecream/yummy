@@ -54,7 +54,8 @@ type SessionSelectorDialogCmp struct {
 	theme      *themes.Theme
 }
 
-func NewSessionSelectorDialog(sessionLog *db.SessionLog, keymaps config.KeyMap, theme *themes.Theme, config *config.SessionSelectorDialogConfig) *SessionSelectorDialogCmp {
+func NewSessionSelectorDialog(sessionLog *db.SessionLog, keymaps config.KeyMap, theme *themes.Theme) *SessionSelectorDialogCmp {
+	cfg := config.GetSessionSelectorDialogConfig()
 	items := []list.Item{}
 
 	l := list.New(items, list.NewDefaultDelegate(), 0, 0)
@@ -69,8 +70,8 @@ func NewSessionSelectorDialog(sessionLog *db.SessionLog, keymaps config.KeyMap, 
 		sessionLog: sessionLog,
 		keyMap:     keymaps,
 		list:       l,
-		width:      config.Width,
-		height:     config.Height,
+		width:      cfg.Width,
+		height:     cfg.Height,
 		theme:      theme,
 	}
 }

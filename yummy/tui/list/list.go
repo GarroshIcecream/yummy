@@ -1,7 +1,8 @@
 package list
 
 import (
-	"fmt"
+	"log/slog"
+	"os"
 	"time"
 
 	"github.com/GarroshIcecream/yummy/yummy/config"
@@ -13,11 +14,11 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/x/term"
 )
 
 type ListModel struct {
 	cookbook   *db.CookBook
-	err        error
 	RecipeList list.Model
 	modelState common.ModelState
 	config     *config.ListConfig
@@ -27,8 +28,19 @@ type ListModel struct {
 	theme      *themes.Theme
 }
 
-func New(cookbook *db.CookBook, keymaps config.KeyMap, theme *themes.Theme, config *config.ListConfig) *ListModel {
+func New(cookbook *db.CookBook, keymaps config.KeyMap, theme *themes.Theme) (*ListModel, error) {
+	windowWidth, windowHeight, err := term.GetSize(os.Stdout.Fd())
+	if err != nil {
+		slog.Error("Failed to get terminal size", "error", err)
+		return nil, err
+	}
+
+	cfg := config.GetListConfig()
 	recipes, err := cookbook.AllRecipes()
+	if err != nil {
+		slog.Error("Failed to get recipes", "error", err)
+		return nil, err
+	}
 
 	var items []list.Item
 	for _, recipe := range recipes {
@@ -38,12 +50,12 @@ func New(cookbook *db.CookBook, keymaps config.KeyMap, theme *themes.Theme, conf
 	d := list.NewDefaultDelegate()
 	d.Styles = theme.DelegateStyles
 
-	l := list.New(items, d, 80, 40)
+	l := list.New(items, d, windowWidth, windowHeight)
 	l.Styles = theme.ListStyles
-	l.Title = config.Title
+	l.Title = cfg.Title
 	l.KeyMap = keymaps.ListKeyMap()
-	l.SetStatusBarItemName(config.ItemNameSingular, config.ItemNamePlural)
-	l.StatusMessageLifetime = time.Duration(config.ViewStatusMessageTTL) * time.Millisecond
+	l.SetStatusBarItemName(cfg.ItemNameSingular, cfg.ItemNamePlural)
+	l.StatusMessageLifetime = time.Duration(cfg.ViewStatusMessageTTL) * time.Millisecond
 	l.Filter = CustomFilter
 	l.AdditionalShortHelpKeys = func() []key.Binding {
 		return []key.Binding{keymaps.Add, keymaps.Delete}
@@ -56,12 +68,11 @@ func New(cookbook *db.CookBook, keymaps config.KeyMap, theme *themes.Theme, conf
 	return &ListModel{
 		cookbook:   cookbook,
 		keyMap:     keymaps,
-		config:     config,
+		config:     cfg,
 		modelState: common.ModelStateLoaded,
-		err:        err,
 		RecipeList: l,
 		theme:      theme,
-	}
+	}, nil
 }
 
 func (m *ListModel) Init() tea.Cmd {
@@ -96,16 +107,11 @@ func (m *ListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case messages.SetFavouriteMsg:
 		newFavourite, err := m.cookbook.SetFavourite(msg.RecipeID)
 		if err != nil {
-			m.err = err
+			slog.Error("Failed to set favourite", "error", err)
 			return m, nil
 		}
-		cmd = m.RefreshRecipeList()
-		cmds = append(cmds, cmd)
-		if newFavourite {
-			cmds = append(cmds, m.RecipeList.NewStatusMessage(m.config.ViewStatusMessageFavouriteSet))
-		} else {
-			cmds = append(cmds, m.RecipeList.NewStatusMessage(m.config.ViewStatusMessageFavouriteRemoved))
-		}
+		cmds = append(cmds, m.RefreshRecipeList())
+		cmds = append(cmds, messages.SendFavouriteSetMsg(newFavourite))
 
 	case tea.KeyMsg:
 		switch {
@@ -113,12 +119,11 @@ func (m *ListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.RecipeList.FilterState() != list.Filtering {
 				if i, ok := m.SelectedItemToRecipeWithDescription(); ok {
 					if err := m.cookbook.DeleteRecipe(i.RecipeID); err != nil {
-						m.err = err
+						slog.Error("Failed to delete recipe", "error", err)
 						return m, nil
 					}
 
-					cmd = m.RefreshRecipeList()
-					cmds = append(cmds, cmd)
+					cmds = append(cmds, m.RefreshRecipeList())
 					cmds = append(cmds, m.RecipeList.NewStatusMessage(m.config.ViewStatusMessageRecipeDeleted))
 				}
 			}
@@ -137,9 +142,6 @@ func (m *ListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 		}
-	case tea.WindowSizeMsg:
-		h, v := m.theme.Doc.GetFrameSize()
-		m.RecipeList.SetSize(msg.Width-h, msg.Height-v)
 	}
 
 	m.RecipeList, cmd = m.RecipeList.Update(msg)
@@ -149,17 +151,13 @@ func (m *ListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *ListModel) View() string {
-	if m.err != nil {
-		return fmt.Sprintf("Error: %v", m.err)
-	}
-
 	return m.theme.Doc.Render(m.RecipeList.View())
 }
 
 func (m *ListModel) RefreshRecipeList() tea.Cmd {
 	recipes, err := m.cookbook.AllRecipes()
 	if err != nil {
-		m.err = err
+		slog.Error("Failed to refresh recipe list", "error", err)
 		return nil
 	}
 

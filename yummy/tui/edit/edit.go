@@ -67,7 +67,7 @@ type EditModel struct {
 	showHelp bool
 }
 
-func New(cookbook *db.CookBook, keymaps config.KeyMap, theme *themes.Theme, recipeID uint) *EditModel {
+func New(cookbook *db.CookBook, keymaps config.KeyMap, theme *themes.Theme, recipeID uint) (*EditModel, error) {
 	model := &EditModel{
 		cookbook:                cookbook,
 		keyMap:                  keymaps,
@@ -87,13 +87,13 @@ func New(cookbook *db.CookBook, keymaps config.KeyMap, theme *themes.Theme, reci
 		recipe, err := model.FetchRecipe(*model.recipeID)
 		if err != nil {
 			slog.Error("Failed to fetch recipe: %s", "error", err)
-			return nil
+			return nil, err
 		}
 		model.loadRecipe(recipe)
 	}
 
 	model.setupForms()
-	return model
+	return model, nil
 }
 
 func (m *EditModel) Init() tea.Cmd {
@@ -314,6 +314,13 @@ func (m *EditModel) setupForms() {
 				Description("Categories (e.g., 'dinner, italian, pasta')").
 				Value(&m.categories).
 				Options(categories_options...),
+
+			huh.NewConfirm().
+				Key("save").
+				Title("Save").
+				Description("Save the recipe").
+				Affirmative("Yes").
+				Negative("No"),
 		),
 	).
 		WithTheme(huh.ThemeCharm()).

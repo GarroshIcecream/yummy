@@ -126,6 +126,9 @@ func setupApp(cmd *cobra.Command) (*tui.Manager, error) {
 		cfg.Theme = theme
 	}
 
+	// Set global config
+	config.SetGlobalConfig(cfg)
+
 	// Setup logging first before any other operations
 	debug, _ := cmd.Flags().GetBool("debug")
 	log.Setup(datadir, debug)
@@ -154,13 +157,14 @@ func setupApp(cmd *cobra.Command) (*tui.Manager, error) {
 		return nil, fmt.Errorf("failed to initialize session log: %v", err)
 	}
 
-	_, err = chat.GetOllamaServiceStatus(cfg.Chat.DefaultModel)
+	chatConfig := config.GetChatConfig()
+	_, err = chat.GetOllamaServiceStatus(chatConfig.DefaultModel)
 	if err != nil {
 		slog.Error("Failed to get ollama service status", "error", err)
 		return nil, fmt.Errorf("failed to get ollama service status: %v", err)
 	}
 
-	tuiInstance, err := tui.New(cookbook, sessionLog, themeManager, cfg, ctx)
+	tuiInstance, err := tui.New(cookbook, sessionLog, themeManager, ctx)
 	if err != nil {
 		slog.Error("Failed to create tui instance", "error", err)
 		return nil, fmt.Errorf("failed to create TUI instance: %v", err)

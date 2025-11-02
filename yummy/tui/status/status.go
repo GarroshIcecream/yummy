@@ -33,11 +33,12 @@ type StatusInfo struct {
 	ReadOnly    bool
 }
 
-func New(theme *themes.Theme, config *config.StatusLineConfig) *StatusLine {
+func New(theme *themes.Theme) *StatusLine {
+	cfg := config.GetStatusLineConfig()
 	return &StatusLine{
-		width:       config.ContentWidth,
-		height:      config.Height,
-		linePadding: config.Padding,
+		width:       cfg.ContentWidth,
+		height:      cfg.Height,
+		linePadding: cfg.Padding,
 		theme:       *theme,
 	}
 }

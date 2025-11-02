@@ -1,6 +1,7 @@
 package detail
 
 import (
+	"log/slog"
 	"strings"
 
 	"github.com/GarroshIcecream/yummy/yummy/config"
@@ -34,27 +35,32 @@ type DetailModel struct {
 	renderer       *glamour.TermRenderer
 }
 
-func New(cookbook *db.CookBook, keymaps config.KeyMap, theme *themes.Theme, config *config.DetailConfig) *DetailModel {
-	renderer, _ := glamour.NewTermRenderer(
+func New(cookbook *db.CookBook, keymaps config.KeyMap, theme *themes.Theme) (*DetailModel, error) {
+	cfg := config.GetDetailConfig()
+	renderer, err := glamour.NewTermRenderer(
 		glamour.WithAutoStyle(),
 		glamour.WithEmoji(),
-		glamour.WithWordWrap(config.ViewportWidth),
+		glamour.WithWordWrap(cfg.ViewportWidth),
 	)
+	if err != nil {
+		slog.Error("Failed to create renderer", "error", err)
+		return nil, err
+	}
 
 	model := &DetailModel{
 		cookbook:       cookbook,
 		scrollPosition: 0,
 		Recipe:         nil,
-		width:          config.ViewportWidth,
-		height:         config.ViewportHeight,
+		width:          cfg.ViewportWidth,
+		height:         cfg.ViewportHeight,
 		keyMap:         keymaps,
 		modelState:     common.ModelStateLoaded,
 		theme:          theme,
 		renderer:       renderer,
-		config:         config,
+		config:         cfg,
 	}
 
-	return model
+	return model, nil
 }
 
 func (m *DetailModel) Init() tea.Cmd {
@@ -73,6 +79,7 @@ func (m *DetailModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.Recipe = msg.Recipe
 		m.content = msg.Content
 		m.renderedContent = msg.Markdown
+		m.modelState = common.ModelStateLoaded
 
 	case tea.KeyMsg:
 		switch {
@@ -103,11 +110,30 @@ func (m *DetailModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *DetailModel) View() string {
-	if m.Recipe == nil || m.renderedContent == "" {
-		return m.renderEmptyView()
+	lines := strings.Split(m.renderedContent, "\n")
+	if m.Recipe == nil {
+		emptyMessage := m.theme.Loading.Render(m.config.NoRecipeSelectedMessage)
+		m.modelState = common.ModelStateLoading
+		return m.theme.DetailContent.Render(emptyMessage)
 	}
 
-	return m.renderContentView()
+	viewportHeight := m.GetViewportHeight()
+	start := m.scrollPosition
+	end := min(start+viewportHeight, len(lines))
+
+	var visibleContent string
+	if len(lines) == 0 || m.renderedContent == "" {
+		visibleContent = m.config.NoContentAvailableMessage
+	} else {
+		visibleLines := make([]string, 0, end-start)
+		for i := start; i < end && i < len(lines); i++ {
+			visibleLines = append(visibleLines, lines[i])
+		}
+		visibleContent = strings.Join(visibleLines, "\n")
+	}
+
+	// Apply content styling
+	return m.theme.DetailContent.Render(visibleContent)
 }
 
 func (m *DetailModel) FetchRecipeData(recipe_id uint) tea.Cmd {
@@ -159,7 +185,7 @@ func (m *DetailModel) GetContentHeight() int {
 }
 
 func (m *DetailModel) GetViewportHeight() int {
-	footerHeight := 3 // Footer + scroll bar
+	footerHeight := config.GetStatusLineConfig().Height
 	return max(1, m.height-footerHeight)
 }
 
@@ -185,7 +211,7 @@ func (m *DetailModel) refreshContent() {
 
 	renderer, err := glamour.NewTermRenderer(
 		glamour.WithAutoStyle(),
-		glamour.WithWordWrap(max(40, m.width-4)),
+		glamour.WithWordWrap(m.width),
 		glamour.WithEmoji(),
 	)
 	if err != nil {
@@ -198,34 +224,6 @@ func (m *DetailModel) refreshContent() {
 		m.renderedContent = content
 		m.scrollPosition = 0
 	}
-}
-
-// renderEmptyView renders the empty state
-func (m *DetailModel) renderEmptyView() string {
-	emptyMessage := m.theme.Loading.Render(m.config.NoRecipeSelectedMessage)
-	return m.theme.DetailContent.Render(emptyMessage)
-}
-
-// renderContentView renders the main content with proper markdown rendering
-func (m *DetailModel) renderContentView() string {
-	lines := strings.Split(m.renderedContent, "\n")
-	viewportHeight := m.GetViewportHeight()
-	start := m.scrollPosition
-	end := min(start+viewportHeight, len(lines))
-
-	var visibleContent string
-	if len(lines) == 0 {
-		visibleContent = m.config.NoContentAvailableMessage
-	} else {
-		visibleLines := make([]string, 0, end-start)
-		for i := start; i < end && i < len(lines); i++ {
-			visibleLines = append(visibleLines, lines[i])
-		}
-		visibleContent = strings.Join(visibleLines, "\n")
-	}
-
-	// Apply content styling
-	return m.theme.DetailContent.Render(visibleContent)
 }
 
 func (m *DetailModel) GetSessionState() common.SessionState {

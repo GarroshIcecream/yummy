@@ -1,8 +1,6 @@
 package main_menu
 
 import (
-	"crypto/rand"
-	"math/big"
 	"strings"
 
 	"github.com/GarroshIcecream/yummy/yummy/config"
@@ -32,8 +30,7 @@ type MainMenuModel struct {
 	height   int
 
 	// Spinner
-	spinner    spinner.Model
-	loadingMsg string
+	spinner spinner.Model
 }
 
 type menuItem struct {
@@ -44,7 +41,8 @@ type menuItem struct {
 	icon        string
 }
 
-func New(cookbook *db.CookBook, keymaps config.KeyMap, theme *themes.Theme, config *config.MainMenuConfig) *MainMenuModel {
+func New(cookbook *db.CookBook, keymaps config.KeyMap, theme *themes.Theme) *MainMenuModel {
+	cfg := config.GetMainMenuConfig()
 	items := []menuItem{
 		{
 			title:       "Browse Your Cookbook",
@@ -74,16 +72,6 @@ func New(cookbook *db.CookBook, keymaps config.KeyMap, theme *themes.Theme, conf
 	spinnerModel.Spinner = spinner.Dot
 	spinnerModel.Style = theme.Spinner
 
-	// Pick a random loading message once
-	loadingMessages := []string{
-		"🍳 Cooking up something delicious...",
-		"✨ Adding flavor to your experience...",
-		"🌟 Preparing your culinary journey...",
-		"🎯 Almost ready to serve...",
-	}
-	randomItem, _ := rand.Int(rand.Reader, big.NewInt(int64(len(loadingMessages))))
-	loadingMsg := loadingMessages[randomItem.Int64()]
-
 	return &MainMenuModel{
 		cookbook:   cookbook,
 		items:      items,
@@ -91,9 +79,8 @@ func New(cookbook *db.CookBook, keymaps config.KeyMap, theme *themes.Theme, conf
 		keyMap:     keymaps,
 		spinner:    spinnerModel,
 		modelState: common.ModelStateLoading,
-		loadingMsg: loadingMsg,
 		theme:      theme,
-		config:     config,
+		config:     cfg,
 	}
 }
 
@@ -143,7 +130,7 @@ func (m *MainMenuModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m *MainMenuModel) View() string {
 	if m.modelState == common.ModelStateLoading {
-		return m.spinner.View() + " " + m.loadingMsg
+		return m.spinner.View()
 	}
 
 	var content strings.Builder

@@ -52,11 +52,13 @@ type ChatModel struct {
 	isStreaming       bool
 }
 
-func New(executorService *ExecutorService, keymaps config.KeyMap, theme *themes.Theme, chatConfig *config.ChatConfig) *ChatModel {
+func New(executorService *ExecutorService, keymaps config.KeyMap, theme *themes.Theme) (*ChatModel, error) {
+	chatConfig := config.GetChatConfig()
 	windowWidth, windowHeight, err := term.GetSize(int(os.Stdout.Fd()))
 	if err != nil {
 		windowWidth = chatConfig.UILayout.ViewportWidth
 		windowHeight = chatConfig.UILayout.ViewportHeight
+		slog.Error("Failed to get terminal size", "error", err)
 	}
 
 	// Calculate markdown width accounting for message formatting
@@ -71,7 +73,7 @@ func New(executorService *ExecutorService, keymaps config.KeyMap, theme *themes.
 	)
 	if err != nil {
 		slog.Error("Error creating markdown renderer", "error", err)
-		return nil
+		return nil, err
 	}
 
 	ta := textarea.New()
@@ -103,9 +105,10 @@ func New(executorService *ExecutorService, keymaps config.KeyMap, theme *themes.
 	s.Spinner = spinner.Dot
 	s.Style = theme.Spinner
 
+	chatConfigPtr := &chatConfig
 	chatModel := &ChatModel{
 		keyMap:             keymaps,
-		chatConfig:         chatConfig,
+		chatConfig:         chatConfigPtr,
 		textarea:           ta,
 		viewport:           vp,
 		spinner:            s,
@@ -120,7 +123,7 @@ func New(executorService *ExecutorService, keymaps config.KeyMap, theme *themes.
 		streamingResponse:  "",
 	}
 
-	return chatModel
+	return chatModel, nil
 }
 
 func (m *ChatModel) Init() tea.Cmd {

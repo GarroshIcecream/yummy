@@ -28,7 +28,8 @@ type StateSelectorDialogCmp struct {
 }
 
 // NewStateSelectorDialog creates a new state selection dialog.
-func NewStateSelectorDialog(theme *themes.Theme, config *config.StateSelectorDialogConfig, keymaps config.KeyMap) *StateSelectorDialogCmp {
+func NewStateSelectorDialog(theme *themes.Theme, keymaps config.KeyMap) *StateSelectorDialogCmp {
+	cfg := config.GetStateSelectorDialogConfig()
 	states := []common.SessionState{
 		common.SessionStateMainMenu,
 		common.SessionStateList,
@@ -40,8 +41,8 @@ func NewStateSelectorDialog(theme *themes.Theme, config *config.StateSelectorDia
 	return &StateSelectorDialogCmp{
 		selectedIndex: 0,
 		states:        states,
-		height:        config.Height,
-		width:         config.Width,
+		height:        cfg.Height,
+		width:         cfg.Width,
 		keymap:        keymaps,
 		theme:         theme,
 	}

@@ -42,8 +42,7 @@ func NewDefaultTheme() Theme {
 		Margin(1, 2)
 
 	t.DetailContent = lipgloss.NewStyle().
-		Padding(1, 2).
-		Margin(0, 1)
+		Padding(1, 2)
 
 	t.DetailHeader = lipgloss.NewStyle().
 		Bold(true).

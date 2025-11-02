@@ -1,6 +1,7 @@
 package messages
 
 import (
+	"github.com/GarroshIcecream/yummy/yummy/config"
 	common "github.com/GarroshIcecream/yummy/yummy/models/common"
 	utils "github.com/GarroshIcecream/yummy/yummy/utils"
 	tea "github.com/charmbracelet/bubbletea"
@@ -65,6 +66,10 @@ type LoadSessionMsg struct {
 
 type RenderConversationAsMarkdownMsg struct{}
 
+type FavouriteSetMsg struct {
+	Content string
+}
+
 func CmdHandler(msg tea.Msg) tea.Cmd {
 	return func() tea.Msg {
 		return msg
@@ -73,6 +78,16 @@ func CmdHandler(msg tea.Msg) tea.Cmd {
 
 func SendCloseDialogMsg() tea.Cmd {
 	return CmdHandler(CloseDialogMsg{})
+}
+
+func SendFavouriteSetMsg(isFavourite bool) tea.Cmd {
+	var content string
+	if isFavourite {
+		content = config.GetListConfig().ViewStatusMessageFavouriteSet
+	} else {
+		content = config.GetListConfig().ViewStatusMessageFavouriteRemoved
+	}
+	return CmdHandler(FavouriteSetMsg{Content: content})
 }
 
 func SendRecipeSelectedMsg(recipeID uint) tea.Cmd {

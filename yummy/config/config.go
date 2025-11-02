@@ -5,6 +5,12 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sync"
+)
+
+var (
+	globalConfig   *Config
+	globalConfigMu sync.RWMutex
 )
 
 // Config represents the application configuration
@@ -315,4 +321,90 @@ func (c *Config) Save(configDir string) error {
 	}
 
 	return nil
+}
+
+// SetGlobalConfig sets the global configuration
+func SetGlobalConfig(cfg *Config) {
+	globalConfigMu.Lock()
+	defer globalConfigMu.Unlock()
+	globalConfig = cfg
+}
+
+// GetGlobalConfig returns the global configuration
+func GetGlobalConfig() *Config {
+	globalConfigMu.RLock()
+	defer globalConfigMu.RUnlock()
+	return globalConfig
+}
+
+// GetChatConfig returns the global chat configuration
+func GetChatConfig() ChatConfig {
+	cfg := GetGlobalConfig()
+	if cfg == nil {
+		return NewDefaultConfig().Chat
+	}
+	return cfg.Chat
+}
+
+// GetListConfig returns the global list configuration
+func GetListConfig() *ListConfig {
+	cfg := GetGlobalConfig()
+	if cfg == nil {
+		return &NewDefaultConfig().List
+	}
+	return &cfg.List
+}
+
+// GetDetailConfig returns the global detail configuration
+func GetDetailConfig() *DetailConfig {
+	cfg := GetGlobalConfig()
+	if cfg == nil {
+		return &NewDefaultConfig().Detail
+	}
+	return &cfg.Detail
+}
+
+// GetMainMenuConfig returns the global main menu configuration
+func GetMainMenuConfig() *MainMenuConfig {
+	cfg := GetGlobalConfig()
+	if cfg == nil {
+		return &NewDefaultConfig().MainMenu
+	}
+	return &cfg.MainMenu
+}
+
+// GetStatusLineConfig returns the global status line configuration
+func GetStatusLineConfig() *StatusLineConfig {
+	cfg := GetGlobalConfig()
+	if cfg == nil {
+		return &NewDefaultConfig().StatusLine
+	}
+	return &cfg.StatusLine
+}
+
+// GetGeneralConfig returns the global general configuration
+func GetGeneralConfig() *GeneralConfig {
+	cfg := GetGlobalConfig()
+	if cfg == nil {
+		return &NewDefaultConfig().General
+	}
+	return &cfg.General
+}
+
+// GetStateSelectorDialogConfig returns the global state selector dialog configuration
+func GetStateSelectorDialogConfig() *StateSelectorDialogConfig {
+	cfg := GetGlobalConfig()
+	if cfg == nil {
+		return &NewDefaultConfig().StateSelectorDialog
+	}
+	return &cfg.StateSelectorDialog
+}
+
+// GetSessionSelectorDialogConfig returns the global session selector dialog configuration
+func GetSessionSelectorDialogConfig() *SessionSelectorDialogConfig {
+	cfg := GetGlobalConfig()
+	if cfg == nil {
+		return &NewDefaultConfig().SessionSelectorDialog
+	}
+	return &cfg.SessionSelectorDialog
 }
