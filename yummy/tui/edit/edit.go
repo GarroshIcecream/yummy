@@ -112,46 +112,36 @@ func (m *EditModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(cmds...)
 
 	case messages.EditRecipeMsg:
-		// Load the recipe data and reinitialize the form
-		recipe, err := m.FetchRecipe(msg.RecipeID)
-		if err != nil {
-			slog.Error("Failed to fetch recipe for editing: %s", "error", err)
-			return m, nil
-		}
-		m.loadRecipe(recipe)
+		m.loadRecipe(msg.Recipe)
 		m.setupForms()
-		// Re-initialize the form to ensure it's properly set up
-		err = m.mainForm.Run()
+		err := m.mainForm.Run()
 		if err != nil {
 			slog.Error("Failed to run form: %s", "error", err)
 			return m, nil
 		}
-
-	case messages.LoadRecipeMsg:
-		m.loadRecipe(msg.Recipe)
-		m.setupForms()
 	}
 
+	// Update the form casually
 	form, cmd := m.mainForm.Update(msg)
 	if f, ok := form.(*huh.Form); ok {
 		m.mainForm = f
+		cmds = append(cmds, cmd)
+	}
 
-		// Check if form is completed and handle submission
-		if m.mainForm.State == huh.StateCompleted {
-			// Save the recipe
-			_, err := m.saveRecipe()
+	// Check if form is completed and handle submission
+	if m.mainForm.State == huh.StateCompleted {
+		save := m.mainForm.GetBool("save")
+		if save {
+			msg, err := m.saveRecipe()
 			if err != nil {
 				slog.Error("Failed to save recipe: %s", "error", err)
-				// TODO: Show error message to user
-			} else {
-				// Send save message to return to detail view
-				cmds = append(cmds, func() tea.Msg {
-					return messages.SaveMsg{}
-				})
+				return m, nil
 			}
+			cmds = append(cmds, func() tea.Msg {
+				return msg
+			})
 		}
 	}
-	cmds = append(cmds, cmd)
 
 	return m, tea.Batch(cmds...)
 }
@@ -166,7 +156,8 @@ func (m *EditModel) View() string {
 	content.WriteString(m.theme.DetailHeader.Render(title))
 	content.WriteString("\n")
 
-	return m.mainForm.View()
+	content.WriteString(m.mainForm.View())
+	return content.String()
 }
 
 func (m *EditModel) FetchRecipe(recipeID uint) (*utils.RecipeRaw, error) {
@@ -192,49 +183,59 @@ func (m *EditModel) loadRecipe(recipe *utils.RecipeRaw) {
 	m.instructions = recipe.Metadata.Instructions
 }
 
-func (m *EditModel) saveRecipe() (tea.Msg, error) {
-	// Create recipe
-	prepTime, err := time.ParseDuration(m.prepTime)
+func (m *EditModel) extractFormRecipe() (*utils.RecipeRaw, error) {
+	prepTime, err := time.ParseDuration(m.mainForm.GetString("prepTime"))
 	if err != nil {
 		return nil, err
 	}
-	cookTime, err := time.ParseDuration(m.cookTime)
+	cookTime, err := time.ParseDuration(m.mainForm.GetString("cookTime"))
 	if err != nil {
 		return nil, err
 	}
 
 	recipe := &utils.RecipeRaw{
-		RecipeName:        m.name,
-		RecipeDescription: m.description,
+		RecipeName:        m.mainForm.GetString("name"),
+		RecipeDescription: m.mainForm.GetString("description"),
 		Metadata: utils.RecipeMetadata{
-			Author:       m.author,
+			Author:       m.mainForm.GetString("author"),
 			PrepTime:     prepTime,
 			CookTime:     cookTime,
 			TotalTime:    prepTime + cookTime,
-			Quantity:     m.servings,
-			URL:          m.url,
-			Categories:   m.categories,
-			Ingredients:  m.ingredients,
-			Instructions: m.instructions,
+			Quantity:     m.mainForm.GetString("servings"),
+			URL:          m.mainForm.GetString("url"),
+			Categories:   m.mainForm.Get("categories").([]string),
+			Ingredients:  m.mainForm.Get("ingredients").([]utils.Ingredient),
+			Instructions: m.mainForm.Get("instructions").([]string),
 		},
 	}
 
-	// Save to database
+	return recipe, nil
+}
+
+func (m *EditModel) saveRecipe() (tea.Msg, error) {
+	var recipeID uint
 	if m.isNew {
-		recipeID, err := m.cookbook.SaveScrapedRecipe(recipe)
+		recipe, err := m.extractFormRecipe()
 		if err != nil {
 			return nil, err
 		}
-		recipe.RecipeID = recipeID
+		recipeID, err = m.cookbook.SaveScrapedRecipe(recipe)
+		if err != nil {
+			return nil, err
+		}
 	} else {
-		recipe.RecipeID = *m.recipeID
-		err := m.cookbook.UpdateRecipe(recipe)
+		recipe, err := m.extractFormRecipe()
 		if err != nil {
 			return nil, err
 		}
+		err = m.cookbook.UpdateRecipe(recipe)
+		if err != nil {
+			return nil, err
+		}
+		recipeID = *m.recipeID
 	}
 
-	return nil, nil
+	return messages.SaveMsg{RecipeID: recipeID}, nil
 }
 
 func (m *EditModel) setupForms() {

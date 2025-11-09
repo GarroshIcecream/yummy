@@ -22,12 +22,11 @@ type SessionStateMsg struct {
 }
 
 type EditRecipeMsg struct {
-	RecipeID uint
+	Recipe *utils.RecipeRaw
 }
 
 type SaveMsg struct {
-	Recipe *utils.RecipeRaw
-	Err    error
+	RecipeID uint
 }
 
 type LoadRecipeMsg struct {
@@ -98,8 +97,8 @@ func SendSessionStateMsg(sessionState common.SessionState) tea.Cmd {
 	return CmdHandler(SessionStateMsg{SessionState: sessionState})
 }
 
-func SendEditRecipeMsg(recipeID uint) tea.Cmd {
-	return CmdHandler(EditRecipeMsg{RecipeID: recipeID})
+func SendEditRecipeMsg(recipe *utils.RecipeRaw) tea.Cmd {
+	return CmdHandler(EditRecipeMsg{Recipe: recipe})
 }
 
 func SendLoadRecipeMsg(msg LoadRecipeMsg) tea.Cmd {

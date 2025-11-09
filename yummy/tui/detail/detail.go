@@ -86,7 +86,7 @@ func (m *DetailModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keyMap.Edit):
 			if m.Recipe != nil {
 				cmdState := messages.SendSessionStateMsg(common.SessionStateEdit)
-				cmdEdit := messages.SendEditRecipeMsg(m.Recipe.RecipeID)
+				cmdEdit := messages.SendEditRecipeMsg(m.Recipe)
 				cmds = append(cmds, cmdState, cmdEdit)
 			}
 		case key.Matches(msg, m.keyMap.CursorUp):
