@@ -49,6 +49,23 @@ type Config struct {
 	SessionSelectorDialog SessionSelectorDialogConfig `json:"session_selector_dialog"`
 }
 
+// NewDefaultConfig returns the default configuration
+func NewDefaultConfig() *Config {
+	return &Config{
+		Theme:                 "default",
+		StateSelectorDialog:   NewDefaultStateSelectorDialogConfig(),
+		SessionSelectorDialog: NewDefaultSessionSelectorDialogConfig(),
+		Chat:                  NewDefaultChatConfig(),
+		Database:              NewDefaultDatabaseConfig(),
+		Keymap:                NewDefaultKeyBindings(),
+		StatusLine:            NewDefaultStatusLineConfig(),
+		MainMenu:              NewDefaultMainMenuConfig(),
+		Detail:                NewDefaultDetailConfig(),
+		List:                  NewDefaultListConfig(),
+		General:               NewDefaultGeneralConfig(),
+	}
+}
+
 // DetailConfig contains detail view settings
 type DetailConfig struct {
 	ViewportHeight            int    `json:"viewport_height"`
@@ -57,6 +74,17 @@ type DetailConfig struct {
 	MoveSpeed                 int    `json:"move_speed"`
 	NoRecipeSelectedMessage   string `json:"no_recipe_selected_message"`
 	NoContentAvailableMessage string `json:"no_content_available_message"`
+}
+
+func NewDefaultDetailConfig() DetailConfig {
+	return DetailConfig{
+		ViewportHeight:            30,
+		ViewportWidth:             80,
+		ScrollSpeed:               3,
+		MoveSpeed:                 1,
+		NoRecipeSelectedMessage:   "📖 There is no recipe selected. Please select a recipe from the Recipe List",
+		NoContentAvailableMessage: "📝 No content available",
+	}
 }
 
 // MainMenuConfig contains main menu settings
@@ -69,16 +97,41 @@ type MainMenuConfig struct {
 	MainMenuHelpText     string `json:"main_menu_help_text"`
 }
 
+func NewDefaultMainMenuConfig() MainMenuConfig {
+	return MainMenuConfig{
+		ContentWidth:         0,
+		MenuItemWidth:        60,
+		MainMenuContentWidth: 80,
+		MainMenuWelcomeText:  "🌟 Welcome to your culinary journey! Choose an option below to get started:",
+		MainMenuSubtitleText: "🍳 Your Personal Culinary Companion 🍳",
+		MainMenuHelpText:     "🎮 Navigation Controls",
+	}
+}
+
 // StateSelectorDialogConfig contains state selector dialog settings
 type StateSelectorDialogConfig struct {
 	Height int `json:"height"`
 	Width  int `json:"width"`
 }
 
+func NewDefaultSessionSelectorDialogConfig() SessionSelectorDialogConfig {
+	return SessionSelectorDialogConfig{
+		Height: 30,
+		Width:  80,
+	}
+}
+
 // SessionSelectorDialogConfig contains session selector dialog settings
 type SessionSelectorDialogConfig struct {
 	Height int `json:"height"`
 	Width  int `json:"width"`
+}
+
+func NewDefaultStateSelectorDialogConfig() StateSelectorDialogConfig {
+	return StateSelectorDialogConfig{
+		Height: 30,
+		Width:  80,
+	}
 }
 
 // ChatConfig contains chat-related settings
@@ -97,6 +150,46 @@ type ChatConfig struct {
 
 	// UI Layout constants
 	UILayout UILayoutConfig `json:"ui_layout"`
+}
+
+func NewDefaultChatConfig() ChatConfig {
+	return ChatConfig{
+		DefaultModel: "gemma3:4b",
+		Temperature:  0.9,
+		MaxTokens:    1000,
+		SystemPrompt: `You are a helpful cooking assistant specialized in recipes, ingredients, and culinary knowledge. You have access to a personal cookbook database and can help users with various cooking-related tasks.
+
+		Your capabilities include:
+		- Finding recipes by name or ID
+		- Listing all available recipes
+		- Providing cooking advice and ingredient information
+		- Helping with meal planning and recipe suggestions
+		- Answering questions about cooking techniques and food preparation
+
+		Available tools:
+		- searchRecipeByName: Search for recipes by name (case-insensitive)
+		- getRecipeById: Get a specific recipe by its unique ID
+		- listAllRecipes: List all recipes in the cookbook
+
+		Guidelines for responses:
+		- Always format your responses using markdown for better readability
+		- Use headers, lists, and emphasis where appropriate
+		- Be helpful and encouraging when providing cooking advice
+		- If you need to search for recipes, use the available tools
+		- Provide detailed information about ingredients, cooking methods, and serving suggestions
+		- If a recipe isn't found, suggest similar alternatives or offer to help with general cooking questions
+
+		Remember: You are a cooking expert, so provide accurate, helpful information and be enthusiastic about food and cooking!`,
+
+		TextAreaPlaceholder:      "Ask anything about cooking, recipes, ingredients, or anything else you want to know about food... 🍳 ",
+		TextAreaMaxChar:          400,
+		UserName:                 "User",
+		AssistantName:            "Assistant",
+		AssistantAvatar:          "🤖",
+		UserAvatar:               "👤",
+		AssistantThinkingMessage: "Thinking...",
+		UILayout:                 NewDefaultUILayoutConfig(),
+	}
 }
 
 // UILayoutConfig contains UI layout and sizing constants
@@ -129,15 +222,113 @@ type UILayoutConfig struct {
 	MinWidthForSidebar int `json:"min_width_for_sidebar"`
 }
 
+func NewDefaultUILayoutConfig() UILayoutConfig {
+	return UILayoutConfig{
+		ContentPadding:              8,
+		MarkdownPadding:             8,
+		MinContentWidth:             20,
+		MinMarkdownWidth:            20,
+		MinViewportHeight:           8,
+		MinMarkdownWidthForRenderer: 8,
+		TitleHeight:                 5,
+		InputHeight:                 5,
+		BorderPadding:               6,
+		TotalUIHeight:               13,
+		SidebarWidth:                30,
+		MinWidthForSidebar:          100,
+		MinSidebarWidth:             25,
+		MaxSidebarWidth:             40,
+		ViewportHeight:              30,
+		ViewportWidth:               80,
+	}
+}
+
 // DatabaseConfig contains database-related settings
 type DatabaseConfig struct {
 	RecipeDBName     string `json:"recipe_db_name"`
 	SessionLogDBName string `json:"session_log_db_name"`
 }
 
+func NewDefaultDatabaseConfig() DatabaseConfig {
+	return DatabaseConfig{
+		RecipeDBName:     "cookbook.db",
+		SessionLogDBName: "session_log.db",
+	}
+}
+
 // KeymapConfig allows customization of key bindings
 type KeymapConfig struct {
-	CustomBindings map[string][]string `json:"custom_bindings,omitempty"`
+	CursorUp             []string `json:"cursor_up"`
+	CursorDown           []string `json:"cursor_down"`
+	Yes                  []string `json:"yes"`
+	No                   []string `json:"no"`
+	Add                  []string `json:"add"`
+	NewSession           []string `json:"new_session"`
+	Back                 []string `json:"back"`
+	Delete               []string `json:"delete"`
+	Quit                 []string `json:"quit"`
+	Enter                []string `json:"enter"`
+	Help                 []string `json:"help"`
+	Edit                 []string `json:"edit"`
+	StateSelector        []string `json:"state_selector"`
+	SessionSelector      []string `json:"session_selector"`
+	SetFavourite         []string `json:"set_favourite"`
+	PrevPage             []string `json:"prev_page"`
+	NextPage             []string `json:"next_page"`
+	ForceQuit            []string `json:"force_quit"`
+	ShowFullHelp         []string `json:"show_full_help"`
+	CloseFullHelp        []string `json:"close_full_help"`
+	CancelWhileFiltering []string `json:"cancel_while_filtering"`
+	AcceptWhileFiltering []string `json:"accept_while_filtering"`
+	GoToStart            []string `json:"go_to_start"`
+	GoToEnd              []string `json:"go_to_end"`
+	Filter               []string `json:"filter"`
+	ClearFilter          []string `json:"clear_filter"`
+	EditIngredients      []string `json:"edit_ingredients"`
+	EditInstructions     []string `json:"edit_instructions"`
+	EditAdd              []string `json:"edit_add"`
+	EditEdit             []string `json:"edit_edit"`
+	EditDelete           []string `json:"edit_delete"`
+}
+
+func NewDefaultKeyBindings() KeymapConfig {
+	return KeymapConfig{
+		CursorUp:             []string{"k", "up"},
+		CursorDown:           []string{"j", "down"},
+		Yes:                  []string{"y"},
+		No:                   []string{"n"},
+		Add:                  []string{"ctrl+a"},
+		NewSession:           []string{"ctrl+a"},
+		Back:                 []string{"esc", "q"},
+		Delete:               []string{"ctrl+x"},
+		Quit:                 []string{"q", "esc"},
+		Enter:                []string{"enter"},
+		Help:                 []string{"h", "?"},
+		Edit:                 []string{"ctrl+e"},
+		StateSelector:        []string{"ctrl+s"},
+		SessionSelector:      []string{"ctrl+n"},
+		SetFavourite:         []string{"ctrl+f"},
+		PrevPage:             []string{"j", "left"},
+		NextPage:             []string{"k", "right"},
+		ForceQuit:            []string{"ctrl+c"},
+		ShowFullHelp:         []string{"?"},
+		CloseFullHelp:        []string{"?"},
+		CancelWhileFiltering: []string{"esc"},
+		AcceptWhileFiltering: []string{"enter", "tab", "shift+tab", "ctrl+k", "up", "ctrl+j", "down"},
+		GoToStart:            []string{"home", "g"},
+		GoToEnd:              []string{"end", "G"},
+		Filter:               []string{"/"},
+		ClearFilter:          []string{"esc"},
+		EditIngredients:      []string{"i"},
+		EditInstructions:     []string{"s"},
+		EditAdd:              []string{"a"},
+		EditEdit:             []string{"e"},
+		EditDelete:           []string{"d"},
+	}
+}
+
+func (k KeymapConfig) ToKeyMap() KeyMap {
+	return NewKeyMapFromConfig(k)
 }
 
 // GeneralConfig contains general application settings
@@ -149,11 +340,29 @@ type GeneralConfig struct {
 	MoveSpeed    int `json:"move_speed"`
 }
 
+func NewDefaultGeneralConfig() GeneralConfig {
+	return GeneralConfig{
+		Height:       0,
+		Padding:      0,
+		ContentWidth: 0,
+		ScrollSpeed:  3,
+		MoveSpeed:    1,
+	}
+}
+
 // StatusLineConfig contains status line settings
 type StatusLineConfig struct {
 	Height       int `json:"height"`
 	Padding      int `json:"padding"`
 	ContentWidth int `json:"content_width"`
+}
+
+func NewDefaultStatusLineConfig() StatusLineConfig {
+	return StatusLineConfig{
+		Height:       1,
+		Padding:      2,
+		ContentWidth: 80,
+	}
 }
 
 // ListConfig contains list view settings
@@ -167,112 +376,15 @@ type ListConfig struct {
 	ItemNamePlural                    string `json:"list_item_name_plural"`
 }
 
-// NewDefaultConfig returns the default configuration
-func NewDefaultConfig() *Config {
-	return &Config{
-		Theme: "default",
-		StateSelectorDialog: StateSelectorDialogConfig{
-			Height: 30,
-			Width:  80,
-		},
-		SessionSelectorDialog: SessionSelectorDialogConfig{
-			Height: 30,
-			Width:  80,
-		},
-		Chat: ChatConfig{
-			DefaultModel: "gemma3:4b",
-			Temperature:  0.9,
-			MaxTokens:    1000,
-			SystemPrompt: `You are a helpful cooking assistant specialized in recipes, ingredients, and culinary knowledge. You have access to a personal cookbook database and can help users with various cooking-related tasks.
-
-			Your capabilities include:
-			- Finding recipes by name or ID
-			- Listing all available recipes
-			- Providing cooking advice and ingredient information
-			- Helping with meal planning and recipe suggestions
-			- Answering questions about cooking techniques and food preparation
-
-			Available tools:
-			- searchRecipeByName: Search for recipes by name (case-insensitive)
-			- getRecipeById: Get a specific recipe by its unique ID
-			- listAllRecipes: List all recipes in the cookbook
-
-			Guidelines for responses:
-			- Always format your responses using markdown for better readability
-			- Use headers, lists, and emphasis where appropriate
-			- Be helpful and encouraging when providing cooking advice
-			- If you need to search for recipes, use the available tools
-			- Provide detailed information about ingredients, cooking methods, and serving suggestions
-			- If a recipe isn't found, suggest similar alternatives or offer to help with general cooking questions
-
-			Remember: You are a cooking expert, so provide accurate, helpful information and be enthusiastic about food and cooking!`,
-
-			TextAreaPlaceholder:      "Ask anything about cooking, recipes, ingredients, or anything else you want to know about food... 🍳 ",
-			TextAreaMaxChar:          400,
-			UserName:                 "User",
-			AssistantName:            "Assistant",
-			AssistantAvatar:          "🤖",
-			UserAvatar:               "👤",
-			AssistantThinkingMessage: "Thinking...",
-			UILayout: UILayoutConfig{
-				ContentPadding:              8,
-				MarkdownPadding:             8,
-				MinContentWidth:             20,
-				MinMarkdownWidth:            20,
-				MinViewportHeight:           8,
-				MinMarkdownWidthForRenderer: 8,
-				TitleHeight:                 5,
-				InputHeight:                 5,
-				BorderPadding:               6,
-				TotalUIHeight:               13,
-				SidebarWidth:                30,
-				MinWidthForSidebar:          100,
-				MinSidebarWidth:             25,
-				MaxSidebarWidth:             40,
-				ViewportHeight:              30,
-				ViewportWidth:               80,
-			},
-		},
-		Database: DatabaseConfig{
-			RecipeDBName:     "cookbook.db",
-			SessionLogDBName: "session_log.db",
-		},
-		Keymap: KeymapConfig{
-			CustomBindings: make(map[string][]string),
-		},
-		StatusLine: StatusLineConfig{
-			Height:       1,
-			Padding:      2,
-			ContentWidth: 80,
-		},
-		MainMenu: MainMenuConfig{
-			MenuItemWidth:        60,
-			MainMenuContentWidth: 80,
-			MainMenuWelcomeText:  "🌟 Welcome to your culinary journey! Choose an option below to get started:",
-			MainMenuSubtitleText: "🍳 Your Personal Culinary Companion 🍳",
-			MainMenuHelpText:     "🎮 Navigation Controls",
-		},
-		Detail: DetailConfig{
-			ViewportHeight:            30,
-			ViewportWidth:             80,
-			ScrollSpeed:               3,
-			MoveSpeed:                 1,
-			NoRecipeSelectedMessage:   "📖 There is no recipe selected. Please select a recipe from the Recipe List",
-			NoContentAvailableMessage: "📝 No content available",
-		},
-		List: ListConfig{
-			ViewStatusMessageTTL:              1500,
-			ViewStatusMessageFavouriteSet:     " ⭐️ Favourite set!",
-			ViewStatusMessageFavouriteRemoved: " ❌ Favourite removed!",
-			ViewStatusMessageRecipeDeleted:    " ❌ Recipe deleted!",
-			Title:                             "📚 My Cookbook",
-			ItemNameSingular:                  "recipe",
-			ItemNamePlural:                    "recipes",
-		},
-		General: GeneralConfig{
-			ScrollSpeed: 3,
-			MoveSpeed:   1,
-		},
+func NewDefaultListConfig() ListConfig {
+	return ListConfig{
+		ViewStatusMessageTTL:              1500,
+		ViewStatusMessageFavouriteSet:     " ⭐️ Favourite set!",
+		ViewStatusMessageFavouriteRemoved: " ❌ Favourite removed!",
+		ViewStatusMessageRecipeDeleted:    " ❌ Recipe deleted!",
+		Title:                             "📚 My Cookbook",
+		ItemNameSingular:                  "recipe",
+		ItemNamePlural:                    "recipes",
 	}
 }
 
@@ -407,4 +519,12 @@ func GetSessionSelectorDialogConfig() *SessionSelectorDialogConfig {
 		return &NewDefaultConfig().SessionSelectorDialog
 	}
 	return &cfg.SessionSelectorDialog
+}
+
+func GetKeymapConfig() *KeymapConfig {
+	cfg := GetGlobalConfig()
+	if cfg == nil {
+		return &NewDefaultConfig().Keymap
+	}
+	return &cfg.Keymap
 }

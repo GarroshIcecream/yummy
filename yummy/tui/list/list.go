@@ -1,6 +1,7 @@
 package list
 
 import (
+	"fmt"
 	"log/slog"
 	"os"
 	"time"
@@ -21,21 +22,14 @@ type ListModel struct {
 	cookbook   *db.CookBook
 	RecipeList list.Model
 	modelState common.ModelState
-	config     *config.ListConfig
+	config     config.ListConfig
 	width      int
 	height     int
-	keyMap     config.KeyMap
+	keyMap     config.ListKeyMap
 	theme      *themes.Theme
 }
 
-func New(cookbook *db.CookBook, keymaps config.KeyMap, theme *themes.Theme) (*ListModel, error) {
-	windowWidth, windowHeight, err := term.GetSize(os.Stdout.Fd())
-	if err != nil {
-		slog.Error("Failed to get terminal size", "error", err)
-		return nil, err
-	}
-
-	cfg := config.GetListConfig()
+func New(cookbook *db.CookBook, theme *themes.Theme) (*ListModel, error) {
 	recipes, err := cookbook.AllRecipes()
 	if err != nil {
 		slog.Error("Failed to get recipes", "error", err)
@@ -47,28 +41,36 @@ func New(cookbook *db.CookBook, keymaps config.KeyMap, theme *themes.Theme) (*Li
 		items = append(items, recipe)
 	}
 
+	cfg := config.GetGlobalConfig()
+	if cfg == nil {
+		return nil, fmt.Errorf("global config not set")
+	}
+
+	listConfig := cfg.List
+	keymaps := cfg.Keymap.ToKeyMap().GetListKeyMap()
+
 	d := list.NewDefaultDelegate()
 	d.Styles = theme.DelegateStyles
+	windowWidth, windowHeight, err := term.GetSize(os.Stdout.Fd())
+	if err != nil {
+		slog.Error("Failed to get terminal size", "error", err)
+		return nil, err
+	}
 
 	l := list.New(items, d, windowWidth, windowHeight)
 	l.Styles = theme.ListStyles
-	l.Title = cfg.Title
-	l.KeyMap = keymaps.ListKeyMap()
-	l.SetStatusBarItemName(cfg.ItemNameSingular, cfg.ItemNamePlural)
-	l.StatusMessageLifetime = time.Duration(cfg.ViewStatusMessageTTL) * time.Millisecond
+	l.Title = listConfig.Title
+	l.KeyMap = keymaps.ListKeyMap
+	l.SetStatusBarItemName(listConfig.ItemNameSingular, listConfig.ItemNamePlural)
+	l.StatusMessageLifetime = time.Duration(listConfig.ViewStatusMessageTTL) * time.Millisecond
 	l.Filter = CustomFilter
-	l.AdditionalShortHelpKeys = func() []key.Binding {
-		return []key.Binding{keymaps.Add, keymaps.Delete}
-	}
-
-	l.AdditionalFullHelpKeys = func() []key.Binding {
-		return []key.Binding{keymaps.Add, keymaps.Delete, keymaps.SetFavourite}
-	}
+	l.AdditionalShortHelpKeys = keymaps.AdditionalShortHelpKeys
+	l.AdditionalFullHelpKeys = keymaps.AdditionalFullHelpKeys
 
 	return &ListModel{
 		cookbook:   cookbook,
 		keyMap:     keymaps,
-		config:     cfg,
+		config:     listConfig,
 		modelState: common.ModelStateLoaded,
 		RecipeList: l,
 		theme:      theme,
@@ -191,4 +193,12 @@ func (m *ListModel) GetModelState() common.ModelState {
 
 func (m *ListModel) GetSessionState() common.SessionState {
 	return common.SessionStateList
+}
+
+func (m *ListModel) GetCurrentTheme() *themes.Theme {
+	return m.theme
+}
+
+func (m *ListModel) SetTheme(theme *themes.Theme) {
+	m.theme = theme
 }

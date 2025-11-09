@@ -19,7 +19,7 @@ type StateSelectorDialogCmp struct {
 	selectedIndex int
 
 	// Config
-	keymap config.KeyMap
+	keymap config.StateSelectorKeyMap
 	theme  *themes.Theme
 
 	// UI
@@ -28,8 +28,14 @@ type StateSelectorDialogCmp struct {
 }
 
 // NewStateSelectorDialog creates a new state selection dialog.
-func NewStateSelectorDialog(theme *themes.Theme, keymaps config.KeyMap) *StateSelectorDialogCmp {
-	cfg := config.GetStateSelectorDialogConfig()
+func NewStateSelectorDialog(theme *themes.Theme) (*StateSelectorDialogCmp, error) {
+	cfg := config.GetGlobalConfig()
+	if cfg == nil {
+		return nil, fmt.Errorf("global config not set")
+	}
+
+	keymaps := cfg.Keymap.ToKeyMap().GetStateSelectorKeyMap()
+	stateSelectorConfig := cfg.StateSelectorDialog
 	states := []common.SessionState{
 		common.SessionStateMainMenu,
 		common.SessionStateList,
@@ -41,11 +47,11 @@ func NewStateSelectorDialog(theme *themes.Theme, keymaps config.KeyMap) *StateSe
 	return &StateSelectorDialogCmp{
 		selectedIndex: 0,
 		states:        states,
-		height:        cfg.Height,
-		width:         cfg.Width,
+		height:        stateSelectorConfig.Height,
+		width:         stateSelectorConfig.Width,
 		keymap:        keymaps,
 		theme:         theme,
-	}
+	}, nil
 }
 
 func (s *StateSelectorDialogCmp) Init() tea.Cmd {

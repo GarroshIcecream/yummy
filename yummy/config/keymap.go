@@ -1,6 +1,8 @@
 package config
 
 import (
+	"strings"
+
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 )
@@ -39,6 +41,97 @@ type KeyMap struct {
 	EditDelete           key.Binding
 }
 
+type ManagerKeyMap struct {
+	ForceQuit     key.Binding
+	Back          key.Binding
+	StateSelector key.Binding
+}
+
+type MainMenuKeyMap struct {
+	CursorUp      key.Binding
+	CursorDown    key.Binding
+	Enter         key.Binding
+	Back          key.Binding
+	Quit          key.Binding
+	Help          key.Binding
+	StateSelector key.Binding
+}
+
+type ListKeyMap struct {
+	Delete                  key.Binding
+	Enter                   key.Binding
+	SetFavourite            key.Binding
+	ListKeyMap              list.KeyMap
+	AdditionalShortHelpKeys func() []key.Binding
+	AdditionalFullHelpKeys  func() []key.Binding
+}
+
+type DetailKeyMap struct {
+	CursorUp   key.Binding
+	CursorDown key.Binding
+	Edit       key.Binding
+	Back       key.Binding
+	Quit       key.Binding
+	Help       key.Binding
+}
+
+type EditKeyMap struct {
+	Edit             key.Binding
+	EditIngredients  key.Binding
+	EditInstructions key.Binding
+	EditAdd          key.Binding
+	EditEdit         key.Binding
+	EditDelete       key.Binding
+	Back             key.Binding
+	Quit             key.Binding
+	Help             key.Binding
+	Enter            key.Binding
+}
+
+type ChatKeyMap struct {
+	NewSession      key.Binding
+	SessionSelector key.Binding
+	Enter           key.Binding
+	Back            key.Binding
+	Quit            key.Binding
+	Help            key.Binding
+}
+
+type StateSelectorKeyMap struct {
+	CursorUp      key.Binding
+	CursorDown    key.Binding
+	StateSelector key.Binding
+	Enter         key.Binding
+	Back          key.Binding
+	Quit          key.Binding
+	Help          key.Binding
+}
+
+type SessionSelectorKeyMap struct {
+	CursorUp             key.Binding
+	CursorDown           key.Binding
+	Filter               key.Binding
+	ClearFilter          key.Binding
+	CancelWhileFiltering key.Binding
+	AcceptWhileFiltering key.Binding
+	GoToStart            key.Binding
+	GoToEnd              key.Binding
+	PrevPage             key.Binding
+	NextPage             key.Binding
+	ShowFullHelp         key.Binding
+	CloseFullHelp        key.Binding
+	Enter                key.Binding
+	SessionSelector      key.Binding
+	Back                 key.Binding
+	Quit                 key.Binding
+	Help                 key.Binding
+}
+
+// NewKeyMapFromConfig creates a keymap using the keymap configuration
+func NewKeyMapFromConfig(keymapConfig KeymapConfig) KeyMap {
+	return createKeyMap(keymapConfig)
+}
+
 func (k KeyMap) ShortHelp() []key.Binding {
 	return []key.Binding{k.Help, k.StateSelector, k.Quit}
 }
@@ -50,178 +143,255 @@ func (k KeyMap) FullHelp() [][]key.Binding {
 	}
 }
 
-func (k KeyMap) ListKeyMap() list.KeyMap {
-	l := list.KeyMap{
+func (k KeyMap) GetManagerKeyMap() ManagerKeyMap {
+	return ManagerKeyMap{
+		Back:          k.Back,
+		ForceQuit:     k.ForceQuit,
+		StateSelector: k.StateSelector,
+	}
+}
+
+func (k KeyMap) GetListKeyMap() ListKeyMap {
+	listKeyMap := ListKeyMap{
+		Delete:       k.Delete,
+		Enter:        k.Enter,
+		SetFavourite: k.SetFavourite,
+		AdditionalShortHelpKeys: func() []key.Binding {
+			return []key.Binding{k.Add, k.Delete}
+		},
+		AdditionalFullHelpKeys: func() []key.Binding {
+			return []key.Binding{k.Add, k.Delete, k.SetFavourite}
+		},
+		ListKeyMap: list.KeyMap{
+			CursorUp:             k.CursorUp,
+			CursorDown:           k.CursorDown,
+			NextPage:             k.NextPage,
+			PrevPage:             k.PrevPage,
+			GoToStart:            k.GoToStart,
+			GoToEnd:              k.GoToEnd,
+			Filter:               k.Filter,
+			ClearFilter:          k.ClearFilter,
+			CancelWhileFiltering: k.CancelWhileFiltering,
+			AcceptWhileFiltering: k.AcceptWhileFiltering,
+			ShowFullHelp:         k.ShowFullHelp,
+			CloseFullHelp:        k.CloseFullHelp,
+			Quit:                 k.Quit,
+			ForceQuit:            k.ForceQuit,
+		},
+	}
+
+	return listKeyMap
+}
+
+func (k KeyMap) GetMainMenuKeyMap() MainMenuKeyMap {
+	return MainMenuKeyMap{
+		CursorUp:      k.CursorUp,
+		CursorDown:    k.CursorDown,
+		Enter:         k.Enter,
+		Back:          k.Back,
+		Quit:          k.Quit,
+		Help:          k.Help,
+		StateSelector: k.StateSelector,
+	}
+}
+
+func (k KeyMap) GetDetailKeyMap() DetailKeyMap {
+	return DetailKeyMap{
+		CursorUp:   k.CursorUp,
+		CursorDown: k.CursorDown,
+		Edit:       k.Edit,
+		Back:       k.Back,
+		Quit:       k.Quit,
+		Help:       k.Help,
+	}
+}
+
+func (k KeyMap) GetEditKeyMap() EditKeyMap {
+	return EditKeyMap{
+		Edit:             k.Edit,
+		EditIngredients:  k.EditIngredients,
+		EditInstructions: k.EditInstructions,
+		EditAdd:          k.EditAdd,
+		EditEdit:         k.EditEdit,
+		EditDelete:       k.EditDelete,
+		Back:             k.Back,
+		Quit:             k.Quit,
+		Help:             k.Help,
+		Enter:            k.Enter,
+	}
+}
+
+func (k KeyMap) GetChatKeyMap() ChatKeyMap {
+	return ChatKeyMap{
+		NewSession:      k.NewSession,
+		SessionSelector: k.SessionSelector,
+		Enter:           k.Enter,
+		Back:            k.Back,
+		Quit:            k.Quit,
+		Help:            k.Help,
+	}
+}
+
+func (k KeyMap) GetStateSelectorKeyMap() StateSelectorKeyMap {
+	return StateSelectorKeyMap{
+		CursorUp:      k.CursorUp,
+		CursorDown:    k.CursorDown,
+		StateSelector: k.StateSelector,
+		Enter:         k.Enter,
+		Back:          k.Back,
+		Quit:          k.Quit,
+		Help:          k.Help,
+	}
+}
+
+func (k KeyMap) GetSessionSelectorKeyMap() SessionSelectorKeyMap {
+	return SessionSelectorKeyMap{
 		CursorUp:             k.CursorUp,
 		CursorDown:           k.CursorDown,
-		NextPage:             k.NextPage,
-		PrevPage:             k.PrevPage,
-		GoToStart:            k.GoToStart,
-		GoToEnd:              k.GoToEnd,
 		Filter:               k.Filter,
 		ClearFilter:          k.ClearFilter,
 		CancelWhileFiltering: k.CancelWhileFiltering,
 		AcceptWhileFiltering: k.AcceptWhileFiltering,
+		GoToStart:            k.GoToStart,
+		GoToEnd:              k.GoToEnd,
+		PrevPage:             k.PrevPage,
+		NextPage:             k.NextPage,
 		ShowFullHelp:         k.ShowFullHelp,
 		CloseFullHelp:        k.CloseFullHelp,
+		Enter:                k.Enter,
+		SessionSelector:      k.SessionSelector,
+		Back:                 k.Back,
 		Quit:                 k.Quit,
-		ForceQuit:            k.ForceQuit,
+		Help:                 k.Help,
 	}
-
-	return l
-}
-
-// DefaultKeyMap returns the default keymap with standard bindings
-func NewDefaultKeyMap() KeyMap {
-	return createKeyMap(nil)
-}
-
-// CreateKeyMap creates a keymap with optional custom bindings
-func CreateKeyMap(customBindings map[string][]string) KeyMap {
-	return createKeyMap(customBindings)
-}
-
-// CreateKeyMapFromConfig creates a keymap using the keymap configuration
-func CreateKeyMapFromConfig(keymapConfig KeymapConfig) KeyMap {
-	return createKeyMap(keymapConfig.CustomBindings)
 }
 
 // createKeyMap creates a keymap with the given custom bindings
-func createKeyMap(customBindings map[string][]string) KeyMap {
-	// Helper function to get keys for a binding, with fallback to defaults
-	getKeys := func(bindingName string, defaultKeys []string) []string {
-		if customBindings != nil {
-			if customKeys, exists := customBindings[bindingName]; exists {
-				return customKeys
-			}
-		}
-		return defaultKeys
-	}
-
+func createKeyMap(keymapConfig KeymapConfig) KeyMap {
 	return KeyMap{
 		CursorUp: key.NewBinding(
-			key.WithKeys(getKeys("cursor_up", []string{"k", "up"})...),
-			key.WithHelp("↑/k", "move up"),
+			key.WithKeys(keymapConfig.CursorUp...),
+			key.WithHelp(strings.Join(keymapConfig.CursorUp, "/"), "move up"),
 		),
 		CursorDown: key.NewBinding(
-			key.WithKeys(getKeys("cursor_down", []string{"j", "down"})...),
-			key.WithHelp("↓/j", "move down"),
+			key.WithKeys(keymapConfig.CursorDown...),
+			key.WithHelp(strings.Join(keymapConfig.CursorDown, "/"), "move down"),
 		),
 		Yes: key.NewBinding(
-			key.WithKeys(getKeys("yes", []string{"y"})...),
-			key.WithHelp("y", "yes"),
+			key.WithKeys(keymapConfig.Yes...),
+			key.WithHelp(strings.Join(keymapConfig.Yes, "/"), "yes"),
 		),
 		No: key.NewBinding(
-			key.WithKeys(getKeys("no", []string{"n"})...),
-			key.WithHelp("n", "no"),
+			key.WithKeys(keymapConfig.No...),
+			key.WithHelp(strings.Join(keymapConfig.No, "/"), "no"),
 		),
 		Add: key.NewBinding(
-			key.WithKeys(getKeys("add", []string{"ctrl+a"})...),
-			key.WithHelp("ctrl+a", "add recipe"),
+			key.WithKeys(keymapConfig.Add...),
+			key.WithHelp(strings.Join(keymapConfig.Add, "/"), "add recipe"),
 		),
 		NewSession: key.NewBinding(
-			key.WithKeys(getKeys("new_session", []string{"ctrl+a"})...),
-			key.WithHelp("ctrl+a", "new session"),
+			key.WithKeys(keymapConfig.NewSession...),
+			key.WithHelp(strings.Join(keymapConfig.NewSession, "/"), "new session"),
 		),
 		Back: key.NewBinding(
-			key.WithKeys(getKeys("back", []string{"esc", "q"})...),
-			key.WithHelp("esc/q", "go back"),
+			key.WithKeys(keymapConfig.Back...),
+			key.WithHelp(strings.Join(keymapConfig.Back, "/"), "go back"),
 		),
 		Delete: key.NewBinding(
-			key.WithKeys(getKeys("delete", []string{"ctrl+x"})...),
-			key.WithHelp("ctrl+x", "delete recipe"),
+			key.WithKeys(keymapConfig.Delete...),
+			key.WithHelp(strings.Join(keymapConfig.Delete, "/"), "delete recipe"),
 		),
 		Quit: key.NewBinding(
-			key.WithKeys(getKeys("quit", []string{"q", "esc"})...),
-			key.WithHelp("esc/q", "quit"),
+			key.WithKeys(keymapConfig.Quit...),
+			key.WithHelp(strings.Join(keymapConfig.Quit, "/"), "quit"),
 		),
 		Enter: key.NewBinding(
-			key.WithKeys(getKeys("enter", []string{"enter"})...),
-			key.WithHelp("enter", "select"),
+			key.WithKeys(keymapConfig.Enter...),
+			key.WithHelp(strings.Join(keymapConfig.Enter, "/"), "select"),
 		),
 		Help: key.NewBinding(
-			key.WithKeys(getKeys("help", []string{"h", "?"})...),
-			key.WithHelp("h/?", "help"),
+			key.WithKeys(keymapConfig.Help...),
+			key.WithHelp(strings.Join(keymapConfig.Help, "/"), "help"),
 		),
 		Edit: key.NewBinding(
-			key.WithKeys(getKeys("edit", []string{"ctrl+e"})...),
-			key.WithHelp("ctrl+e", "edit"),
+			key.WithKeys(keymapConfig.Edit...),
+			key.WithHelp(strings.Join(keymapConfig.Edit, "/"), "edit"),
 		),
 		StateSelector: key.NewBinding(
-			key.WithKeys(getKeys("state_selector", []string{"ctrl+s"})...),
-			key.WithHelp("ctrl+s", "select state"),
+			key.WithKeys(keymapConfig.StateSelector...),
+			key.WithHelp(strings.Join(keymapConfig.StateSelector, "/"), "select state"),
 		),
 		SessionSelector: key.NewBinding(
-			key.WithKeys(getKeys("session_selector", []string{"ctrl+n"})...),
-			key.WithHelp("ctrl+n", "select session"),
+			key.WithKeys(keymapConfig.SessionSelector...),
+			key.WithHelp(strings.Join(keymapConfig.SessionSelector, "/"), "select session"),
 		),
 		SetFavourite: key.NewBinding(
-			key.WithKeys(getKeys("set_favourite", []string{"ctrl+f"})...),
-			key.WithHelp("ctrl+f", "set favourite"),
+			key.WithKeys(keymapConfig.SetFavourite...),
+			key.WithHelp(strings.Join(keymapConfig.SetFavourite, "/"), "set favourite"),
 		),
 		PrevPage: key.NewBinding(
-			key.WithKeys(getKeys("prev_page", []string{"h", "pgup", "b", "u"})...),
-			key.WithHelp("h/pgup", "prev page"),
+			key.WithKeys(keymapConfig.PrevPage...),
+			key.WithHelp(strings.Join(keymapConfig.PrevPage, "/"), "prev page"),
 		),
 		NextPage: key.NewBinding(
-			key.WithKeys(getKeys("next_page", []string{"l", "pgdown", "f", "d"})...),
-			key.WithHelp("l/pgdn", "next page"),
+			key.WithKeys(keymapConfig.NextPage...),
+			key.WithHelp(strings.Join(keymapConfig.NextPage, "/"), "next page"),
 		),
 		ForceQuit: key.NewBinding(
-			key.WithKeys(getKeys("force_quit", []string{"ctrl+c"})...),
-			key.WithHelp("ctrl+c", "force quit"),
+			key.WithKeys(keymapConfig.ForceQuit...),
+			key.WithHelp(strings.Join(keymapConfig.ForceQuit, "/"), "force quit"),
 		),
 		ShowFullHelp: key.NewBinding(
-			key.WithKeys(getKeys("show_full_help", []string{"?"})...),
-			key.WithHelp("?", "more"),
+			key.WithKeys(keymapConfig.ShowFullHelp...),
+			key.WithHelp(strings.Join(keymapConfig.ShowFullHelp, "/"), "more"),
 		),
 		CloseFullHelp: key.NewBinding(
-			key.WithKeys(getKeys("close_full_help", []string{"?"})...),
-			key.WithHelp("?", "close help"),
+			key.WithKeys(keymapConfig.CloseFullHelp...),
+			key.WithHelp(strings.Join(keymapConfig.CloseFullHelp, "/"), "close help"),
 		),
 		CancelWhileFiltering: key.NewBinding(
-			key.WithKeys(getKeys("cancel_while_filtering", []string{"esc"})...),
-			key.WithHelp("esc", "cancel"),
+			key.WithKeys(keymapConfig.CancelWhileFiltering...),
+			key.WithHelp(strings.Join(keymapConfig.CancelWhileFiltering, "/"), "cancel"),
 		),
 		AcceptWhileFiltering: key.NewBinding(
-			key.WithKeys(getKeys("accept_while_filtering", []string{"enter", "tab", "shift+tab", "ctrl+k", "up", "ctrl+j", "down"})...),
-			key.WithHelp("enter", "apply filter"),
+			key.WithKeys(keymapConfig.AcceptWhileFiltering...),
+			key.WithHelp(strings.Join(keymapConfig.AcceptWhileFiltering, "/"), "apply filter"),
 		),
 		GoToStart: key.NewBinding(
-			key.WithKeys(getKeys("go_to_start", []string{"home", "g"})...),
-			key.WithHelp("g/home", "go to start"),
+			key.WithKeys(keymapConfig.GoToStart...),
+			key.WithHelp(strings.Join(keymapConfig.GoToStart, "/"), "go to start"),
 		),
 		GoToEnd: key.NewBinding(
-			key.WithKeys(getKeys("go_to_end", []string{"end", "G"})...),
-			key.WithHelp("G/end", "go to end"),
+			key.WithKeys(keymapConfig.GoToEnd...),
+			key.WithHelp(strings.Join(keymapConfig.GoToEnd, "/"), "go to end"),
 		),
 		Filter: key.NewBinding(
-			key.WithKeys(getKeys("filter", []string{"/"})...),
-			key.WithHelp("/", "filter"),
+			key.WithKeys(keymapConfig.Filter...),
+			key.WithHelp(strings.Join(keymapConfig.Filter, "/"), "filter"),
 		),
 		ClearFilter: key.NewBinding(
-			key.WithKeys(getKeys("clear_filter", []string{"esc"})...),
-			key.WithHelp("esc", "clear filter"),
+			key.WithKeys(keymapConfig.ClearFilter...),
+			key.WithHelp(strings.Join(keymapConfig.ClearFilter, "/"), "clear filter"),
 		),
 		EditIngredients: key.NewBinding(
-			key.WithKeys(getKeys("edit_ingredients", []string{"i"})...),
-			key.WithHelp("i", "edit ingredients"),
+			key.WithKeys(keymapConfig.EditIngredients...),
+			key.WithHelp(strings.Join(keymapConfig.EditIngredients, "/"), "edit ingredients"),
 		),
 		EditInstructions: key.NewBinding(
-			key.WithKeys(getKeys("edit_instructions", []string{"s"})...),
-			key.WithHelp("s", "edit instructions"),
+			key.WithKeys(keymapConfig.EditInstructions...),
+			key.WithHelp(strings.Join(keymapConfig.EditInstructions, "/"), "edit instructions"),
 		),
 		EditAdd: key.NewBinding(
-			key.WithKeys(getKeys("edit_add", []string{"a"})...),
-			key.WithHelp("a", "add item"),
+			key.WithKeys(keymapConfig.EditAdd...),
+			key.WithHelp(strings.Join(keymapConfig.EditAdd, "/"), "add item"),
 		),
 		EditEdit: key.NewBinding(
-			key.WithKeys(getKeys("edit_edit", []string{"e"})...),
-			key.WithHelp("e", "edit item"),
+			key.WithKeys(keymapConfig.EditEdit...),
+			key.WithHelp(strings.Join(keymapConfig.EditEdit, "/"), "edit item"),
 		),
 		EditDelete: key.NewBinding(
-			key.WithKeys(getKeys("edit_delete", []string{"d"})...),
-			key.WithHelp("d", "delete item"),
+			key.WithKeys(keymapConfig.EditDelete...),
+			key.WithHelp(strings.Join(keymapConfig.EditDelete, "/"), "delete item"),
 		),
 	}
 }

@@ -52,30 +52,10 @@ func NewExecutorService(cookbook *db.CookBook, sessionLog *db.SessionLog, modelN
 		return nil, err
 	}
 
-	// Create a new session for this chat
-	sessionID, err := sessionLog.CreateSession()
-	if err != nil {
-		slog.Error("Failed to create chat session", "error", err)
-		return nil, err
-	}
-
-	sessionStats, err := sessionLog.GetSessionStats(sessionID)
-	if err != nil {
-		slog.Error("Failed to get session stats", "error", err)
-		return nil, err
-	}
-
-	mem, err := GetConversationalBuffer(ctx, systemPrompt)
-	if err != nil {
-		slog.Error("Failed to create conversational buffer", "error", err)
-		return nil, err
-	}
-
-	err = sessionLog.SaveSessionMessage(sessionID, systemPrompt, llms.ChatMessageTypeSystem, modelName, 0, 0, 0)
-	if err != nil {
-		slog.Error("Failed to save system prompt to database", "error", err)
-		return nil, err
-	}
+	mem := memory.NewConversationBuffer(
+		memory.WithInputKey("input"),
+		memory.WithOutputKey("output"),
+	)
 
 	// Create the agent with tools
 	agent := agents.NewConversationalAgent(
@@ -101,6 +81,7 @@ func NewExecutorService(cookbook *db.CookBook, sessionLog *db.SessionLog, modelN
 		),
 	)
 
+	emptySessionStats := db.SessionStats{}
 	service := &ExecutorService{
 		executor:     executor,
 		llm:          llm,
@@ -109,7 +90,7 @@ func NewExecutorService(cookbook *db.CookBook, sessionLog *db.SessionLog, modelN
 		ctx:          ctx,
 		toolManager:  toolManager,
 		ollamaStatus: ollamaStatus,
-		sessionStats: sessionStats,
+		sessionStats: emptySessionStats,
 		systemPrompt: systemPrompt,
 	}
 
@@ -147,6 +128,16 @@ func (e *ExecutorService) GenerateResponse(message string) (string, error) {
 	slog.Debug("Generating response with executor", "model", e.modelName, "input", message)
 	if message == "" {
 		return "", fmt.Errorf("no input provided")
+	}
+
+	if e.GetSessionID() == 0 {
+		slog.Debug("No session selected, creating new session")
+		err := e.NewSession()
+		if err != nil {
+			slog.Error("Failed to create new session", "error", err)
+			return "", err
+		}
+		slog.Debug("New session created", "sessionID", e.GetSessionID())
 	}
 
 	// Update memory
@@ -187,7 +178,7 @@ func (e *ExecutorService) GetSessionID() uint {
 }
 
 func (e *ExecutorService) SetMemory(conversation []llms.ChatMessage) error {
-	err := e.GetMemory().Clear(e.ctx)
+	err := e.ClearMemory()
 	if err != nil {
 		slog.Error("Failed to clear memory", "error", err)
 		return err
@@ -202,10 +193,42 @@ func (e *ExecutorService) SetMemory(conversation []llms.ChatMessage) error {
 	return nil
 }
 
+func (e *ExecutorService) ClearMemory() error {
+	err := e.GetMemory().Clear(e.ctx)
+	if err != nil {
+		slog.Error("Failed to clear memory", "error", err)
+		return err
+	}
+	return nil
+}
+
+func (e *ExecutorService) ResetSession() error {
+	err := e.ClearMemory()
+	if err != nil {
+		slog.Error("Failed to clear memory", "error", err)
+		return err
+	}
+
+	e.sessionStats = db.SessionStats{}
+	return nil
+}
+
 func (e *ExecutorService) NewSession() error {
+	err := e.ClearMemory()
+	if err != nil {
+		slog.Error("Failed to clear memory", "error", err)
+		return err
+	}
+
 	sessionID, err := e.sessionLog.CreateSession()
 	if err != nil {
 		slog.Error("Failed to create session", "error", err)
+		return err
+	}
+
+	err = e.AppendSystemPrompt(e.systemPrompt, sessionID)
+	if err != nil {
+		slog.Error("Failed to add system prompt to memory", "error", err)
 		return err
 	}
 
@@ -216,12 +239,6 @@ func (e *ExecutorService) NewSession() error {
 	}
 
 	e.sessionStats = newSessionStats
-	err = e.GetMemory().Clear(e.ctx)
-	if err != nil {
-		slog.Error("Failed to clear memory", "error", err)
-		return err
-	}
-
 	return nil
 }
 
@@ -341,20 +358,19 @@ func (e *ExecutorService) SetModelByName(modelName string, ollamaStatus *OllamaS
 	return nil
 }
 
-func GetConversationalBuffer(ctx context.Context, systemPrompt string) (*memory.ConversationBuffer, error) {
-	// Create memory buffer for conversation history
-	mem := memory.NewConversationBuffer(
-		memory.WithInputKey("input"),
-		memory.WithOutputKey("output"),
-	)
-
-	// Add system prompt to memory buffer
+func (e *ExecutorService) AppendSystemPrompt(systemPrompt string, sessionID uint) error {
 	systemMessage := llms.SystemChatMessage{Content: systemPrompt}
-	err := mem.ChatHistory.AddMessage(ctx, systemMessage)
+	err := e.GetMemory().ChatHistory.AddMessage(e.ctx, systemMessage)
 	if err != nil {
 		slog.Error("Failed to add system prompt to memory", "error", err)
-		return nil, err
+		return err
 	}
 
-	return mem, nil
+	err = e.sessionLog.SaveSessionMessage(sessionID, systemPrompt, llms.ChatMessageTypeSystem, e.modelName, 0, 0, 0)
+	if err != nil {
+		slog.Error("Failed to save system prompt to database", "error", err)
+		return err
+	}
+
+	return nil
 }

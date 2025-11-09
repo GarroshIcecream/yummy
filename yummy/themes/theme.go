@@ -91,6 +91,8 @@ type Theme struct {
 	StateSelectorSelectedIndicator lipgloss.Style
 
 	// Session selector styles
+	SessionSelectorContainer  lipgloss.Style
+	SessionSelectorDialog     lipgloss.Style
 	SessionSelectorTitle      lipgloss.Style
 	SessionSelectorPagination lipgloss.Style
 	SessionSelectorHelp       lipgloss.Style

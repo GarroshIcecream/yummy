@@ -43,6 +43,13 @@ type StatusInfoMsg struct {
 	TTL  int
 }
 
+type OpenModalViewMsg struct {
+	ModalModel tea.Model
+	ModalType  common.ModalType
+}
+
+type CloseModalViewMsg struct{}
+
 type ResponseMsg struct {
 	Response string
 }
@@ -91,6 +98,14 @@ func SendFavouriteSetMsg(isFavourite bool) tea.Cmd {
 
 func SendRecipeSelectedMsg(recipeID uint) tea.Cmd {
 	return CmdHandler(RecipeSelectedMsg{RecipeID: recipeID})
+}
+
+func SendOpenModalViewMsg(modalModel tea.Model, modalType common.ModalType) tea.Cmd {
+	return CmdHandler(OpenModalViewMsg{ModalModel: modalModel, ModalType: modalType})
+}
+
+func SendCloseModalViewMsg() tea.Cmd {
+	return CmdHandler(CloseModalViewMsg{})
 }
 
 func SendSessionStateMsg(sessionState common.SessionState) tea.Cmd {

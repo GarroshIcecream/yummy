@@ -21,14 +21,15 @@ import (
 	common "github.com/GarroshIcecream/yummy/yummy/models/common"
 	messages "github.com/GarroshIcecream/yummy/yummy/models/msg"
 	themes "github.com/GarroshIcecream/yummy/yummy/themes"
+	"github.com/GarroshIcecream/yummy/yummy/tui/dialog"
 	"github.com/GarroshIcecream/yummy/yummy/utils"
 )
 
 type ChatModel struct {
 	// Configuration
-	keyMap     config.KeyMap
+	keyMap     config.ChatKeyMap
 	theme      *themes.Theme
-	chatConfig *config.ChatConfig
+	chatConfig config.ChatConfig
 
 	// UI components
 	viewport         viewport.Model
@@ -52,8 +53,14 @@ type ChatModel struct {
 	isStreaming       bool
 }
 
-func New(executorService *ExecutorService, keymaps config.KeyMap, theme *themes.Theme) (*ChatModel, error) {
-	chatConfig := config.GetChatConfig()
+func New(executorService *ExecutorService, theme *themes.Theme) (*ChatModel, error) {
+	cfg := config.GetGlobalConfig()
+	if cfg == nil {
+		return nil, fmt.Errorf("global config not set")
+	}
+
+	keymaps := cfg.Keymap.ToKeyMap().GetChatKeyMap()
+	chatConfig := cfg.Chat
 	windowWidth, windowHeight, err := term.GetSize(int(os.Stdout.Fd()))
 	if err != nil {
 		windowWidth = chatConfig.UILayout.ViewportWidth
@@ -105,10 +112,9 @@ func New(executorService *ExecutorService, keymaps config.KeyMap, theme *themes.
 	s.Spinner = spinner.Dot
 	s.Style = theme.Spinner
 
-	chatConfigPtr := &chatConfig
 	chatModel := &ChatModel{
 		keyMap:             keymaps,
-		chatConfig:         chatConfigPtr,
+		chatConfig:         chatConfig,
 		textarea:           ta,
 		viewport:           vp,
 		spinner:            s,
@@ -142,7 +148,6 @@ func (m *ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.isStreaming = true
 		m.streamingResponse = ""
 		cmds = append(cmds, m.SendGenerateResponseMsg(msg.UserInput))
-		return m, tea.Batch(cmds...)
 
 	case messages.RenderConversationAsMarkdownMsg:
 		err := m.RenderConversationAsMarkdown()
@@ -161,7 +166,8 @@ func (m *ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.streamingResponse += msg.Chunk
 		cmds = append(cmds, messages.SendRenderConversationAsMarkdownMsg())
 
-	case messages.LoadSessionMsg:
+	case messages.SessionSelectedMsg:
+		slog.Debug("Loading session", "sessionID", msg.SessionID)
 		err := m.ExecutorService.LoadSession(msg.SessionID)
 		if err != nil {
 			slog.Error("Error loading session", "error", err)
@@ -177,13 +183,23 @@ func (m *ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		switch {
-		case key.Matches(msg, m.keyMap.NewSession):
-			err := m.ExecutorService.NewSession()
+		case key.Matches(msg, m.keyMap.SessionSelector):
+			currentSessionID := m.ExecutorService.GetSessionID()
+			sessionSelectorDialog, err := dialog.NewSessionSelectorDialog(m.ExecutorService.sessionLog, m.theme, currentSessionID)
 			if err != nil {
-				slog.Error("Error creating new session", "error", err)
+				slog.Error("Error creating session selector dialog", "error", err)
 				return m, nil
 			}
-			// Reset streaming state when creating a new session
+			cmds = append(cmds, messages.SendOpenModalViewMsg(sessionSelectorDialog, common.ModalTypeSessionSelector))
+
+		case key.Matches(msg, m.keyMap.NewSession):
+			err := m.ExecutorService.ResetSession()
+			if err != nil {
+				slog.Error("Error resetting session", "error", err)
+				return m, nil
+			}
+
+			// Reset streaming state when resetting session
 			m.waitingForResponse = false
 			m.isStreaming = false
 			m.streamingResponse = ""
@@ -362,4 +378,12 @@ func (m *ChatModel) GetModelState() common.ModelState {
 
 func (m *ChatModel) GetSessionState() common.SessionState {
 	return common.SessionStateChat
+}
+
+func (m *ChatModel) GetCurrentTheme() *themes.Theme {
+	return m.theme
+}
+
+func (m *ChatModel) SetTheme(theme *themes.Theme) {
+	m.theme = theme
 }

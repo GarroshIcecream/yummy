@@ -1,6 +1,7 @@
 package edit
 
 import (
+	"fmt"
 	"log/slog"
 	"strings"
 	"time"
@@ -29,7 +30,7 @@ type EditModel struct {
 	cookbook   *db.CookBook
 	modelState common.ModelState
 	theme      *themes.Theme
-	keyMap     config.KeyMap
+	keyMap     config.EditKeyMap
 
 	// Recipe
 	recipeID *uint
@@ -67,7 +68,13 @@ type EditModel struct {
 	showHelp bool
 }
 
-func New(cookbook *db.CookBook, keymaps config.KeyMap, theme *themes.Theme, recipeID uint) (*EditModel, error) {
+func New(cookbook *db.CookBook, theme *themes.Theme, recipeID uint) (*EditModel, error) {
+	cfg := config.GetGlobalConfig()
+	if cfg == nil {
+		return nil, fmt.Errorf("global config not set")
+	}
+
+	keymaps := cfg.Keymap.ToKeyMap().GetEditKeyMap()
 	model := &EditModel{
 		cookbook:                cookbook,
 		keyMap:                  keymaps,
@@ -416,4 +423,12 @@ func (m *EditModel) SetSize(width, height int) {
 	if m.instructionForm != nil {
 		m.instructionForm = m.instructionForm.WithWidth(width - 4)
 	}
+}
+
+func (m *EditModel) GetCurrentTheme() *themes.Theme {
+	return m.theme
+}
+
+func (m *EditModel) SetTheme(theme *themes.Theme) {
+	m.theme = theme
 }

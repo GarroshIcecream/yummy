@@ -21,7 +21,6 @@ import (
 
 func init() {
 	rootCmd.PersistentFlags().BoolP("debug", "d", false, "Enable debug logging")
-	rootCmd.Flags().StringP("theme", "t", "default", "Theme to use (default, dark, light)")
 
 	rootCmd.AddCommand(exportCmd)
 	rootCmd.AddCommand(importCmd)
@@ -51,9 +50,6 @@ yummy
 
 # Run with debug logging
 yummy -d
-
-# Run with a theme
-yummy -t dark
   `,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		app, err := setupApp(cmd)
@@ -116,14 +112,6 @@ func setupApp(cmd *cobra.Command) (*tui.Manager, error) {
 	cfg, err := config.LoadConfig(datadir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load configuration: %v", err)
-	}
-
-	// Override config with command line flags if provided
-	theme, err := cmd.Flags().GetString("theme")
-	if err != nil {
-		return nil, err
-	} else {
-		cfg.Theme = theme
 	}
 
 	// Set global config

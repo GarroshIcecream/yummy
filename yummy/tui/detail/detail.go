@@ -1,6 +1,7 @@
 package detail
 
 import (
+	"fmt"
 	"log/slog"
 	"strings"
 
@@ -18,9 +19,9 @@ import (
 type DetailModel struct {
 	// Configuration
 	cookbook   *db.CookBook
-	keyMap     config.KeyMap
 	theme      *themes.Theme
-	config     *config.DetailConfig
+	keyMap     config.DetailKeyMap
+	config     config.DetailConfig
 	modelState common.ModelState
 
 	// Recipe
@@ -35,12 +36,18 @@ type DetailModel struct {
 	renderer       *glamour.TermRenderer
 }
 
-func New(cookbook *db.CookBook, keymaps config.KeyMap, theme *themes.Theme) (*DetailModel, error) {
-	cfg := config.GetDetailConfig()
+func New(cookbook *db.CookBook, theme *themes.Theme) (*DetailModel, error) {
+	cfg := config.GetGlobalConfig()
+	if cfg == nil {
+		return nil, fmt.Errorf("global config not set")
+	}
+
+	keymaps := cfg.Keymap.ToKeyMap().GetDetailKeyMap()
+	detailConfig := cfg.Detail
 	renderer, err := glamour.NewTermRenderer(
 		glamour.WithAutoStyle(),
 		glamour.WithEmoji(),
-		glamour.WithWordWrap(cfg.ViewportWidth),
+		glamour.WithWordWrap(detailConfig.ViewportWidth),
 	)
 	if err != nil {
 		slog.Error("Failed to create renderer", "error", err)
@@ -51,13 +58,13 @@ func New(cookbook *db.CookBook, keymaps config.KeyMap, theme *themes.Theme) (*De
 		cookbook:       cookbook,
 		scrollPosition: 0,
 		Recipe:         nil,
-		width:          cfg.ViewportWidth,
-		height:         cfg.ViewportHeight,
+		width:          detailConfig.ViewportWidth,
+		height:         detailConfig.ViewportHeight,
 		keyMap:         keymaps,
 		modelState:     common.ModelStateLoaded,
 		theme:          theme,
 		renderer:       renderer,
-		config:         cfg,
+		config:         detailConfig,
 	}
 
 	return model, nil
@@ -236,4 +243,12 @@ func (m *DetailModel) GetModelState() common.ModelState {
 
 func (m *DetailModel) GetSize() (width, height int) {
 	return m.width, m.height
+}
+
+func (m *DetailModel) GetCurrentTheme() *themes.Theme {
+	return m.theme
+}
+
+func (m *DetailModel) SetTheme(theme *themes.Theme) {
+	m.theme = theme
 }

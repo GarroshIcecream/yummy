@@ -2,11 +2,9 @@ package tools
 
 import (
 	"log"
-	"log/slog"
 
 	"github.com/GarroshIcecream/yummy/yummy/db"
 	"github.com/tmc/langchaingo/tools"
-	"github.com/tmc/langchaingo/tools/duckduckgo"
 )
 
 // ToolManager manages available tools and their execution
@@ -22,14 +20,14 @@ func NewToolManager(cookbook *db.CookBook) *ToolManager {
 		cookbook: cookbook,
 	}
 
-	ddg, err := duckduckgo.New(10, "github.com/GarroshIcecream/yummy/yummy/tui/chat/tools")
-	if err != nil {
-		slog.Error("Failed to create DuckDuckGo tool", "error", err)
-	}
+	// ddg, err := duckduckgo.New(10, "github.com/GarroshIcecream/yummy/yummy/tui/chat/tools")
+	// if err != nil {
+	// 	slog.Error("Failed to create DuckDuckGo tool", "error", err)
+	// }
 
 	tm.RegisterTool(NewGetRecipeNameTool(cookbook))
 	tm.RegisterTool(NewGetRecipeIdTool(cookbook))
-	tm.RegisterTool(ddg)
+	//tm.RegisterTool(ddg)
 	return tm
 }
 

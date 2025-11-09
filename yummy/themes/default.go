@@ -413,6 +413,15 @@ func NewDefaultTheme() Theme {
 		Bold(true)
 
 	// Session selector styles
+	t.SessionSelectorContainer = lipgloss.NewStyle().
+		Align(lipgloss.Center).
+		AlignVertical(lipgloss.Center)
+
+	t.SessionSelectorDialog = lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("#04B575")).
+		Padding(1, 2)
+
 	t.SessionSelectorTitle = lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#04B575")).
 		Bold(true).

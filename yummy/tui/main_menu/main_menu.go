@@ -1,6 +1,7 @@
 package main_menu
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/GarroshIcecream/yummy/yummy/config"
@@ -19,8 +20,8 @@ type MainMenuModel struct {
 	// Configuration
 	cookbook   *db.CookBook
 	theme      *themes.Theme
-	keyMap     config.KeyMap
-	config     *config.MainMenuConfig
+	keyMap     config.MainMenuKeyMap
+	config     config.MainMenuConfig
 	modelState common.ModelState
 
 	// UI components
@@ -41,8 +42,14 @@ type menuItem struct {
 	icon        string
 }
 
-func New(cookbook *db.CookBook, keymaps config.KeyMap, theme *themes.Theme) *MainMenuModel {
-	cfg := config.GetMainMenuConfig()
+func New(cookbook *db.CookBook, theme *themes.Theme) (*MainMenuModel, error) {
+	cfg := config.GetGlobalConfig()
+	if cfg == nil {
+		return nil, fmt.Errorf("global config not set")
+	}
+
+	mainMenuConfig := cfg.MainMenu
+	keymaps := cfg.Keymap.ToKeyMap().GetMainMenuKeyMap()
 	items := []menuItem{
 		{
 			title:       "Browse Your Cookbook",
@@ -80,8 +87,8 @@ func New(cookbook *db.CookBook, keymaps config.KeyMap, theme *themes.Theme) *Mai
 		spinner:    spinnerModel,
 		modelState: common.ModelStateLoading,
 		theme:      theme,
-		config:     cfg,
-	}
+		config:     mainMenuConfig,
+	}, nil
 }
 
 func (m *MainMenuModel) Init() tea.Cmd {
@@ -213,4 +220,12 @@ func (m *MainMenuModel) GetModelState() common.ModelState {
 
 func (m *MainMenuModel) GetSessionState() common.SessionState {
 	return common.SessionStateMainMenu
+}
+
+func (m *MainMenuModel) GetCurrentTheme() *themes.Theme {
+	return m.theme
+}
+
+func (m *MainMenuModel) SetTheme(theme *themes.Theme) {
+	m.theme = theme
 }

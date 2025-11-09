@@ -29,34 +29,36 @@ type Manager struct {
 	CurrentSessionState  common.SessionState
 	PreviousSessionState common.SessionState
 	ThemeManager         *themes.ThemeManager
-	ModalView            bool
 	models               map[common.SessionState]common.TUIModel
 	config               *config.GeneralConfig
 
 	// Database and configuration
 	Cookbook   *db.CookBook
 	SessionLog *db.SessionLog
-	keyMap     config.KeyMap
+	keyMap     config.ManagerKeyMap
 	Ctx        context.Context
 
 	// UI components
-	statusLine          *status.StatusLine
-	overlayModel        *overlay.Model
-	stateSelectorDialog *dialog.StateSelectorDialogCmp
+	statusLine       *status.StatusLine
+	ModalView        bool
+	CurrentModalType common.ModalType
+	overlayModel     *overlay.Model
 }
 
 func New(cookbook *db.CookBook, sessionLog *db.SessionLog, themeManager *themes.ThemeManager, ctx context.Context) (*Manager, error) {
-	// Get global config
 	cfg := config.GetGlobalConfig()
 	if cfg == nil {
 		return nil, fmt.Errorf("global config not set")
 	}
 
-	// Create keymap with custom bindings from config
-	keymaps := config.CreateKeyMapFromConfig(cfg.Keymap)
+	keymaps := cfg.Keymap.ToKeyMap().GetManagerKeyMap()
 	currentTheme := themeManager.GetCurrentTheme()
+	mainMenu, err := main_menu.New(cookbook, currentTheme)
+	if err != nil {
+		slog.Error("Failed to create main menu", "error", err)
+		return nil, err
+	}
 
-	mainMenu := main_menu.New(cookbook, keymaps, currentTheme)
 	chatConfig := config.GetChatConfig()
 	executorService, err := chat.NewExecutorService(cookbook, sessionLog, chatConfig.DefaultModel, chatConfig.SystemPrompt)
 	if err != nil {
@@ -64,25 +66,25 @@ func New(cookbook *db.CookBook, sessionLog *db.SessionLog, themeManager *themes.
 		return nil, err
 	}
 
-	list, err := yummy_list.New(cookbook, keymaps, currentTheme)
+	list, err := yummy_list.New(cookbook, currentTheme)
 	if err != nil {
 		slog.Error("Failed to create list", "error", err)
 		return nil, err
 	}
 
-	detail, err := detail.New(cookbook, keymaps, currentTheme)
+	detail, err := detail.New(cookbook, currentTheme)
 	if err != nil {
 		slog.Error("Failed to create detail", "error", err)
 		return nil, err
 	}
 
-	edit, err := edit.New(cookbook, keymaps, currentTheme, 0)
+	edit, err := edit.New(cookbook, currentTheme, 0)
 	if err != nil {
 		slog.Error("Failed to create edit", "error", err)
 		return nil, err
 	}
 
-	chat, err := chat.New(executorService, keymaps, currentTheme)
+	chat, err := chat.New(executorService, currentTheme)
 	if err != nil {
 		slog.Error("Failed to create chat", "error", err)
 		return nil, err
@@ -100,31 +102,18 @@ func New(cookbook *db.CookBook, sessionLog *db.SessionLog, themeManager *themes.
 	// Create status line
 	statusLine := status.New(currentTheme)
 
-	// Create state selector dialog for overlay
-	stateSelectorDialog := dialog.NewStateSelectorDialog(currentTheme, keymaps)
-	overlayModel := overlay.New(
-		stateSelectorDialog,
-		models[common.SessionStateMainMenu],
-		overlay.Center,
-		overlay.Center,
-		0,
-		0,
-	)
-
 	generalConfig := config.GetGeneralConfig()
 	manager := &Manager{
 		ThemeManager:         themeManager,
 		CurrentSessionState:  common.SessionStateMainMenu,
 		PreviousSessionState: common.SessionStateMainMenu,
 		Cookbook:             cookbook,
-		keyMap:               keymaps,
 		models:               models,
 		statusLine:           statusLine,
 		Ctx:                  ctx,
-		stateSelectorDialog:  stateSelectorDialog,
 		ModalView:            false,
-		overlayModel:         overlayModel,
 		config:               generalConfig,
+		keyMap:               keymaps,
 	}
 
 	return manager, nil
@@ -149,18 +138,31 @@ func (m *Manager) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.ModalView = false
 		}
 
-	case messages.CloseDialogMsg:
+	case messages.CloseModalViewMsg:
 		m.ModalView = false
+		m.overlayModel = nil
+		return m, nil
+
+	case messages.OpenModalViewMsg:
+		if m.ModalView && m.CurrentModalType == msg.ModalType {
+			cmds = append(cmds, messages.SendCloseModalViewMsg())
+		} else {
+			m.ModalView = true
+			m.CurrentModalType = msg.ModalType
+			m.overlayModel = overlay.New(
+				msg.ModalModel,
+				m.GetCurrentModel(),
+				overlay.Center,
+				overlay.Center,
+				0,
+				0,
+			)
+		}
 
 	case tea.WindowSizeMsg:
 		m.statusLine.SetSize(msg.Width, m.config.Height)
 		for _, model := range m.models {
 			model.SetSize(msg.Width, msg.Height-m.config.Height)
-		}
-
-		// Update state selector dialog size
-		if m.stateSelectorDialog != nil {
-			m.stateSelectorDialog.SetSize(msg.Width, msg.Height-m.config.Height)
 		}
 
 	case tea.KeyMsg:
@@ -186,24 +188,15 @@ func (m *Manager) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 			return m, nil
-		case key.Matches(msg, m.keyMap.Add):
-			if m.CurrentSessionState == common.SessionStateList {
-				if listModel, ok := m.models[common.SessionStateList].(*yummy_list.ListModel); ok {
-					if listModel.RecipeList.FilterState() != list.Filtering {
-						m.SetCurrentSessionState(m.PreviousSessionState)
-					}
-				}
-			}
-			return m, nil
+
 		case key.Matches(msg, m.keyMap.StateSelector):
-			if m.ModalView {
-				m.ModalView = false
-				return m, nil
-			} else {
-				m.ModalView = true
-				m.overlayModel.Background = m.GetCurrentModel()
+			stateSelectorDialog, err := dialog.NewStateSelectorDialog(m.ThemeManager.GetCurrentTheme())
+			if err != nil {
+				slog.Error("Failed to create state selector dialog", "error", err)
 				return m, nil
 			}
+
+			cmds = append(cmds, messages.SendOpenModalViewMsg(stateSelectorDialog, common.ModalTypeStateSelector))
 		}
 	}
 

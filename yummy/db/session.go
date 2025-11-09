@@ -8,6 +8,7 @@ import (
 
 	"github.com/GarroshIcecream/yummy/yummy/config"
 	"github.com/GarroshIcecream/yummy/yummy/log"
+	utils "github.com/GarroshIcecream/yummy/yummy/utils"
 	"github.com/tmc/langchaingo/llms"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -97,38 +98,22 @@ func (s *SessionLog) GetSessionMessages(sessionID uint) ([]SessionMessage, error
 
 // GetSessionStats returns statistics for a given session
 func (s *SessionLog) GetSessionStats(sessionID uint) (SessionStats, error) {
-	var count int64
-	var inputTokens, outputTokens int
-	stats := SessionStats{
-		SessionID:    sessionID,
-		MessageCount: 0,
-		InputTokens:  0,
-		OutputTokens: 0,
-		TotalTokens:  0,
-	}
-
-	// Count messages
-	if err := s.conn.Model(&SessionMessage{}).Where("session_id = ?", sessionID).Count(&count).Error; err != nil {
-		slog.Error("Error counting session messages", "error", err)
+	var stats SessionStats
+	if err := s.conn.Model(&SessionMessage{}).
+		Where("session_id = ?", sessionID).
+		Select(
+			"session_id, "+
+				"SUM(CASE WHEN role != ? THEN 1 ELSE 0 END) AS message_count, "+
+				"COALESCE(SUM(input_tokens), 0) AS input_tokens, "+
+				"COALESCE(SUM(output_tokens), 0) AS output_tokens, "+
+				"COALESCE(SUM(total_tokens), 0) AS total_tokens",
+			"system",
+		).
+		Scan(&stats).Error; err != nil {
+		slog.Error("Error aggregating session stats", "error", err)
 		return stats, err
 	}
 
-	// Sum input tokens
-	if err := s.conn.Model(&SessionMessage{}).Where("session_id = ?", sessionID).Select("COALESCE(SUM(input_tokens), 0)").Scan(&inputTokens).Error; err != nil {
-		slog.Error("Error summing input tokens", "error", err)
-		return stats, err
-	}
-
-	// Sum output tokens
-	if err := s.conn.Model(&SessionMessage{}).Where("session_id = ?", sessionID).Select("COALESCE(SUM(output_tokens), 0)").Scan(&outputTokens).Error; err != nil {
-		slog.Error("Error summing output tokens", "error", err)
-		return stats, err
-	}
-
-	stats.MessageCount = int(count)
-	stats.InputTokens = inputTokens
-	stats.OutputTokens = outputTokens
-	stats.TotalTokens = inputTokens + outputTokens
 	return stats, nil
 }
 
@@ -146,14 +131,15 @@ func (s *SessionLog) GetAllSessions() ([]SessionHistory, error) {
 }
 
 // GetNonEmptySessions retrieves only sessions that have messages
-func (s *SessionLog) GetNonEmptySessions() ([]SessionHistory, error) {
-	var sessions []SessionHistory
+func (s *SessionLog) GetNonEmptySessions() ([]*utils.SessionItem, error) {
+	var sessions []*utils.SessionItem
 
 	// Get sessions that have at least one message
 	query := `
-		SELECT DISTINCT sh.*
+		SELECT DISTINCT sh.id as session_id, sh.created_at, sh.updated_at, COUNT(sm.id) as message_count, SUM(sm.input_tokens) as total_input_tokens, SUM(sm.output_tokens) as total_output_tokens
 		FROM session_histories sh
 		INNER JOIN session_messages sm ON sh.id = sm.session_id
+		GROUP BY sh.id
 		ORDER BY sh.updated_at DESC
 	`
 

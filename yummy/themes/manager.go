@@ -4,6 +4,10 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path"
+	"strings"
+
+	"github.com/GarroshIcecream/yummy/yummy/config"
 )
 
 // ThemeManager handles theme operations
@@ -15,19 +19,48 @@ type ThemeManager struct {
 
 // NewThemeManagerWithDir creates a new theme manager with a specific themes directory
 func NewThemeManager(themesDir string) (*ThemeManager, error) {
+	config := config.GetGlobalConfig()
+	themes := make([]Theme, 0)
+	themes = append(themes, NewDefaultTheme())
 	if _, err := os.Stat(themesDir); os.IsNotExist(err) {
 		if err := os.MkdirAll(themesDir, 0755); err != nil {
 			slog.Error("Failed to create themes directory", "dir", themesDir, "error", err)
 			return nil, err
 		}
+	} else {
+		entries, err := os.ReadDir(themesDir)
+		if err != nil {
+			slog.Error("Failed to read themes directory", "dir", themesDir, "error", err)
+			return nil, err
+		}
+
+		for _, entry := range entries {
+			if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".yaml") || !strings.HasSuffix(entry.Name(), ".yml") {
+				slog.Info("Skipping entry", "name", entry.Name())
+				continue
+			}
+			themePath := path.Join(themesDir, entry.Name())
+			theme, err := LoadThemeFromYAML(themePath)
+			if err != nil {
+				slog.Error("Failed to load theme", "path", themePath, "error", err)
+				continue
+			}
+			themes = append(themes, *theme)
+		}
 	}
 
-	themes := make([]Theme, 0)
-	themes = append(themes, NewDefaultTheme())
+	currentTheme := themes[0]
+	for _, theme := range themes {
+		if theme.Name == config.Theme {
+			currentTheme = theme
+			break
+		}
+	}
 
 	manager := &ThemeManager{
-		themes:    themes,
-		themesDir: themesDir,
+		themes:       themes,
+		themesDir:    themesDir,
+		currentTheme: &currentTheme,
 	}
 
 	// Load custom themes if directory exists

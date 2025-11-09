@@ -1,6 +1,7 @@
 package common
 
 import (
+	themes "github.com/GarroshIcecream/yummy/yummy/themes"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -8,8 +9,10 @@ type TUIModel interface {
 	tea.Model
 	GetSessionState() SessionState
 	GetModelState() ModelState
-	SetSize(width, height int)
+	GetCurrentTheme() *themes.Theme
+	SetTheme(theme *themes.Theme)
 	GetSize() (width, height int)
+	SetSize(width, height int)
 }
 
 type SessionState int
@@ -86,4 +89,11 @@ const (
 	StatusModeRecipe          StatusMode = "RECIPE"
 	StatusModeStateSelector   StatusMode = "STATE"
 	StatusModeSessionSelector StatusMode = "SESSION"
+)
+
+type ModalType string
+
+const (
+	ModalTypeStateSelector   ModalType = "STATE"
+	ModalTypeSessionSelector ModalType = "SESSION"
 )
