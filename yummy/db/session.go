@@ -100,14 +100,13 @@ func (s *SessionLog) GetSessionMessages(sessionID uint) ([]SessionMessage, error
 func (s *SessionLog) GetSessionStats(sessionID uint) (SessionStats, error) {
 	var stats SessionStats
 	if err := s.conn.Model(&SessionMessage{}).
-		Where("session_id = ?", sessionID).
+		Where("session_id = ? AND role != ?", sessionID, "system").
 		Select(
-			"session_id, "+
-				"SUM(CASE WHEN role != ? THEN 1 ELSE 0 END) AS message_count, "+
-				"COALESCE(SUM(input_tokens), 0) AS input_tokens, "+
-				"COALESCE(SUM(output_tokens), 0) AS output_tokens, "+
+			"session_id, " +
+				"COUNT(*) AS message_count, " +
+				"COALESCE(SUM(input_tokens), 0) AS input_tokens, " +
+				"COALESCE(SUM(output_tokens), 0) AS output_tokens, " +
 				"COALESCE(SUM(total_tokens), 0) AS total_tokens",
-			"system",
 		).
 		Scan(&stats).Error; err != nil {
 		slog.Error("Error aggregating session stats", "error", err)
@@ -145,13 +144,14 @@ func (s *SessionLog) UpdateSessionSummary(sessionID uint, summary string) error 
 func (s *SessionLog) GetNonEmptySessions() ([]*utils.SessionItem, error) {
 	var sessions []*utils.SessionItem
 
-	// Get sessions that have at least one message, including summary
+	// Get sessions that have at least one message, including summary (excluding system messages)
 	query := `
 		SELECT DISTINCT sh.id as session_id, sh.created_at, sh.updated_at, sh.summary, COUNT(sm.id) as message_count, SUM(sm.input_tokens) as total_input_tokens, SUM(sm.output_tokens) as total_output_tokens
 		FROM session_histories sh
 		INNER JOIN session_messages sm ON sh.id = sm.session_id
+		WHERE sm.role != 'system'
 		GROUP BY sh.id
-		ORDER BY sh.updated_at DESC
+		ORDER BY sh.id DESC
 	`
 
 	if err := s.conn.Raw(query).Scan(&sessions).Error; err != nil {

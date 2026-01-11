@@ -1,6 +1,6 @@
 module github.com/GarroshIcecream/yummy
 
-go 1.25.4
+go 1.25.5
 
 require (
 	github.com/charmbracelet/bubbles v0.21.1-0.20250623103423-23b8fd6302d7
@@ -9,7 +9,6 @@ require (
 	github.com/charmbracelet/glamour v0.10.0
 	github.com/charmbracelet/huh v0.8.0
 	github.com/charmbracelet/lipgloss v1.1.1-0.20250404203927-76690c660834
-	github.com/charmbracelet/lipgloss/v2 v2.0.0-beta.3
 	github.com/charmbracelet/x/term v0.2.2
 	github.com/rmhubbert/bubbletea-overlay v0.6.3
 	github.com/spf13/cobra v1.10.2

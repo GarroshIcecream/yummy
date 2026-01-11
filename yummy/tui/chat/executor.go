@@ -288,20 +288,11 @@ func (e *ExecutorService) LoadSession(sessionID uint) error {
 		return err
 	}
 
-	// Reset counters
-	newSessionStats := db.SessionStats{
-		SessionID:    sessionMessages[0].SessionID,
-		MessageCount: len(sessionMessages),
-		InputTokens:  0,
-		OutputTokens: 0,
-		TotalTokens:  0,
-	}
-
-	// Calculate token counts from loaded messages
-	for _, msg := range sessionMessages {
-		newSessionStats.InputTokens += msg.InputTokens
-		newSessionStats.OutputTokens += msg.OutputTokens
-		newSessionStats.TotalTokens += msg.TotalTokens
+	// Get session stats (excludes system messages)
+	newSessionStats, err := e.sessionLog.GetSessionStats(sessionID)
+	if err != nil {
+		slog.Error("Failed to get session stats", "error", err)
+		return err
 	}
 
 	e.sessionStats = newSessionStats
@@ -374,6 +365,7 @@ func (e *ExecutorService) SetModelByName(modelName string, ollamaStatus *OllamaS
 	return nil
 }
 
+// AppendSystemPrompt appends the system prompt to the memory and saves it to the database
 func (e *ExecutorService) AppendSystemPrompt(systemPrompt string, sessionID uint) error {
 	systemMessage := llms.SystemChatMessage{Content: systemPrompt}
 	err := e.GetMemory().ChatHistory.AddMessage(e.ctx, systemMessage)
