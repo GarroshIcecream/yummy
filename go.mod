@@ -14,7 +14,7 @@ require (
 	github.com/rmhubbert/bubbletea-overlay v0.6.3
 	github.com/spf13/cobra v1.10.2
 	github.com/tmc/langchaingo v0.1.14
-	golang.org/x/term v0.38.0
+	golang.org/x/term v0.39.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	gopkg.in/yaml.v3 v3.0.1
 	gorm.io/driver/sqlite v1.6.0
@@ -94,6 +94,6 @@ require (
 	golang.org/x/exp v0.0.0-20251023183803-a4bb9ffd2546 // indirect
 	golang.org/x/net v0.48.0 // indirect
 	golang.org/x/sync v0.19.0 // indirect
-	golang.org/x/sys v0.39.0 // indirect
+	golang.org/x/sys v0.40.0 // indirect
 	golang.org/x/text v0.32.0 // indirect
 )
