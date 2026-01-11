@@ -170,6 +170,18 @@ func (m *Manager) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			model.SetSize(msg.Width, msg.Height-m.config.Height)
 		}
 
+	case messages.ThemeSelectedMsg:
+		err := m.ThemeManager.SetThemeByName(msg.ThemeName)
+		if err != nil {
+			slog.Error("Failed to set theme", "error", err, "theme", msg.ThemeName)
+			return m, nil
+		}
+
+		// Update all models with new theme
+		newTheme := m.ThemeManager.GetCurrentTheme()
+		m.updateAllModelsTheme(newTheme)
+		m.statusLine.SetTheme(newTheme)
+
 	case tea.KeyMsg:
 		switch {
 		case key.Matches(msg, m.keyMap.ForceQuit):
@@ -203,6 +215,17 @@ func (m *Manager) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 			cmds = append(cmds, messages.SendOpenModalViewMsg(stateSelectorDialog, common.ModalTypeStateSelector))
+
+		case key.Matches(msg, m.keyMap.ThemeSelector):
+			availableThemes := m.ThemeManager.GetAvailableThemes()
+			currentThemeName := m.ThemeManager.GetCurrentTheme().Name
+			themeSelectorDialog, err := dialog.NewThemeSelectorDialog(availableThemes, currentThemeName, m.ThemeManager.GetCurrentTheme())
+			if err != nil {
+				slog.Error("Failed to create theme selector dialog", "error", err)
+				return m, nil
+			}
+
+			cmds = append(cmds, messages.SendOpenModalViewMsg(themeSelectorDialog, common.ModalTypeThemeSelector))
 		}
 	}
 
@@ -270,4 +293,10 @@ func (m *Manager) GetCurrentModel() common.TUIModel {
 
 func (m *Manager) GetModel(state common.SessionState) common.TUIModel {
 	return m.models[state]
+}
+
+func (m *Manager) updateAllModelsTheme(theme *themes.Theme) {
+	for _, model := range m.models {
+		model.SetTheme(theme)
+	}
 }

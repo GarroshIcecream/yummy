@@ -91,34 +91,33 @@ styles:
 
   status_line:
     foreground: "base0"
-    background: "base02"
-    padding: "0,1"
+    padding: "1,0"
 
   status_line_left:
     foreground: "base0"
     background: "base03"
-    padding: "0,1"
+    padding: "1,0"
 
   status_line_right:
     foreground: "base0"
     background: "base03"
-    padding: "0,1"
+    padding: "1,0"
 
   status_line_mode:
     foreground: "base3"
     background: "blue"
     bold: true
-    padding: "0,1"
+    padding: "1,0"
 
   status_line_file:
     foreground: "cyan"
     background: "base03"
-    padding: "0,1"
+    padding: "1,0"
 
   status_line_info:
     foreground: "green"
     background: "base03"
-    padding: "0,1"
+    padding: "1,0"
 
   status_line_separator:
     foreground: "base0"
@@ -348,6 +347,78 @@ styles:
   state_selector_selected_indicator:
     foreground: "base3"
     bold: true
+
+  # Session selector styles
+  session_selector_container:
+    align: "center"
+    background: "base03"
+
+  session_selector_dialog:
+    border: "rounded"
+    border_color: "green"
+    padding: "1,2"
+    background: "base02"
+
+  session_selector_title:
+    foreground: "green"
+    bold: true
+    margin: "1,0,1,2"
+
+  session_selector_pagination:
+    margin: "0,0,0,2"
+    foreground: "base0"
+
+  session_selector_help:
+    margin: "0,0,0,2"
+    foreground: "base0"
+
+  # Model selector styles
+  model_selector_container:
+    align: "center"
+    background: "base03"
+
+  model_selector_dialog:
+    border: "rounded"
+    border_color: "cyan"
+    padding: "1,2"
+    background: "base02"
+
+  model_selector_title:
+    foreground: "cyan"
+    bold: true
+    margin: "1,0,1,2"
+
+  model_selector_pagination:
+    margin: "0,0,0,2"
+    foreground: "base0"
+
+  model_selector_help:
+    margin: "0,0,0,2"
+    foreground: "base0"
+
+  # Theme selector styles
+  theme_selector_container:
+    align: "center"
+    background: "base03"
+
+  theme_selector_dialog:
+    border: "rounded"
+    border_color: "violet"
+    padding: "1,2"
+    background: "base02"
+
+  theme_selector_title:
+    foreground: "violet"
+    bold: true
+    margin: "1,0,1,2"
+
+  theme_selector_pagination:
+    margin: "0,0,0,2"
+    foreground: "base0"
+
+  theme_selector_help:
+    margin: "0,0,0,2"
+    foreground: "base0"
 
 lists:
   title_bar:

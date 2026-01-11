@@ -95,7 +95,7 @@ func LoadThemesFromDirectory(dir string) ([]Theme, error) {
 	}
 
 	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".yaml") || !strings.HasSuffix(entry.Name(), ".yml") {
+		if entry.IsDir() || (!strings.HasSuffix(entry.Name(), ".yaml") && !strings.HasSuffix(entry.Name(), ".yml")) {
 			slog.Info("Skipping entry", "name", entry.Name())
 			continue
 		}
@@ -115,9 +115,15 @@ func LoadThemesFromDirectory(dir string) ([]Theme, error) {
 
 // ToTheme converts a YAMLTheme to a Theme
 func (yt *YAMLTheme) ToTheme() (Theme, error) {
+	// Start with default theme to ensure all fields are initialized
+	defaultTheme := NewDefaultTheme()
 	theme := Theme{
 		Name: yt.Name,
 	}
+	// Initialize delegate styles from default theme
+	theme.ThemeSelectorDelegateStyles = defaultTheme.ThemeSelectorDelegateStyles
+	theme.ModelSelectorDelegateStyles = defaultTheme.ModelSelectorDelegateStyles
+	theme.DelegateStyles = defaultTheme.DelegateStyles
 
 	// Helper function to resolve color references
 	resolveColor := func(color string) lipgloss.Color {
@@ -320,6 +326,10 @@ func (yt *YAMLTheme) ToTheme() (Theme, error) {
 			theme.StateSelectorIndicator = style
 		case "state_selector_selected_indicator":
 			theme.StateSelectorSelectedIndicator = style
+		case "session_selector_container":
+			theme.SessionSelectorContainer = style
+		case "session_selector_dialog":
+			theme.SessionSelectorDialog = style
 		case "session_selector_title":
 			theme.SessionSelectorTitle = style
 		case "session_selector_pagination":
@@ -336,6 +346,16 @@ func (yt *YAMLTheme) ToTheme() (Theme, error) {
 			theme.ModelSelectorPagination = style
 		case "model_selector_help":
 			theme.ModelSelectorHelp = style
+		case "theme_selector_container":
+			theme.ThemeSelectorContainer = style
+		case "theme_selector_dialog":
+			theme.ThemeSelectorDialog = style
+		case "theme_selector_title":
+			theme.ThemeSelectorTitle = style
+		case "theme_selector_pagination":
+			theme.ThemeSelectorPagination = style
+		case "theme_selector_help":
+			theme.ThemeSelectorHelp = style
 		}
 	}
 

@@ -99,4 +99,5 @@ const (
 	ModalTypeStateSelector   ModalType = "STATE"
 	ModalTypeSessionSelector ModalType = "SESSION"
 	ModalTypeModelSelector   ModalType = "MODEL"
+	ModalTypeThemeSelector   ModalType = "THEME"
 )

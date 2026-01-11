@@ -481,5 +481,52 @@ func NewDefaultTheme() Theme {
 		FilterMatch:   t.DelegateStyles.FilterMatch,
 	}
 
+	// Theme selector styles
+	t.ThemeSelectorContainer = lipgloss.NewStyle().
+		Align(lipgloss.Center).
+		AlignVertical(lipgloss.Center)
+
+	t.ThemeSelectorDialog = lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("#FF6B6B")).
+		Padding(1, 2)
+
+	t.ThemeSelectorTitle = lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#FF6B6B")).
+		Bold(true).
+		Margin(1, 0, 1, 2)
+
+	t.ThemeSelectorPagination = lipgloss.NewStyle().
+		MarginLeft(2)
+
+	t.ThemeSelectorHelp = lipgloss.NewStyle().
+		MarginLeft(2).
+		Foreground(lipgloss.Color("#626262"))
+
+	// Theme selector delegate styles
+	themeSelectorSelectedTitle := lipgloss.NewStyle().
+		BorderLeftForeground(lipgloss.Color("#FF6B6B")).
+		Foreground(lipgloss.Color("#FF6B6B")).
+		Bold(true).
+		BorderStyle(lipgloss.NormalBorder()).
+		BorderLeft(true)
+
+	themeSelectorSelectedDesc := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#FF6B6B")).
+		Italic(true)
+
+	themeSelectorNormalTitle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#FFFFFF"))
+
+	t.ThemeSelectorDelegateStyles = list.DefaultItemStyles{
+		NormalTitle:   themeSelectorNormalTitle,
+		NormalDesc:    t.DelegateStyles.NormalDesc,
+		SelectedTitle: themeSelectorSelectedTitle,
+		SelectedDesc:  themeSelectorSelectedDesc,
+		DimmedTitle:   t.DelegateStyles.DimmedTitle,
+		DimmedDesc:    t.DelegateStyles.DimmedDesc,
+		FilterMatch:   t.DelegateStyles.FilterMatch,
+	}
+
 	return t
 }

@@ -50,6 +50,9 @@ type Config struct {
 
 	// Model Selector Dialog Settings
 	ModelSelectorDialog ModelSelectorDialogConfig `json:"model_selector_dialog"`
+
+	// Theme Selector Dialog Settings
+	ThemeSelectorDialog ThemeSelectorDialogConfig `json:"theme_selector_dialog"`
 }
 
 // NewDefaultConfig returns the default configuration
@@ -59,6 +62,7 @@ func NewDefaultConfig() *Config {
 		StateSelectorDialog:   NewDefaultStateSelectorDialogConfig(),
 		SessionSelectorDialog: NewDefaultSessionSelectorDialogConfig(),
 		ModelSelectorDialog:   NewDefaultModelSelectorDialogConfig(),
+		ThemeSelectorDialog:   NewDefaultThemeSelectorDialogConfig(),
 		Chat:                  NewDefaultChatConfig(),
 		Database:              NewDefaultDatabaseConfig(),
 		Keymap:                NewDefaultKeyBindings(),
@@ -133,6 +137,19 @@ type ModelSelectorDialogConfig struct {
 
 func NewDefaultModelSelectorDialogConfig() ModelSelectorDialogConfig {
 	return ModelSelectorDialogConfig{
+		Height: 30,
+		Width:  80,
+	}
+}
+
+// ThemeSelectorDialogConfig contains theme selector dialog settings
+type ThemeSelectorDialogConfig struct {
+	Height int `json:"height"`
+	Width  int `json:"width"`
+}
+
+func NewDefaultThemeSelectorDialogConfig() ThemeSelectorDialogConfig {
+	return ThemeSelectorDialogConfig{
 		Height: 30,
 		Width:  80,
 	}
@@ -293,6 +310,7 @@ type KeymapConfig struct {
 	StateSelector        []string `json:"state_selector"`
 	SessionSelector      []string `json:"session_selector"`
 	ModelSelector        []string `json:"model_selector"`
+	ThemeSelector        []string `json:"theme_selector"`
 	SetFavourite         []string `json:"set_favourite"`
 	PrevPage             []string `json:"prev_page"`
 	NextPage             []string `json:"next_page"`
@@ -325,6 +343,7 @@ func NewDefaultKeyBindings() KeymapConfig {
 		StateSelector:        []string{"ctrl+s"},
 		SessionSelector:      []string{"ctrl+n"},
 		ModelSelector:        []string{"ctrl+l"},
+		ThemeSelector:        []string{"ctrl+t"},
 		SetFavourite:         []string{"ctrl+f"},
 		ForceQuit:            []string{"ctrl+c"},
 		CursorUp:             []string{"k", "up"},

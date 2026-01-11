@@ -89,34 +89,33 @@ styles:
 
   status_line:
     foreground: "comment"
-    background: "background"
-    padding: "0,1"
+    padding: "1,0"
 
   status_line_left:
     foreground: "comment"
     background: "background"
-    padding: "0,1"
+    padding: "1,0"
 
   status_line_right:
     foreground: "comment"
     background: "background"
-    padding: "0,1"
+    padding: "1,0"
 
   status_line_mode:
     foreground: "foreground"
     background: "keyword"
     bold: true
-    padding: "0,1"
+    padding: "1,0"
 
   status_line_file:
     foreground: "info"
     background: "background"
-    padding: "0,1"
+    padding: "1,0"
 
   status_line_info:
     foreground: "success"
     background: "background"
-    padding: "0,1"
+    padding: "1,0"
 
   status_line_separator:
     foreground: "comment"
@@ -346,6 +345,78 @@ styles:
   state_selector_selected_indicator:
     foreground: "foreground"
     bold: true
+
+  # Session selector styles
+  session_selector_container:
+    align: "center"
+    background: "background"
+
+  session_selector_dialog:
+    border: "rounded"
+    border_color: "success"
+    padding: "1,2"
+    background: "background"
+
+  session_selector_title:
+    foreground: "success"
+    bold: true
+    margin: "1,0,1,2"
+
+  session_selector_pagination:
+    margin: "0,0,0,2"
+    foreground: "comment"
+
+  session_selector_help:
+    margin: "0,0,0,2"
+    foreground: "comment"
+
+  # Model selector styles
+  model_selector_container:
+    align: "center"
+    background: "background"
+
+  model_selector_dialog:
+    border: "rounded"
+    border_color: "info"
+    padding: "1,2"
+    background: "background"
+
+  model_selector_title:
+    foreground: "info"
+    bold: true
+    margin: "1,0,1,2"
+
+  model_selector_pagination:
+    margin: "0,0,0,2"
+    foreground: "comment"
+
+  model_selector_help:
+    margin: "0,0,0,2"
+    foreground: "comment"
+
+  # Theme selector styles
+  theme_selector_container:
+    align: "center"
+    background: "background"
+
+  theme_selector_dialog:
+    border: "rounded"
+    border_color: "keyword"
+    padding: "1,2"
+    background: "background"
+
+  theme_selector_title:
+    foreground: "keyword"
+    bold: true
+    margin: "1,0,1,2"
+
+  theme_selector_pagination:
+    margin: "0,0,0,2"
+    foreground: "comment"
+
+  theme_selector_help:
+    margin: "0,0,0,2"
+    foreground: "comment"
 
 lists:
   title_bar:

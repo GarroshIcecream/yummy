@@ -48,6 +48,10 @@ func (s *StatusLine) SetSize(width int, height int) {
 	s.height = height
 }
 
+func (s *StatusLine) SetTheme(theme *themes.Theme) {
+	s.theme = *theme
+}
+
 func (s *StatusLine) Render(info StatusInfo) string {
 	if s.width <= 0 {
 		return ""

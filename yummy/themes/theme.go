@@ -104,6 +104,14 @@ type Theme struct {
 	ModelSelectorPagination     lipgloss.Style
 	ModelSelectorHelp           lipgloss.Style
 	ModelSelectorDelegateStyles list.DefaultItemStyles
+
+	// Theme selector styles
+	ThemeSelectorContainer      lipgloss.Style
+	ThemeSelectorDialog         lipgloss.Style
+	ThemeSelectorTitle          lipgloss.Style
+	ThemeSelectorPagination     lipgloss.Style
+	ThemeSelectorHelp           lipgloss.Style
+	ThemeSelectorDelegateStyles list.DefaultItemStyles
 }
 
 // Helper methods for backward compatibility and convenience

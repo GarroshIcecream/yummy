@@ -23,6 +23,7 @@ type KeyMap struct {
 	StateSelector        key.Binding
 	SessionSelector      key.Binding
 	ModelSelector        key.Binding
+	ThemeSelector        key.Binding
 	SetFavourite         key.Binding
 	PrevPage             key.Binding
 	NextPage             key.Binding
@@ -46,6 +47,7 @@ type ManagerKeyMap struct {
 	ForceQuit     key.Binding
 	Back          key.Binding
 	StateSelector key.Binding
+	ThemeSelector key.Binding
 }
 
 type MainMenuKeyMap struct {
@@ -149,6 +151,26 @@ type ModelSelectorKeyMap struct {
 	Help                 key.Binding
 }
 
+type ThemeSelectorKeyMap struct {
+	CursorUp             key.Binding
+	CursorDown           key.Binding
+	Filter               key.Binding
+	ClearFilter          key.Binding
+	CancelWhileFiltering key.Binding
+	AcceptWhileFiltering key.Binding
+	GoToStart            key.Binding
+	GoToEnd              key.Binding
+	PrevPage             key.Binding
+	NextPage             key.Binding
+	ShowFullHelp         key.Binding
+	CloseFullHelp        key.Binding
+	Enter                key.Binding
+	ThemeSelector        key.Binding
+	Back                 key.Binding
+	Quit                 key.Binding
+	Help                 key.Binding
+}
+
 // NewKeyMapFromConfig creates a keymap using the keymap configuration
 func NewKeyMapFromConfig(keymapConfig KeymapConfig) KeyMap {
 	return createKeyMap(keymapConfig)
@@ -170,6 +192,7 @@ func (k KeyMap) GetManagerKeyMap() ManagerKeyMap {
 		Back:          k.Back,
 		ForceQuit:     k.ForceQuit,
 		StateSelector: k.StateSelector,
+		ThemeSelector: k.ThemeSelector,
 	}
 }
 
@@ -311,6 +334,28 @@ func (k KeyMap) GetModelSelectorKeyMap() ModelSelectorKeyMap {
 	}
 }
 
+func (k KeyMap) GetThemeSelectorKeyMap() ThemeSelectorKeyMap {
+	return ThemeSelectorKeyMap{
+		CursorUp:             k.CursorUp,
+		CursorDown:           k.CursorDown,
+		Filter:               k.Filter,
+		ClearFilter:          k.ClearFilter,
+		CancelWhileFiltering: k.CancelWhileFiltering,
+		AcceptWhileFiltering: k.AcceptWhileFiltering,
+		GoToStart:            k.GoToStart,
+		GoToEnd:              k.GoToEnd,
+		PrevPage:             k.PrevPage,
+		NextPage:             k.NextPage,
+		ShowFullHelp:         k.ShowFullHelp,
+		CloseFullHelp:        k.CloseFullHelp,
+		Enter:                k.Enter,
+		ThemeSelector:        k.ThemeSelector,
+		Back:                 k.Back,
+		Quit:                 k.Quit,
+		Help:                 k.Help,
+	}
+}
+
 // createKeyMap creates a keymap with the given custom bindings
 func createKeyMap(keymapConfig KeymapConfig) KeyMap {
 	return KeyMap{
@@ -369,6 +414,10 @@ func createKeyMap(keymapConfig KeymapConfig) KeyMap {
 		ModelSelector: key.NewBinding(
 			key.WithKeys(keymapConfig.ModelSelector...),
 			key.WithHelp(strings.Join(keymapConfig.ModelSelector, "/"), "select model"),
+		),
+		ThemeSelector: key.NewBinding(
+			key.WithKeys(keymapConfig.ThemeSelector...),
+			key.WithHelp(strings.Join(keymapConfig.ThemeSelector, "/"), "select theme"),
 		),
 		SetFavourite: key.NewBinding(
 			key.WithKeys(keymapConfig.SetFavourite...),

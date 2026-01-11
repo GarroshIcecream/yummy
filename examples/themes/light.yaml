@@ -92,34 +92,33 @@ styles:
 
   status_line:
     foreground: "foreground_secondary"
-    background: "background_secondary"
-    padding: "0,1"
+    padding: "1,0"
 
   status_line_left:
     foreground: "foreground_secondary"
     background: "background_tertiary"
-    padding: "0,1"
+    padding: "1,0"
 
   status_line_right:
     foreground: "foreground_secondary"
     background: "background_tertiary"
-    padding: "0,1"
+    padding: "1,0"
 
   status_line_mode:
     foreground: "white"
     background: "primary"
     bold: true
-    padding: "0,1"
+    padding: "1,0"
 
   status_line_file:
     foreground: "secondary"
     background: "background_tertiary"
-    padding: "0,1"
+    padding: "1,0"
 
   status_line_info:
     foreground: "accent"
     background: "background_tertiary"
-    padding: "0,1"
+    padding: "1,0"
 
   status_line_separator:
     foreground: "foreground_secondary"
@@ -349,6 +348,78 @@ styles:
   state_selector_selected_indicator:
     foreground: "white"
     bold: true
+
+  # Session selector styles
+  session_selector_container:
+    align: "center"
+    background: "background"
+
+  session_selector_dialog:
+    border: "rounded"
+    border_color: "success"
+    padding: "1,2"
+    background: "background_secondary"
+
+  session_selector_title:
+    foreground: "success"
+    bold: true
+    margin: "1,0,1,2"
+
+  session_selector_pagination:
+    margin: "0,0,0,2"
+    foreground: "foreground_secondary"
+
+  session_selector_help:
+    margin: "0,0,0,2"
+    foreground: "foreground_tertiary"
+
+  # Model selector styles
+  model_selector_container:
+    align: "center"
+    background: "background"
+
+  model_selector_dialog:
+    border: "rounded"
+    border_color: "info"
+    padding: "1,2"
+    background: "background_secondary"
+
+  model_selector_title:
+    foreground: "info"
+    bold: true
+    margin: "1,0,1,2"
+
+  model_selector_pagination:
+    margin: "0,0,0,2"
+    foreground: "foreground_secondary"
+
+  model_selector_help:
+    margin: "0,0,0,2"
+    foreground: "foreground_tertiary"
+
+  # Theme selector styles
+  theme_selector_container:
+    align: "center"
+    background: "background"
+
+  theme_selector_dialog:
+    border: "rounded"
+    border_color: "accent"
+    padding: "1,2"
+    background: "background_secondary"
+
+  theme_selector_title:
+    foreground: "accent"
+    bold: true
+    margin: "1,0,1,2"
+
+  theme_selector_pagination:
+    margin: "0,0,0,2"
+    foreground: "foreground_secondary"
+
+  theme_selector_help:
+    margin: "0,0,0,2"
+    foreground: "foreground_tertiary"
 
 lists:
   title_bar:

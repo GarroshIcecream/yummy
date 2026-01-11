@@ -70,6 +70,10 @@ type ModelSelectedMsg struct {
 	ModelName string
 }
 
+type ThemeSelectedMsg struct {
+	ThemeName string
+}
+
 type LoadSessionMsg struct {
 	SessionID uint
 }
@@ -156,6 +160,10 @@ func SendSessionSelectedMsg(sessionID uint) tea.Cmd {
 
 func SendModelSelectedMsg(modelName string) tea.Cmd {
 	return CmdHandler(ModelSelectedMsg{ModelName: modelName})
+}
+
+func SendThemeSelectedMsg(themeName string) tea.Cmd {
+	return CmdHandler(ThemeSelectedMsg{ThemeName: themeName})
 }
 
 func SendLoadSessionMsg(sessionID uint) tea.Cmd {
