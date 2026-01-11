@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"log/slog"
 	"slices"
+	"strings"
 
+	"github.com/GarroshIcecream/yummy/yummy/config"
 	db "github.com/GarroshIcecream/yummy/yummy/db"
 	"github.com/GarroshIcecream/yummy/yummy/tui/chat/callbacks"
 	tools "github.com/GarroshIcecream/yummy/yummy/tui/chat/tools"
@@ -18,23 +20,26 @@ import (
 
 // ExecutorService provides agent-based LLM interactions using langchaingo executor
 type ExecutorService struct {
-	executor     *agents.Executor
-	llm          *ollama.LLM
-	toolManager  *tools.ToolManager
-	sessionLog   *db.SessionLog
-	ollamaStatus *OllamaServiceStatus
-	modelName    string
-	ctx          context.Context
-	sessionStats db.SessionStats
-	systemPrompt string
+	executor        *agents.Executor
+	llm             *ollama.LLM
+	toolManager     *tools.ToolManager
+	sessionLog      *db.SessionLog
+	ollamaStatus    *OllamaServiceStatus
+	modelName       string
+	ctx             context.Context
+	sessionStats    db.SessionStats
+	systemPrompt    string
+	maxIterations   int
+	callbackHandler *callbacks.DefaultAgentCallbackHandler
 }
 
 // NewExecutorService creates a new executor service instance
-func NewExecutorService(cookbook *db.CookBook, sessionLog *db.SessionLog, modelName string, systemPrompt string) (*ExecutorService, error) {
+func NewExecutorService(cookbook *db.CookBook, sessionLog *db.SessionLog) (*ExecutorService, error) {
 	ctx := context.Background()
+	chatConfig := config.GetChatConfig()
 
 	// Get Ollama service status
-	ollamaStatus, err := GetOllamaServiceStatus(modelName)
+	ollamaStatus, err := GetOllamaServiceStatus(chatConfig.DefaultModel)
 	if err != nil {
 		slog.Error("Failed to get ollama service status", "error", err)
 		return nil, err
@@ -45,7 +50,7 @@ func NewExecutorService(cookbook *db.CookBook, sessionLog *db.SessionLog, modelN
 
 	// Initialize the LLM
 	llm, err := ollama.New(
-		ollama.WithModel(modelName),
+		ollama.WithModel(chatConfig.DefaultModel),
 	)
 	if err != nil {
 		slog.Error("Failed to create LLM", "error", err)
@@ -57,41 +62,34 @@ func NewExecutorService(cookbook *db.CookBook, sessionLog *db.SessionLog, modelN
 		memory.WithOutputKey("output"),
 	)
 
-	// Create the agent with tools
-	agent := agents.NewConversationalAgent(
-		llm,
-		toolManager.GetTools(),
-		agents.WithCallbacksHandler(callbacks.NewDefaultAgentCallbackHandler(
-			func(status string) {
-				slog.Debug("Agent Callback: Status", "status", status)
-			},
-		)),
-	)
-
 	// Create the executor
+	tools := toolManager.GetTools()
+	callbackHandler := callbacks.NewDefaultAgentCallbackHandler(
+		func(status string) {
+			slog.Debug("Agent Callback: Status", "status", status)
+		},
+	)
 	executor := agents.NewExecutor(
-		agent,
-		agents.WithMaxIterations(5),
+		agents.NewConversationalAgent(llm, tools),
+		agents.WithMaxIterations(chatConfig.MaxIterations),
 		agents.WithMemory(mem),
 		agents.WithReturnIntermediateSteps(),
-		agents.WithCallbacksHandler(callbacks.NewDefaultAgentCallbackHandler(
-			func(status string) {
-				slog.Debug("Agent Callback: Status", "status", status)
-			}),
-		),
+		agents.WithCallbacksHandler(callbackHandler),
 	)
 
 	emptySessionStats := db.SessionStats{}
 	service := &ExecutorService{
-		executor:     executor,
-		llm:          llm,
-		modelName:    modelName,
-		sessionLog:   sessionLog,
-		ctx:          ctx,
-		toolManager:  toolManager,
-		ollamaStatus: ollamaStatus,
-		sessionStats: emptySessionStats,
-		systemPrompt: systemPrompt,
+		executor:        executor,
+		llm:             llm,
+		modelName:       chatConfig.DefaultModel,
+		sessionLog:      sessionLog,
+		ctx:             ctx,
+		toolManager:     toolManager,
+		ollamaStatus:    ollamaStatus,
+		sessionStats:    emptySessionStats,
+		systemPrompt:    chatConfig.SystemPrompt,
+		maxIterations:   chatConfig.MaxIterations,
+		callbackHandler: callbackHandler,
 	}
 
 	return service, nil
@@ -147,18 +145,31 @@ func (e *ExecutorService) GenerateResponse(message string) (string, error) {
 		return "", err
 	}
 
+	// Reset token usage before running the chain
+	e.callbackHandler.ResetTokenUsage()
+
 	result, err := chains.Run(e.ctx, e.executor, message)
 	if err != nil {
 		slog.Error("Executor execution error", "error", err)
 		return "", err
 	}
 
-	slog.Debug("Generated response", "result", result)
+	// Get token usage after execution
+	usage := e.callbackHandler.GetTokenUsage()
+	slog.Debug("Generated response",
+		"result", result,
+		"prompt_tokens", usage.PromptTokens,
+		"completion_tokens", usage.CompletionTokens,
+		"total_tokens", usage.TotalTokens)
+
 	err = e.SaveMessage(result, llms.ChatMessageTypeAI)
 	if err != nil {
 		slog.Error("Failed to register message", "error", err)
 		return "", err
 	}
+
+	// Generate and update session summary asynchronously
+	go e.GenerateAndUpdateSessionSummary()
 
 	return result, nil
 }
@@ -306,6 +317,15 @@ func (e *ExecutorService) GetSessionLog() *db.SessionLog {
 	return e.sessionLog
 }
 
+// GetSessionSummary returns the summary for the current session
+func (e *ExecutorService) GetSessionSummary() (string, error) {
+	sessionID := e.GetSessionID()
+	if sessionID == 0 {
+		return "", nil
+	}
+	return e.sessionLog.GetSessionSummary(sessionID)
+}
+
 // HasSystemPrompt checks if a system prompt is present in the conversation
 func (e *ExecutorService) HasSystemPrompt() bool {
 	messages, err := e.GetMemory().ChatHistory.Messages(e.ctx)
@@ -339,15 +359,11 @@ func (e *ExecutorService) SetModelByName(modelName string, ollamaStatus *OllamaS
 
 	// Recreate the agent and executor with the new model
 	e.llm = llm
-	agent := agents.NewConversationalAgent(
-		llm,
-		e.toolManager.GetTools(),
-	)
-
+	mem := e.GetMemory()
 	e.executor = agents.NewExecutor(
-		agent,
-		agents.WithMaxIterations(5),
-		agents.WithMemory(e.GetMemory()),
+		agents.NewConversationalAgent(llm, e.toolManager.GetTools()),
+		agents.WithMaxIterations(e.maxIterations),
+		agents.WithMemory(mem),
 		agents.WithReturnIntermediateSteps(),
 		agents.WithCallbacksHandler(callbacks.NewDefaultAgentCallbackHandler(func(status string) {
 			slog.Debug("Agent Callback: Status", "status", status)
@@ -373,4 +389,72 @@ func (e *ExecutorService) AppendSystemPrompt(systemPrompt string, sessionID uint
 	}
 
 	return nil
+}
+
+// GenerateAndUpdateSessionSummary generates a short summary of the conversation and updates the session
+func (e *ExecutorService) GenerateAndUpdateSessionSummary() {
+	sessionID := e.GetSessionID()
+	if sessionID == 0 {
+		return
+	}
+
+	// Get conversation messages (excluding system messages)
+	messages, err := e.GetMemoryConversation()
+	if err != nil {
+		slog.Error("Failed to get conversation for summary", "error", err)
+		return
+	}
+
+	// Build conversation text for summarization (only human and AI messages)
+	var conversationText strings.Builder
+	for _, msg := range messages {
+		role := msg.GetType()
+
+		switch role {
+		case llms.ChatMessageTypeSystem:
+			continue
+		case llms.ChatMessageTypeHuman:
+			conversationText.WriteString("User: " + msg.GetContent() + "\n")
+		case llms.ChatMessageTypeAI:
+			conversationText.WriteString("Assistant: " + msg.GetContent() + "\n")
+		}
+	}
+
+	// Get summary prompt from config
+	chatConfig := config.GetChatConfig()
+	summaryPrompt := fmt.Sprintf(chatConfig.SummaryPrompt, conversationText.String())
+
+	// Generate summary using the LLM
+	msgContent := []llms.MessageContent{
+		llms.TextParts(llms.ChatMessageTypeHuman, summaryPrompt),
+	}
+
+	summaryResponse, err := e.llm.GenerateContent(e.ctx, msgContent, llms.WithMaxLength(chatConfig.SummaryMaxLength))
+	if err != nil {
+		slog.Error("Failed to generate session summary", "error", err)
+		return
+	}
+
+	// Extract summary text from response
+	var summaryText string
+	if len(summaryResponse.Choices) > 0 {
+		summaryText = summaryResponse.Choices[0].Content
+	}
+
+	if summaryText == "" {
+		slog.Error("Empty summary response from LLM")
+		return
+	}
+
+	summaryText = strings.TrimSpace(summaryText)
+	summaryText = strings.Trim(summaryText, "\"'")
+
+	// Update session summary in database
+	err = e.sessionLog.UpdateSessionSummary(sessionID, summaryText)
+	if err != nil {
+		slog.Error("Failed to update session summary", "error", err)
+		return
+	}
+
+	slog.Debug("Session summary generated", "sessionID", sessionID, "summary", summaryText)
 }

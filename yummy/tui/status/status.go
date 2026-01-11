@@ -24,8 +24,8 @@ type StatusLine struct {
 // this sucks as we need to think of some other fields that are applicable to us
 type StatusInfo struct {
 	Mode        common.StatusMode
-	FileName    string
-	FileInfo    string
+	Description string
+	ModeInfo    string
 	Position    string
 	LineCount   int
 	CurrentLine int
@@ -81,8 +81,8 @@ func (s *StatusLine) renderLeftSide(info StatusInfo) string {
 	}
 
 	// File name and status indicators
-	if info.FileName != "" {
-		fileName := info.FileName
+	if info.Description != "" {
+		fileName := info.Description
 		if info.Modified {
 			fileName += " +"
 		}
@@ -104,9 +104,9 @@ func (s *StatusLine) renderRightSide(info StatusInfo) string {
 		parts = append(parts, positionText)
 	}
 
-	if info.FileInfo != "" {
-		fileInfoText := s.theme.StatusLineInfo.Render(info.FileInfo)
-		parts = append(parts, fileInfoText)
+	if info.ModeInfo != "" {
+		ModeInfoText := s.theme.StatusLineInfo.Render(info.ModeInfo)
+		parts = append(parts, ModeInfoText)
 	}
 
 	separator := s.theme.StatusLineSeparator.Render(" | ")
@@ -120,28 +120,28 @@ func CreateStatusInfo(currentModel common.TUIModel) StatusInfo {
 	switch currentModel.GetSessionState() {
 	case common.SessionStateMainMenu:
 		info.Mode = common.StatusModeMenu
-		info.FileName = common.SessionStateMainMenu.GetStateName()
-		info.FileInfo = "Ready"
+		info.Description = common.SessionStateMainMenu.GetStateName()
+		info.ModeInfo = "Ready"
 
 	case common.SessionStateList:
 		info.Mode = common.StatusModeList
-		info.FileName = common.SessionStateList.GetStateName()
+		info.Description = common.SessionStateList.GetStateName()
 		if listModel, ok := currentModel.(*yummy_list.ListModel); ok {
 			count := len(listModel.RecipeList.Items())
 			selectedItem := listModel.RecipeList.SelectedItem()
-			info.FileInfo = fmt.Sprintf("%d recipes", count)
+			info.ModeInfo = fmt.Sprintf("%d recipes", count)
 			if selectedItem != nil {
 				if recipeItem, ok := selectedItem.(utils.RecipeRaw); ok {
-					info.FileName = recipeItem.Title()
+					info.Description = recipeItem.Title()
 				}
 			} else {
-				info.FileName = ""
+				info.Description = ""
 			}
 		}
 
 	case common.SessionStateDetail:
 		info.Mode = common.StatusModeRecipe
-		info.FileName = common.SessionStateDetail.GetStateName()
+		info.Description = common.SessionStateDetail.GetStateName()
 		if detailModel, ok := currentModel.(*detail.DetailModel); ok {
 			if detailModel.Recipe != nil {
 				recipeName := detailModel.Recipe.RecipeName
@@ -150,9 +150,9 @@ func CreateStatusInfo(currentModel common.TUIModel) StatusInfo {
 				if author != "" {
 					author = fmt.Sprintf("(by %s)", author)
 				}
-				info.FileName = strings.Join([]string{fmt.Sprintf("(#%d)", recipeID), recipeName, author}, " ")
+				info.Description = strings.Join([]string{fmt.Sprintf("(#%d)", recipeID), recipeName, author}, " ")
 			} else {
-				info.FileName = ""
+				info.Description = ""
 			}
 			// Add scroll position info
 			scrollPos := detailModel.GetScrollPosition()
@@ -160,23 +160,33 @@ func CreateStatusInfo(currentModel common.TUIModel) StatusInfo {
 			info.Position = fmt.Sprintf("Line %d", scrollPos+1)
 			info.CurrentLine = scrollPos + 1
 			info.LineCount = totalLines
-			info.FileInfo = fmt.Sprintf("%d lines", totalLines)
+			info.ModeInfo = fmt.Sprintf("%d lines", totalLines)
 		}
 
 	case common.SessionStateEdit:
 		info.Mode = common.StatusModeEdit
-		info.FileName = common.SessionStateEdit.GetStateName()
+		info.Description = common.SessionStateEdit.GetStateName()
 		info.Modified = true
-		info.FileInfo = "Modified"
+		info.ModeInfo = "Modified"
 
 	case common.SessionStateChat:
 		info.Mode = common.StatusModeChat
 		if chatModel, ok := currentModel.(*chat.ChatModel); ok {
-			info.FileName = chatModel.ExecutorService.GetCurrentModelName()
+			modelName := chatModel.ExecutorService.GetCurrentModelName()
+			info.ModeInfo = "Chat Mode | " + modelName
+
+			// Get session summary if available
+			summary, err := chatModel.ExecutorService.GetSessionSummary()
+			if err == nil {
+				if len(summary) > 60 {
+					summary = summary[:57] + "..."
+				}
+				info.Description = summary
+			}
 		} else {
-			info.FileName = ""
+			info.Description = ""
 		}
-		info.FileInfo = "Chat Mode"
+
 	}
 
 	return info

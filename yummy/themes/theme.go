@@ -96,6 +96,14 @@ type Theme struct {
 	SessionSelectorTitle      lipgloss.Style
 	SessionSelectorPagination lipgloss.Style
 	SessionSelectorHelp       lipgloss.Style
+
+	// Model selector styles
+	ModelSelectorContainer      lipgloss.Style
+	ModelSelectorDialog         lipgloss.Style
+	ModelSelectorTitle          lipgloss.Style
+	ModelSelectorPagination     lipgloss.Style
+	ModelSelectorHelp           lipgloss.Style
+	ModelSelectorDelegateStyles list.DefaultItemStyles
 }
 
 // Helper methods for backward compatibility and convenience

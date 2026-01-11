@@ -95,7 +95,7 @@ func (m *MainMenuModel) Init() tea.Cmd {
 	return nil
 }
 
-func (m *MainMenuModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *MainMenuModel) Update(msg tea.Msg) (common.TUIModel, tea.Cmd) {
 	var cmds []tea.Cmd
 	var cmd tea.Cmd
 
@@ -110,11 +110,15 @@ func (m *MainMenuModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keyMap.CursorUp):
 			if m.selected > 0 {
 				m.selected--
+			} else {
+				m.selected = len(m.items) - 1
 			}
 
 		case key.Matches(msg, m.keyMap.CursorDown):
 			if m.selected < len(m.items)-1 {
 				m.selected++
+			} else {
+				m.selected = 0
 			}
 
 		case key.Matches(msg, m.keyMap.Enter):

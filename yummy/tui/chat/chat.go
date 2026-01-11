@@ -69,11 +69,7 @@ func New(executorService *ExecutorService, theme *themes.Theme) (*ChatModel, err
 	}
 
 	// Calculate markdown width accounting for message formatting
-	markdownWidth := windowWidth - chatConfig.UILayout.MarkdownPadding // Reserve space for message formatting
-	if markdownWidth < chatConfig.UILayout.MinMarkdownWidth {
-		markdownWidth = chatConfig.UILayout.MinMarkdownWidth
-	}
-
+	markdownWidth := max(windowWidth-chatConfig.UILayout.MarkdownPadding, chatConfig.UILayout.MinMarkdownWidth) // Reserve space for message formatting
 	markdownRenderer, err := glamour.NewTermRenderer(
 		glamour.WithAutoStyle(),
 		glamour.WithWordWrap(markdownWidth),
@@ -88,22 +84,14 @@ func New(executorService *ExecutorService, theme *themes.Theme) (*ChatModel, err
 	ta.Focus()
 
 	ta.CharLimit = chatConfig.TextAreaMaxChar
-	contentWidth := windowWidth - chatConfig.UILayout.ContentPadding
-	if contentWidth < chatConfig.UILayout.MinContentWidth {
-		contentWidth = chatConfig.UILayout.MinContentWidth
-	}
+	contentWidth := max(windowWidth-chatConfig.UILayout.ContentPadding, chatConfig.UILayout.MinContentWidth)
 	ta.SetWidth(contentWidth)
 	ta.SetHeight(chatConfig.UILayout.InputHeight)
 	ta.FocusedStyle.CursorLine = lipgloss.NewStyle()
 	ta.ShowLineNumbers = false
 
 	// Calculate viewport height to fully utilize available terminal height
-	titleHeight := chatConfig.UILayout.TitleHeight
-	inputHeight := ta.Height()
-	viewportHeight := windowHeight - titleHeight - inputHeight
-	if viewportHeight < chatConfig.UILayout.MinViewportHeight {
-		viewportHeight = chatConfig.UILayout.MinViewportHeight
-	}
+	viewportHeight := max(windowHeight-chatConfig.UILayout.TitleHeight-ta.Height(), chatConfig.UILayout.MinViewportHeight)
 
 	vp := viewport.New(contentWidth, viewportHeight)
 	vp.Style = theme.Chat
@@ -136,7 +124,7 @@ func (m *ChatModel) Init() tea.Cmd {
 	return nil
 }
 
-func (m *ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *ChatModel) Update(msg tea.Msg) (common.TUIModel, tea.Cmd) {
 	var (
 		cmd  tea.Cmd
 		cmds []tea.Cmd
@@ -176,6 +164,15 @@ func (m *ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		cmds = append(cmds, messages.SendRenderConversationAsMarkdownMsg())
 
+	case messages.ModelSelectedMsg:
+		slog.Debug("Changing model", "model", msg.ModelName)
+		err := m.ExecutorService.SetModelByName(msg.ModelName, m.ExecutorService.ollamaStatus)
+		if err != nil {
+			slog.Error("Error changing model", "error", err)
+			return m, nil
+		}
+		cmds = append(cmds, messages.SendRenderConversationAsMarkdownMsg())
+
 	case spinner.TickMsg:
 		m.spinner, cmd = m.spinner.Update(msg)
 		cmds = append(cmds, cmd)
@@ -191,6 +188,16 @@ func (m *ChatModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 			cmds = append(cmds, messages.SendOpenModalViewMsg(sessionSelectorDialog, common.ModalTypeSessionSelector))
+
+		case key.Matches(msg, m.keyMap.ModelSelector):
+			currentModelName := m.ExecutorService.GetCurrentModelName()
+			installedModels := m.ExecutorService.ollamaStatus.InstalledModels
+			modelSelectorDialog, err := dialog.NewModelSelectorDialog(installedModels, currentModelName, m.theme)
+			if err != nil {
+				slog.Error("Error creating model selector dialog", "error", err)
+				return m, nil
+			}
+			cmds = append(cmds, messages.SendOpenModalViewMsg(modelSelectorDialog, common.ModalTypeModelSelector))
 
 		case key.Matches(msg, m.keyMap.NewSession):
 			err := m.ExecutorService.ResetSession()

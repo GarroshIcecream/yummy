@@ -22,6 +22,7 @@ type KeyMap struct {
 	Edit                 key.Binding
 	StateSelector        key.Binding
 	SessionSelector      key.Binding
+	ModelSelector        key.Binding
 	SetFavourite         key.Binding
 	PrevPage             key.Binding
 	NextPage             key.Binding
@@ -91,6 +92,7 @@ type EditKeyMap struct {
 type ChatKeyMap struct {
 	NewSession      key.Binding
 	SessionSelector key.Binding
+	ModelSelector   key.Binding
 	Enter           key.Binding
 	Back            key.Binding
 	Quit            key.Binding
@@ -122,6 +124,26 @@ type SessionSelectorKeyMap struct {
 	CloseFullHelp        key.Binding
 	Enter                key.Binding
 	SessionSelector      key.Binding
+	Back                 key.Binding
+	Quit                 key.Binding
+	Help                 key.Binding
+}
+
+type ModelSelectorKeyMap struct {
+	CursorUp             key.Binding
+	CursorDown           key.Binding
+	Filter               key.Binding
+	ClearFilter          key.Binding
+	CancelWhileFiltering key.Binding
+	AcceptWhileFiltering key.Binding
+	GoToStart            key.Binding
+	GoToEnd              key.Binding
+	PrevPage             key.Binding
+	NextPage             key.Binding
+	ShowFullHelp         key.Binding
+	CloseFullHelp        key.Binding
+	Enter                key.Binding
+	ModelSelector        key.Binding
 	Back                 key.Binding
 	Quit                 key.Binding
 	Help                 key.Binding
@@ -225,6 +247,7 @@ func (k KeyMap) GetChatKeyMap() ChatKeyMap {
 	return ChatKeyMap{
 		NewSession:      k.NewSession,
 		SessionSelector: k.SessionSelector,
+		ModelSelector:   k.ModelSelector,
 		Enter:           k.Enter,
 		Back:            k.Back,
 		Quit:            k.Quit,
@@ -266,6 +289,28 @@ func (k KeyMap) GetSessionSelectorKeyMap() SessionSelectorKeyMap {
 	}
 }
 
+func (k KeyMap) GetModelSelectorKeyMap() ModelSelectorKeyMap {
+	return ModelSelectorKeyMap{
+		CursorUp:             k.CursorUp,
+		CursorDown:           k.CursorDown,
+		Filter:               k.Filter,
+		ClearFilter:          k.ClearFilter,
+		CancelWhileFiltering: k.CancelWhileFiltering,
+		AcceptWhileFiltering: k.AcceptWhileFiltering,
+		GoToStart:            k.GoToStart,
+		GoToEnd:              k.GoToEnd,
+		PrevPage:             k.PrevPage,
+		NextPage:             k.NextPage,
+		ShowFullHelp:         k.ShowFullHelp,
+		CloseFullHelp:        k.CloseFullHelp,
+		Enter:                k.Enter,
+		ModelSelector:        k.ModelSelector,
+		Back:                 k.Back,
+		Quit:                 k.Quit,
+		Help:                 k.Help,
+	}
+}
+
 // createKeyMap creates a keymap with the given custom bindings
 func createKeyMap(keymapConfig KeymapConfig) KeyMap {
 	return KeyMap{
@@ -301,10 +346,6 @@ func createKeyMap(keymapConfig KeymapConfig) KeyMap {
 			key.WithKeys(keymapConfig.Delete...),
 			key.WithHelp(strings.Join(keymapConfig.Delete, "/"), "delete recipe"),
 		),
-		Quit: key.NewBinding(
-			key.WithKeys(keymapConfig.Quit...),
-			key.WithHelp(strings.Join(keymapConfig.Quit, "/"), "quit"),
-		),
 		Enter: key.NewBinding(
 			key.WithKeys(keymapConfig.Enter...),
 			key.WithHelp(strings.Join(keymapConfig.Enter, "/"), "select"),
@@ -324,6 +365,10 @@ func createKeyMap(keymapConfig KeymapConfig) KeyMap {
 		SessionSelector: key.NewBinding(
 			key.WithKeys(keymapConfig.SessionSelector...),
 			key.WithHelp(strings.Join(keymapConfig.SessionSelector, "/"), "select session"),
+		),
+		ModelSelector: key.NewBinding(
+			key.WithKeys(keymapConfig.ModelSelector...),
+			key.WithHelp(strings.Join(keymapConfig.ModelSelector, "/"), "select model"),
 		),
 		SetFavourite: key.NewBinding(
 			key.WithKeys(keymapConfig.SetFavourite...),

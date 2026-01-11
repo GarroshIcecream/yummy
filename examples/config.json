@@ -4,14 +4,17 @@
     "default_model": "gemma3:4b",
     "temperature": 0.9,
     "max_tokens": 1000,
-    "system_prompt": "You are a helpful cooking assistant specialized in recipes, ingredients, and culinary knowledge. You have access to a personal cookbook database and can help users with various cooking-related tasks.\n\n\t\t\tYour capabilities include:\n\t\t\t- Finding recipes by name or ID\n\t\t\t- Listing all available recipes\n\t\t\t- Providing cooking advice and ingredient information\n\t\t\t- Helping with meal planning and recipe suggestions\n\t\t\t- Answering questions about cooking techniques and food preparation\n\n\t\t\tAvailable tools:\n\t\t\t- searchRecipeByName: Search for recipes by name (case-insensitive)\n\t\t\t- getRecipeById: Get a specific recipe by its unique ID\n\t\t\t- listAllRecipes: List all recipes in the cookbook\n\n\t\t\tGuidelines for responses:\n\t\t\t- Always format your responses using markdown for better readability\n\t\t\t- Use headers, lists, and emphasis where appropriate\n\t\t\t- Be helpful and encouraging when providing cooking advice\n\t\t\t- If you need to search for recipes, use the available tools\n\t\t\t- Provide detailed information about ingredients, cooking methods, and serving suggestions\n\t\t\t- If a recipe isn't found, suggest similar alternatives or offer to help with general cooking questions\n\n\t\t\tRemember: You are a cooking expert, so provide accurate, helpful information and be enthusiastic about food and cooking!",
+    "max_iterations": 15,
+    "system_prompt": "You are a helpful cooking assistant specialized in recipes, ingredients, and culinary knowledge. You have access to a personal cookbook database and can help users with various cooking-related tasks.\n\n\t\tYour capabilities include:\n\t\t- Finding recipes by name or ID\n\t\t- Providing cooking advice and ingredient information\n\t\t- Helping with meal planning and recipe suggestions\n\t\t- Answering questions about cooking techniques and food preparation\n\n\t\tAvailable tools:\n\t\t- searchRecipeByName: Search for recipes by name (case-insensitive partial match). Use this to find recipes when the user mentions a recipe name or asks about a specific dish.\n\t\t- getRecipeById: Get a specific recipe by its unique ID. Use this after finding a recipe with searchRecipeByName to get the full recipe details.\n\n\t\tGuidelines for responses:\n\t\t- Always format your responses using markdown for better readability\n\t\t- Use headers, lists, and emphasis where appropriate\n\t\t- Be helpful and encouraging when providing cooking advice\n\t\t- If you need to search for recipes, use searchRecipeByName first, then getRecipeById if you need full details\n\t\t- After using tools, provide a clear, complete answer to the user's question\n\t\t- Provide detailed information about ingredients, cooking methods, and serving suggestions\n\t\t- If a recipe isn't found, suggest similar alternatives or offer to help with general cooking questions\n\n\t\tRemember: You are a cooking expert, so provide accurate, helpful information and be enthusiastic about food and cooking!",
+    "summary_prompt": "Extract 3-5 key words or short phrases (separated by commas) that best describe this cooking conversation. Focus on the main topics, recipes, or ingredients discussed. Do not use full sentences, only keywords. Conversation: %s",
+    "summary_max_length": 60,
     "text_area_placeholder": "Ask anything about cooking, recipes, ingredients, or anything else you want to know about food... 🍳 ",
     "text_area_max_char": 400,
-    "user_name":            "User",
-    "assistant_name":       "Cringe Chef",
-    "assistant_avatar":     "🤖",
-    "user_avatar":          "👤",
-    "assistant_thinking_message":   "Poo poo poo...",
+    "user_name": "Alba",
+    "assistant_name": "Chef Gordon Ramsay",
+    "assistant_avatar": "🤖",
+    "user_avatar": "👤",
+    "assistant_thinking_message": "Pooping...",
     "ui_layout": {
       "content_padding": 8,
       "markdown_padding": 8,
@@ -36,7 +39,111 @@
     "recipe_db_name": "cookbook.db",
     "session_log_db_name": "session_log.db"
   },
-  "keymap": {},
+  "keymap": {
+    "cursor_up": [
+      "k",
+      "up"
+    ],
+    "cursor_down": [
+      "j",
+      "down"
+    ],
+    "yes": [
+      "y"
+    ],
+    "no": [
+      "n"
+    ],
+    "add": [
+      "ctrl+a"
+    ],
+    "new_session": [
+      "ctrl+a"
+    ],
+    "back": [
+      "esc"
+    ],
+    "delete": [
+      "ctrl+x"
+    ],
+    "enter": [
+      "enter"
+    ],
+    "help": [
+      "h",
+      "?"
+    ],
+    "edit": [
+      "ctrl+e"
+    ],
+    "state_selector": [
+      "ctrl+s"
+    ],
+    "session_selector": [
+      "ctrl+n"
+    ],
+    "set_favourite": [
+      "ctrl+f"
+    ],
+    "prev_page": [
+      "j",
+      "left"
+    ],
+    "next_page": [
+      "k",
+      "right"
+    ],
+    "force_quit": [
+      "ctrl+c"
+    ],
+    "show_full_help": [
+      "?"
+    ],
+    "close_full_help": [
+      "?"
+    ],
+    "cancel_while_filtering": [
+      "esc"
+    ],
+    "accept_while_filtering": [
+      "enter",
+      "tab",
+      "shift+tab",
+      "ctrl+k",
+      "up",
+      "ctrl+j",
+      "down"
+    ],
+    "go_to_start": [
+      "home",
+      "g"
+    ],
+    "go_to_end": [
+      "end",
+      "G"
+    ],
+    "filter": [
+      "/"
+    ],
+    "clear_filter": [
+      "esc"
+    ],
+    "edit_ingredients": [
+      "i"
+    ],
+    "edit_instructions": [
+      "s"
+    ],
+    "edit_add": [
+      "a"
+    ],
+    "edit_edit": [
+      "e"
+    ],
+    "edit_delete": [
+      "d"
+    ]
+  },
   "general": {
     "status_line_height": 0,
     "status_line_padding": 0,

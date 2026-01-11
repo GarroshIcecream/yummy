@@ -43,6 +43,7 @@ type Manager struct {
 	ModalView        bool
 	CurrentModalType common.ModalType
 	overlayModel     *overlay.Model
+	modalModel       tea.Model
 }
 
 func New(cookbook *db.CookBook, sessionLog *db.SessionLog, themeManager *themes.ThemeManager, ctx context.Context) (*Manager, error) {
@@ -59,8 +60,7 @@ func New(cookbook *db.CookBook, sessionLog *db.SessionLog, themeManager *themes.
 		return nil, err
 	}
 
-	chatConfig := config.GetChatConfig()
-	executorService, err := chat.NewExecutorService(cookbook, sessionLog, chatConfig.DefaultModel, chatConfig.SystemPrompt)
+	executorService, err := chat.NewExecutorService(cookbook, sessionLog)
 	if err != nil {
 		slog.Error("Failed to create executor service", "error", err)
 		return nil, err
@@ -120,14 +120,17 @@ func New(cookbook *db.CookBook, sessionLog *db.SessionLog, themeManager *themes.
 }
 
 func (m *Manager) Init() tea.Cmd {
+	var cmds []tea.Cmd
+	cmds = append(cmds, tea.SetWindowTitle("Yummy"))
+
 	if currentModel, exists := m.models[m.CurrentSessionState]; exists {
-		return currentModel.Init()
+		cmds = append(cmds, currentModel.Init())
 	}
-	return nil
+
+	return tea.Batch(cmds...)
 }
 
 func (m *Manager) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var cmd tea.Cmd
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
@@ -141,6 +144,7 @@ func (m *Manager) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case messages.CloseModalViewMsg:
 		m.ModalView = false
 		m.overlayModel = nil
+		m.modalModel = nil
 		return m, nil
 
 	case messages.OpenModalViewMsg:
@@ -149,8 +153,9 @@ func (m *Manager) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else {
 			m.ModalView = true
 			m.CurrentModalType = msg.ModalType
+			m.modalModel = msg.ModalModel
 			m.overlayModel = overlay.New(
-				msg.ModalModel,
+				m.modalModel,
 				m.GetCurrentModel(),
 				overlay.Center,
 				overlay.Center,
@@ -172,6 +177,7 @@ func (m *Manager) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keyMap.Back):
 			if m.ModalView {
 				m.ModalView = false
+				m.modalModel = nil
 				return m, nil
 			}
 
@@ -201,23 +207,31 @@ func (m *Manager) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	if m.ModalView {
-		fg, fgCmd := m.overlayModel.Foreground.Update(msg)
-		m.overlayModel.Foreground = fg
-		cmds = append(cmds, fgCmd)
+		// Update foreground (modal) model
+		fgModel, cmd := m.modalModel.Update(msg)
+		m.modalModel = fgModel
+
+		// Recreate overlay with updated models
+		m.overlayModel = overlay.New(
+			m.modalModel,
+			m.GetCurrentModel(),
+			overlay.Center,
+			overlay.Center,
+			0,
+			0,
+		)
+
+		cmds = append(cmds, cmd)
+
 	} else {
 		if currentModel, exists := m.models[m.CurrentSessionState]; exists {
-			var model tea.Model
-			model, cmd = currentModel.Update(msg)
-			if updatedModel, ok := model.(common.TUIModel); ok {
-				m.models[m.CurrentSessionState] = updatedModel
-			} else {
-				slog.Error("Model for state is not a TUIModel", "state", m.CurrentSessionState)
-				return m, nil
-			}
+			model, cmd := currentModel.Update(msg)
+			m.models[m.CurrentSessionState] = model
+
+			cmds = append(cmds, cmd)
 		}
 	}
 
-	cmds = append(cmds, cmd)
 	return m, tea.Batch(cmds...)
 }
 

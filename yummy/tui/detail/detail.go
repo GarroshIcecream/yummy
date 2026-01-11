@@ -74,7 +74,7 @@ func (m *DetailModel) Init() tea.Cmd {
 	return nil
 }
 
-func (m *DetailModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *DetailModel) Update(msg tea.Msg) (common.TUIModel, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {

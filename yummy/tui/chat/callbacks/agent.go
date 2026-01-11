@@ -32,18 +32,37 @@ type AgentCallbackHandler interface {
 // StatusUpdateFunc is a callback function type for sending status updates to the UI
 type StatusUpdateFunc func(status string)
 
+// TokenUsage tracks token consumption
+type TokenUsage struct {
+	PromptTokens     int
+	CompletionTokens int
+	TotalTokens      int
+}
+
 // DefaultAgentCallbackHandler is the default implementation of AgentCallbackHandler
 // It logs all agent events and optionally sends status updates to the UI
 type DefaultAgentCallbackHandler struct {
 	onStatusFunc      StatusUpdateFunc
 	streamingCallback func(chunk string)
+	tokenUsage        TokenUsage
 }
 
 // NewDefaultAgentCallbackHandler creates a new default callback handler
 func NewDefaultAgentCallbackHandler(statusFunc StatusUpdateFunc) *DefaultAgentCallbackHandler {
 	return &DefaultAgentCallbackHandler{
 		onStatusFunc: statusFunc,
+		tokenUsage:   TokenUsage{},
 	}
+}
+
+// GetTokenUsage returns the accumulated token usage
+func (h *DefaultAgentCallbackHandler) GetTokenUsage() TokenUsage {
+	return h.tokenUsage
+}
+
+// ResetTokenUsage resets the token usage counter
+func (h *DefaultAgentCallbackHandler) ResetTokenUsage() {
+	h.tokenUsage = TokenUsage{}
 }
 
 // sendStatus sends a status update to the UI if the callback function is set
@@ -82,16 +101,58 @@ func (h *DefaultAgentCallbackHandler) HandleLLMGenerateContentEnd(ctx context.Co
 	}
 
 	stopReason := ""
-	if len(res.Choices) > 0 {
-		stopReason = res.Choices[0].StopReason
+	var promptTokens, completionTokens, totalTokens int
+
+	// Extract token usage from GenerationInfo (Ollama provides this)
+	for _, choice := range res.Choices {
+		if choice.GenerationInfo != nil {
+			stopReason = choice.StopReason
+
+			// Ollama uses "prompt_eval_count" and "eval_count" keys
+			if val, ok := choice.GenerationInfo["prompt_eval_count"]; ok {
+				switch v := val.(type) {
+				case int:
+					promptTokens += v
+				case float64:
+					promptTokens += int(v)
+				case int64:
+					promptTokens += int(v)
+				}
+			}
+
+			if val, ok := choice.GenerationInfo["eval_count"]; ok {
+				switch v := val.(type) {
+				case int:
+					completionTokens += v
+				case float64:
+					completionTokens += int(v)
+				case int64:
+					completionTokens += int(v)
+				}
+			}
+		}
 	}
+
+	// Calculate total if not provided directly
+	totalTokens = promptTokens + completionTokens
+
+	// Accumulate token usage
+	h.tokenUsage.PromptTokens += promptTokens
+	h.tokenUsage.CompletionTokens += completionTokens
+	h.tokenUsage.TotalTokens += totalTokens
 
 	slog.Debug("Agent Callback: LLM Generate Content End",
 		"choices", len(res.Choices),
-		"stop_reason", stopReason)
+		"stop_reason", stopReason,
+		"prompt_tokens", promptTokens,
+		"completion_tokens", completionTokens,
+		"total_tokens", totalTokens,
+		"generation_info", res.Choices[0].GenerationInfo)
 
-	content := res.Choices[0].Content
-	slog.Debug("Agent Callback: LLM Response Preview", "content", content)
+	if len(res.Choices) > 0 {
+		content := res.Choices[0].Content
+		slog.Debug("Agent Callback: LLM Response Preview", "content", content)
+	}
 }
 
 // HandleLLMError handles LLM errors

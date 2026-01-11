@@ -15,6 +15,7 @@ type SessionItem struct {
 	MessageCount      int
 	TotalInputTokens  int
 	TotalOutputTokens int
+	Summary           string
 }
 
 var _ list.Item = &SessionItem{}
@@ -40,10 +41,30 @@ func (s SessionItem) Description() string {
 	if s.MessageCount == 0 {
 		return "Empty session"
 	}
-	totalTokens := s.TotalInputTokens + s.TotalOutputTokens
-	return fmt.Sprintf("Tokens: %d | Last updated: %s", totalTokens, s.UpdatedAt.Format("Jan 2, 15:04"))
+
+	var desc string
+	if s.Summary != "" {
+		summary := s.Summary
+		if len(summary) > 100 {
+			summary = summary[:97] + "..."
+		}
+		desc = summary
+	} else {
+		totalTokens := s.TotalInputTokens + s.TotalOutputTokens
+		desc = fmt.Sprintf("Tokens: %d | Last updated: %s", totalTokens, s.UpdatedAt.Format("Jan 2, 15:04"))
+	}
+
+	return desc
 }
 
 func (s SessionItem) FilterValue() string {
-	return fmt.Sprintf("session %d", s.SessionID)
+	if s.MessageCount == 0 {
+		return "Empty session"
+	}
+
+	if s.Summary != "" {
+		return s.Summary
+	} else {
+		return s.Description()
+	}
 }

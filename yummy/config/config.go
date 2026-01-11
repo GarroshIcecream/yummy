@@ -47,6 +47,9 @@ type Config struct {
 
 	// Session Selector Dialog Settings
 	SessionSelectorDialog SessionSelectorDialogConfig `json:"session_selector_dialog"`
+
+	// Model Selector Dialog Settings
+	ModelSelectorDialog ModelSelectorDialogConfig `json:"model_selector_dialog"`
 }
 
 // NewDefaultConfig returns the default configuration
@@ -55,6 +58,7 @@ func NewDefaultConfig() *Config {
 		Theme:                 "default",
 		StateSelectorDialog:   NewDefaultStateSelectorDialogConfig(),
 		SessionSelectorDialog: NewDefaultSessionSelectorDialogConfig(),
+		ModelSelectorDialog:   NewDefaultModelSelectorDialogConfig(),
 		Chat:                  NewDefaultChatConfig(),
 		Database:              NewDefaultDatabaseConfig(),
 		Keymap:                NewDefaultKeyBindings(),
@@ -108,8 +112,8 @@ func NewDefaultMainMenuConfig() MainMenuConfig {
 	}
 }
 
-// StateSelectorDialogConfig contains state selector dialog settings
-type StateSelectorDialogConfig struct {
+// SessionSelectorDialogConfig contains session selector dialog settings
+type SessionSelectorDialogConfig struct {
 	Height int `json:"height"`
 	Width  int `json:"width"`
 }
@@ -122,7 +126,20 @@ func NewDefaultSessionSelectorDialogConfig() SessionSelectorDialogConfig {
 }
 
 // SessionSelectorDialogConfig contains session selector dialog settings
-type SessionSelectorDialogConfig struct {
+type ModelSelectorDialogConfig struct {
+	Height int `json:"height"`
+	Width  int `json:"width"`
+}
+
+func NewDefaultModelSelectorDialogConfig() ModelSelectorDialogConfig {
+	return ModelSelectorDialogConfig{
+		Height: 30,
+		Width:  80,
+	}
+}
+
+// StateSelectorDialogConfig contains state selector dialog settings
+type StateSelectorDialogConfig struct {
 	Height int `json:"height"`
 	Width  int `json:"width"`
 }
@@ -139,7 +156,10 @@ type ChatConfig struct {
 	DefaultModel             string  `json:"default_model"`
 	Temperature              float64 `json:"temperature"`
 	MaxTokens                int     `json:"max_tokens"`
+	MaxIterations            int     `json:"max_iterations"`
 	SystemPrompt             string  `json:"system_prompt"`
+	SummaryPrompt            string  `json:"summary_prompt"`
+	SummaryMaxLength         int     `json:"summary_max_length"`
 	TextAreaPlaceholder      string  `json:"text_area_placeholder"`
 	TextAreaMaxChar          int     `json:"text_area_max_char"`
 	UserName                 string  `json:"user_name"`
@@ -154,33 +174,34 @@ type ChatConfig struct {
 
 func NewDefaultChatConfig() ChatConfig {
 	return ChatConfig{
-		DefaultModel: "gemma3:4b",
-		Temperature:  0.9,
-		MaxTokens:    1000,
+		DefaultModel:  "gemma3:4b",
+		Temperature:   0.9,
+		MaxTokens:     1000,
+		MaxIterations: 15,
 		SystemPrompt: `You are a helpful cooking assistant specialized in recipes, ingredients, and culinary knowledge. You have access to a personal cookbook database and can help users with various cooking-related tasks.
 
 		Your capabilities include:
 		- Finding recipes by name or ID
-		- Listing all available recipes
 		- Providing cooking advice and ingredient information
 		- Helping with meal planning and recipe suggestions
 		- Answering questions about cooking techniques and food preparation
 
 		Available tools:
-		- searchRecipeByName: Search for recipes by name (case-insensitive)
-		- getRecipeById: Get a specific recipe by its unique ID
-		- listAllRecipes: List all recipes in the cookbook
+		- searchRecipeByName: Search for recipes by name (case-insensitive partial match). Use this to find recipes when the user mentions a recipe name or asks about a specific dish.
+		- getRecipeById: Get a specific recipe by its unique ID. Use this after finding a recipe with searchRecipeByName to get the full recipe details.
 
 		Guidelines for responses:
 		- Always format your responses using markdown for better readability
 		- Use headers, lists, and emphasis where appropriate
 		- Be helpful and encouraging when providing cooking advice
-		- If you need to search for recipes, use the available tools
+		- If you need to search for recipes, use searchRecipeByName first, then getRecipeById if you need full details
+		- After using tools, provide a clear, complete answer to the user's question
 		- Provide detailed information about ingredients, cooking methods, and serving suggestions
 		- If a recipe isn't found, suggest similar alternatives or offer to help with general cooking questions
 
 		Remember: You are a cooking expert, so provide accurate, helpful information and be enthusiastic about food and cooking!`,
-
+		SummaryPrompt:            `Extract 3-5 key words or short phrases (separated by commas) that best describe this cooking conversation. Focus on the main topics, recipes, or ingredients discussed. Do not use full sentences, only keywords. Conversation: %s`,
+		SummaryMaxLength:         60,
 		TextAreaPlaceholder:      "Ask anything about cooking, recipes, ingredients, or anything else you want to know about food... 🍳 ",
 		TextAreaMaxChar:          400,
 		UserName:                 "User",
@@ -266,12 +287,12 @@ type KeymapConfig struct {
 	NewSession           []string `json:"new_session"`
 	Back                 []string `json:"back"`
 	Delete               []string `json:"delete"`
-	Quit                 []string `json:"quit"`
 	Enter                []string `json:"enter"`
 	Help                 []string `json:"help"`
 	Edit                 []string `json:"edit"`
 	StateSelector        []string `json:"state_selector"`
 	SessionSelector      []string `json:"session_selector"`
+	ModelSelector        []string `json:"model_selector"`
 	SetFavourite         []string `json:"set_favourite"`
 	PrevPage             []string `json:"prev_page"`
 	NextPage             []string `json:"next_page"`
@@ -293,32 +314,32 @@ type KeymapConfig struct {
 
 func NewDefaultKeyBindings() KeymapConfig {
 	return KeymapConfig{
-		CursorUp:             []string{"k", "up"},
-		CursorDown:           []string{"j", "down"},
+		Enter:                []string{"enter"},
 		Yes:                  []string{"y"},
 		No:                   []string{"n"},
+		Back:                 []string{"esc"},
 		Add:                  []string{"ctrl+a"},
 		NewSession:           []string{"ctrl+a"},
-		Back:                 []string{"esc", "q"},
 		Delete:               []string{"ctrl+x"},
-		Quit:                 []string{"q", "esc"},
-		Enter:                []string{"enter"},
-		Help:                 []string{"h", "?"},
 		Edit:                 []string{"ctrl+e"},
 		StateSelector:        []string{"ctrl+s"},
 		SessionSelector:      []string{"ctrl+n"},
+		ModelSelector:        []string{"ctrl+l"},
 		SetFavourite:         []string{"ctrl+f"},
-		PrevPage:             []string{"j", "left"},
-		NextPage:             []string{"k", "right"},
 		ForceQuit:            []string{"ctrl+c"},
+		CursorUp:             []string{"k", "up"},
+		NextPage:             []string{"k", "right"},
+		CursorDown:           []string{"j", "down"},
+		PrevPage:             []string{"j", "left"},
 		ShowFullHelp:         []string{"?"},
 		CloseFullHelp:        []string{"?"},
+		Help:                 []string{"h", "?"},
+		ClearFilter:          []string{"esc"},
 		CancelWhileFiltering: []string{"esc"},
 		AcceptWhileFiltering: []string{"enter", "tab", "shift+tab", "ctrl+k", "up", "ctrl+j", "down"},
 		GoToStart:            []string{"home", "g"},
 		GoToEnd:              []string{"end", "G"},
 		Filter:               []string{"/"},
-		ClearFilter:          []string{"esc"},
 		EditIngredients:      []string{"i"},
 		EditInstructions:     []string{"s"},
 		EditAdd:              []string{"a"},

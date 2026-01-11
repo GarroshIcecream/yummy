@@ -67,6 +67,11 @@ func New(cookbook *db.CookBook, theme *themes.Theme) (*ListModel, error) {
 	l.AdditionalShortHelpKeys = keymaps.AdditionalShortHelpKeys
 	l.AdditionalFullHelpKeys = keymaps.AdditionalFullHelpKeys
 
+	// Enable suggestions on the FilterInput
+	l.FilterInput.ShowSuggestions = true
+	suggestions := generateFilterSuggestions("", cookbook)
+	l.FilterInput.SetSuggestions(suggestions)
+
 	return &ListModel{
 		cookbook:   cookbook,
 		keyMap:     keymaps,
@@ -81,24 +86,7 @@ func (m *ListModel) Init() tea.Cmd {
 	return nil
 }
 
-func (m *ListModel) SelectedItemToRecipeWithDescription() (utils.RecipeRaw, bool) {
-	if len(m.RecipeList.Items()) == 0 {
-		return utils.RecipeRaw{}, false
-	}
-
-	selectedItem := m.RecipeList.SelectedItem()
-	if selectedItem == nil {
-		return utils.RecipeRaw{}, false
-	}
-
-	if i, ok := selectedItem.(utils.RecipeRaw); ok {
-		return i, true
-	}
-
-	return utils.RecipeRaw{}, false
-}
-
-func (m *ListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *ListModel) Update(msg tea.Msg) (common.TUIModel, tea.Cmd) {
 	var (
 		cmd  tea.Cmd
 		cmds []tea.Cmd
@@ -116,9 +104,9 @@ func (m *ListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, messages.SendFavouriteSetMsg(newFavourite))
 
 	case tea.KeyMsg:
-		switch {
-		case key.Matches(msg, m.keyMap.Delete):
-			if m.RecipeList.FilterState() != list.Filtering {
+		if m.RecipeList.FilterState() != list.Filtering {
+			switch {
+			case key.Matches(msg, m.keyMap.Delete):
 				if i, ok := m.SelectedItemToRecipeWithDescription(); ok {
 					if err := m.cookbook.DeleteRecipe(i.RecipeID); err != nil {
 						slog.Error("Failed to delete recipe", "error", err)
@@ -128,22 +116,25 @@ func (m *ListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					cmds = append(cmds, m.RefreshRecipeList())
 					cmds = append(cmds, m.RecipeList.NewStatusMessage(m.config.ViewStatusMessageRecipeDeleted))
 				}
-			}
-		case key.Matches(msg, m.keyMap.Enter):
-			if m.RecipeList.FilterState() != list.Filtering {
+			case key.Matches(msg, m.keyMap.Enter):
 				if i, ok := m.SelectedItemToRecipeWithDescription(); ok {
 					cmds = append(cmds, messages.SendSessionStateMsg(common.SessionStateDetail))
 					cmds = append(cmds, messages.SendRecipeSelectedMsg(i.RecipeID))
 				}
-			}
 
-		case key.Matches(msg, m.keyMap.SetFavourite):
-			if m.RecipeList.FilterState() != list.Filtering {
+			case key.Matches(msg, m.keyMap.SetFavourite):
 				if i, ok := m.SelectedItemToRecipeWithDescription(); ok {
 					cmds = append(cmds, messages.SendSetFavouriteMsg(i.RecipeID))
 				}
 			}
 		}
+	}
+
+	// Update suggestions before updating the list
+	if m.RecipeList.FilterState() == list.Filtering {
+		currentValue := m.RecipeList.FilterInput.Value()
+		suggestions := generateFilterSuggestions(currentValue, m.cookbook)
+		m.RecipeList.FilterInput.SetSuggestions(suggestions)
 	}
 
 	m.RecipeList, cmd = m.RecipeList.Update(msg)
@@ -154,6 +145,23 @@ func (m *ListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m *ListModel) View() string {
 	return m.theme.Doc.Render(m.RecipeList.View())
+}
+
+func (m *ListModel) SelectedItemToRecipeWithDescription() (utils.RecipeRaw, bool) {
+	if len(m.RecipeList.Items()) == 0 {
+		return utils.RecipeRaw{}, false
+	}
+
+	selectedItem := m.RecipeList.SelectedItem()
+	if selectedItem == nil {
+		return utils.RecipeRaw{}, false
+	}
+
+	if i, ok := selectedItem.(utils.RecipeRaw); ok {
+		return i, true
+	}
+
+	return utils.RecipeRaw{}, false
 }
 
 func (m *ListModel) RefreshRecipeList() tea.Cmd {

@@ -6,7 +6,9 @@ import (
 )
 
 type TUIModel interface {
-	tea.Model
+	Init() tea.Cmd
+	Update(tea.Msg) (TUIModel, tea.Cmd)
+	View() string
 	GetSessionState() SessionState
 	GetModelState() ModelState
 	GetCurrentTheme() *themes.Theme
@@ -96,4 +98,5 @@ type ModalType string
 const (
 	ModalTypeStateSelector   ModalType = "STATE"
 	ModalTypeSessionSelector ModalType = "SESSION"
+	ModalTypeModelSelector   ModalType = "MODEL"
 )

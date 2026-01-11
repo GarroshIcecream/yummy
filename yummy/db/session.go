@@ -130,13 +130,24 @@ func (s *SessionLog) GetAllSessions() ([]SessionHistory, error) {
 	return sessions, nil
 }
 
+// UpdateSessionSummary updates the summary for a session
+func (s *SessionLog) UpdateSessionSummary(sessionID uint, summary string) error {
+	if err := s.conn.Model(&SessionHistory{}).
+		Where("id = ?", sessionID).
+		Update("summary", summary).Error; err != nil {
+		slog.Error("Error updating session summary", "error", err)
+		return err
+	}
+	return nil
+}
+
 // GetNonEmptySessions retrieves only sessions that have messages
 func (s *SessionLog) GetNonEmptySessions() ([]*utils.SessionItem, error) {
 	var sessions []*utils.SessionItem
 
-	// Get sessions that have at least one message
+	// Get sessions that have at least one message, including summary
 	query := `
-		SELECT DISTINCT sh.id as session_id, sh.created_at, sh.updated_at, COUNT(sm.id) as message_count, SUM(sm.input_tokens) as total_input_tokens, SUM(sm.output_tokens) as total_output_tokens
+		SELECT DISTINCT sh.id as session_id, sh.created_at, sh.updated_at, sh.summary, COUNT(sm.id) as message_count, SUM(sm.input_tokens) as total_input_tokens, SUM(sm.output_tokens) as total_output_tokens
 		FROM session_histories sh
 		INNER JOIN session_messages sm ON sh.id = sm.session_id
 		GROUP BY sh.id
@@ -149,4 +160,17 @@ func (s *SessionLog) GetNonEmptySessions() ([]*utils.SessionItem, error) {
 	}
 
 	return sessions, nil
+}
+
+// GetSessionSummary retrieves the summary for a given session
+func (s *SessionLog) GetSessionSummary(sessionID uint) (string, error) {
+	var session SessionHistory
+	if err := s.conn.Where("id = ?", sessionID).First(&session).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return "", nil
+		}
+		slog.Error("Error getting session summary", "error", err)
+		return "", err
+	}
+	return session.Summary, nil
 }

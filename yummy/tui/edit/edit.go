@@ -107,7 +107,7 @@ func (m *EditModel) Init() tea.Cmd {
 	return m.mainForm.Init()
 }
 
-func (m *EditModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *EditModel) Update(msg tea.Msg) (common.TUIModel, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {

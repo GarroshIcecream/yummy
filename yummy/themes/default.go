@@ -434,5 +434,52 @@ func NewDefaultTheme() Theme {
 		MarginLeft(2).
 		Foreground(lipgloss.Color("#626262"))
 
+	// Model selector styles
+	t.ModelSelectorContainer = lipgloss.NewStyle().
+		Align(lipgloss.Center).
+		AlignVertical(lipgloss.Center)
+
+	t.ModelSelectorDialog = lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("#04B575")).
+		Padding(1, 2)
+
+	t.ModelSelectorTitle = lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#04B575")).
+		Bold(true).
+		Margin(1, 0, 1, 2)
+
+	t.ModelSelectorPagination = lipgloss.NewStyle().
+		MarginLeft(2)
+
+	t.ModelSelectorHelp = lipgloss.NewStyle().
+		MarginLeft(2).
+		Foreground(lipgloss.Color("#626262"))
+
+	// Model selector delegate styles
+	modelSelectorSelectedTitle := lipgloss.NewStyle().
+		BorderLeftForeground(lipgloss.Color("#04B575")).
+		Foreground(lipgloss.Color("#04B575")).
+		Bold(true).
+		BorderStyle(lipgloss.NormalBorder()).
+		BorderLeft(true)
+
+	modelSelectorSelectedDesc := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#04B575")).
+		Italic(true)
+
+	modelSelectorNormalTitle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#FFFFFF"))
+
+	t.ModelSelectorDelegateStyles = list.DefaultItemStyles{
+		NormalTitle:   modelSelectorNormalTitle,
+		NormalDesc:    t.DelegateStyles.NormalDesc,
+		SelectedTitle: modelSelectorSelectedTitle,
+		SelectedDesc:  modelSelectorSelectedDesc,
+		DimmedTitle:   t.DelegateStyles.DimmedTitle,
+		DimmedDesc:    t.DelegateStyles.DimmedDesc,
+		FilterMatch:   t.DelegateStyles.FilterMatch,
+	}
+
 	return t
 }

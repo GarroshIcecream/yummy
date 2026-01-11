@@ -326,6 +326,16 @@ func (yt *YAMLTheme) ToTheme() (Theme, error) {
 			theme.SessionSelectorPagination = style
 		case "session_selector_help":
 			theme.SessionSelectorHelp = style
+		case "model_selector_container":
+			theme.ModelSelectorContainer = style
+		case "model_selector_dialog":
+			theme.ModelSelectorDialog = style
+		case "model_selector_title":
+			theme.ModelSelectorTitle = style
+		case "model_selector_pagination":
+			theme.ModelSelectorPagination = style
+		case "model_selector_help":
+			theme.ModelSelectorHelp = style
 		}
 	}
 

@@ -83,6 +83,7 @@ type Instructions struct {
 type SessionHistory struct {
 	gorm.Model
 	SessionID uint
+	Summary   string `gorm:"type:text"`
 }
 
 type SessionMessage struct {
