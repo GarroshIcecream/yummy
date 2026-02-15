@@ -85,27 +85,6 @@ changelog:
       - '^build:'
       - '^chore:'
 
-# Snapcraft configuration (optional)
-snapcrafts:
-  - id: yummy-snap
-    name_template: "{{ .ProjectName }}"
-    summary: "Terminal-based cookbook manager and recipe assistant"
-    description: |
-      Yummy is a beautiful terminal-based cookbook manager and recipe assistant.
-      It helps you organize your recipes, scrape recipes from websites, and provides
-      an AI-powered chat interface for cooking assistance.
-    grade: stable
-    confinement: strict
-    base: core20
-    license: MIT
-    # App icon
-    icon: assets/yummy_logo.svg
-    # Plugs for file system access
-    plugs:
-      home: null
-      network: null
-      removable-media: null
-
 # Homebrew cask (tap) - v2 uses homebrew_casks
 homebrew_casks:
   - name: yummy
