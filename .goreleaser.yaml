@@ -106,9 +106,10 @@ snapcrafts:
       network: null
       removable-media: null
 
-# Homebrew formula (tap)
-homebrews:
+# Homebrew cask (tap) - v2 uses homebrew_casks
+homebrew_casks:
   - name: yummy
+    binaries: [yummy]
     repository:
       owner: GarroshIcecream
       name: homebrew-yummy
@@ -117,6 +118,13 @@ homebrews:
     description: "Terminal-based cookbook manager and recipe assistant"
     license: "MIT"
     skip_upload: auto
+    caveats: "Yummy is a terminal-based application. Run 'yummy --help' to get started."
+    hooks:
+      post:
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/yummy"]
+          end
 
 # Scoop manifest (optional)
 scoops:
