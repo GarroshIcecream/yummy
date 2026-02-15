@@ -92,7 +92,7 @@ homebrew_casks:
     repository:
       owner: GarroshIcecream
       name: homebrew-yummy
-      branch: main
+      branch: master
     homepage: "https://github.com/GarroshIcecream/yummy"
     description: "Terminal-based cookbook manager and recipe assistant"
     license: "MIT"
@@ -112,6 +112,10 @@ scoops:
     homepage: "https://github.com/GarroshIcecream/yummy"
     license: "MIT"
     skip_upload: auto
+    repository:
+      owner: GarroshIcecream
+      name: scoop-yummy
+      branch: master
     # Persist data directory
     persist:
       - ".yummy"
