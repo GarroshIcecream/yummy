@@ -1,0 +1,6 @@
+# Used by GoReleaser dockers_v2: context contains pre-built binaries under $TARGETPLATFORM/
+FROM alpine:latest
+RUN apk --no-cache add ca-certificates tzdata
+ARG TARGETPLATFORM
+COPY ${TARGETPLATFORM}/yummy /usr/local/bin/yummy
+ENTRYPOINT ["yummy"]

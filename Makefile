@@ -69,6 +69,11 @@ build-all: clean
 	# macOS ARM64 (Apple Silicon)
 	GOOS=darwin GOARCH=arm64 $(GOBUILD) $(BUILD_FLAGS) -o $(DIST_DIR)/$(BINARY_NAME)-darwin-arm64 .
 
+# Run GoReleaser snapshot (no install needed: uses go run)
+.PHONY: release-snapshot
+release-snapshot:
+	$(GOCMD) run github.com/goreleaser/goreleaser/v2@latest release --snapshot --clean
+
 # Create release archives
 .PHONY: release
 release: build-all
@@ -110,14 +115,22 @@ run:
 install:
 	$(GOCMD) install .
 
+# Build Python extension via gopy (https://github.com/go-python/gopy).
+# Requires: go install github.com/go-python/gopy@latest, python3, pybindgen.
+# Output is in ./python/; use from Python: import bindings; json_str, err = bindings.ScrapeURLToJSON(url, "").
+.PHONY: gopy
+gopy:
+	gopy build -output=./python -vm=python3 ./yummy/scrape/bindings
+
 # Show help
 .PHONY: help
 help:
 	@echo "Available targets:"
-	@echo "  all          - Clean, test, and build"
-	@echo "  build        - Build for current platform"
-	@echo "  build-all    - Build for all platforms"
-	@echo "  release      - Create release archives"
+	@echo "  all              - Clean, test, and build"
+	@echo "  build            - Build for current platform"
+	@echo "  build-all        - Build for all platforms"
+	@echo "  release          - Create release archives"
+	@echo "  release-snapshot - GoReleaser snapshot (builds to dist/, no publish)"
 	@echo "  test         - Run tests"
 	@echo "  test-coverage- Run tests with coverage"
 	@echo "  clean        - Clean build artifacts"

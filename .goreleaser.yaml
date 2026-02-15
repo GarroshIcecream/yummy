@@ -1,3 +1,4 @@
+version: 2
 project_name: yummy
 before:
   hooks:
@@ -19,9 +20,9 @@ builds:
       - arm64
     ldflags:
       - -s -w
-      - -X github.com/GarroshIcecream/yummy/yummy/version.Version={{.Version}}
-      - -X github.com/GarroshIcecream/yummy/yummy/version.BuildTime={{.CommitTimestamp}}
-      - -X github.com/GarroshIcecream/yummy/yummy/version.GitCommit={{.FullCommit}}
+      - -X github.com/GarroshIcecream/yummy/internal/version.Version={{.Version}}
+      - -X github.com/GarroshIcecream/yummy/internal/version.BuildTime={{.CommitTimestamp}}
+      - -X github.com/GarroshIcecream/yummy/internal/version.GitCommit={{.FullCommit}}
     flags:
       - -trimpath
       - -buildvcs=true
@@ -35,16 +36,16 @@ archives:
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     format_overrides:
       - goos: windows
-        format: zip
+        formats: [zip]
       - goos: linux
-        format: tar.gz
+        formats: [tar.gz]
       - goos: darwin
-        format: tar.gz
+        formats: [tar.gz]
     files:
       - assets/yummy_logo.svg
       - readme.md
       - LICENSE
-    format: tar.gz
+    formats: [tar.gz]
 
 checksum:
   name_template: 'checksums.txt'
@@ -105,34 +106,17 @@ snapcrafts:
       network: null
       removable-media: null
 
-# Homebrew Casks
-homebrew_casks:
+# Homebrew formula (tap)
+homebrews:
   - name: yummy
-    # Binary name inside the cask
-    binary: yummy
-    # Repository configuration
     repository:
       owner: GarroshIcecream
-      name: yummy
-      branch: master
-    # Cask metadata
-    description: "Terminal-based cookbook manager and recipe assistant"
+      name: homebrew-yummy
+      branch: main
     homepage: "https://github.com/GarroshIcecream/yummy"
+    description: "Terminal-based cookbook manager and recipe assistant"
     license: "MIT"
-    # Skip upload if no new version
     skip_upload: auto
-    # Post-install hook to handle macOS quarantine
-    hooks:
-      post:
-        install: |
-          if OS.mac?
-            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/yummy"]
-          end
-    # Caveats for users
-    caveats: |
-      Yummy is a terminal-based application. Run 'yummy --help' to get started.
-
-      Note: On macOS, you may need to allow the application to run in System Preferences > Security & Privacy.
 
 # Scoop manifest (optional)
 scoops:
@@ -145,35 +129,19 @@ scoops:
     persist:
       - ".yummy"
 
-# Docker configuration (optional)
-dockers:
+# Docker configuration (v2: uses pre-built binaries from GoReleaser context)
+dockers_v2:
   - id: yummy-docker
-    image_templates:
-      - "ghcr.io/garroshicecream/yummy:{{ .Version }}"
-      - "ghcr.io/garroshicecream/yummy:latest"
-    dockerfile: Dockerfile
-    use: buildx
-    build_flag_templates:
-      - --platform=linux/amd64
-      - --platform=linux/arm64
-    extra_files:
-      - assets/yummy_logo.svg
-      - readme.md
-      - LICENSE
-
-# Announce configuration
-announce:
-  skip: "{{gt .Patch 0}}" # Skip for patch releases
-  twitter:
-    enabled: true
-    message_template: |
-      🍳 Yummy Recipe Manager {{ .Version }} is out!
-
-      A beautiful terminal-based cookbook manager and recipe assistant.
-
-      Download: {{ .URL }}
-
-      #golang #terminal #cooking #recipes
+    ids: [yummy]
+    dockerfile: Dockerfile.goreleaser
+    images:
+      - "ghcr.io/garroshicecream/yummy"
+    tags:
+      - "{{ .Version }}"
+      - "{{ if not .IsNightly }}latest{{ end }}"
+    labels:
+      "org.opencontainers.image.description": "Terminal-based cookbook manager and recipe assistant"
+      "org.opencontainers.image.source": "https://github.com/GarroshIcecream/yummy"
 
 # Metadata
 metadata:

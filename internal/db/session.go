@@ -1,0 +1,178 @@
+package db
+
+import (
+	"log/slog"
+	"os"
+	"path/filepath"
+	"time"
+
+	"github.com/GarroshIcecream/yummy/internal/config"
+	"github.com/GarroshIcecream/yummy/internal/log"
+	utils "github.com/GarroshIcecream/yummy/internal/utils"
+	"github.com/tmc/langchaingo/llms"
+	"github.com/glebarez/sqlite"
+	"gorm.io/gorm"
+	gormlogger "gorm.io/gorm/logger"
+)
+
+// SessionStats struct for session statistics
+type SessionStats struct {
+	SessionID    uint
+	MessageCount int
+	InputTokens  int
+	OutputTokens int
+	TotalTokens  int
+}
+
+// Creates new instance of SessionLog struct
+func NewSessionLog(dbPath string, config *config.DatabaseConfig, opts ...gorm.Option) (*SessionLog, error) {
+	dbDir := filepath.Join(dbPath, "db")
+	if err := os.MkdirAll(dbDir, 0755); err != nil {
+		slog.Error("Failed to create database directory", "dir", dbDir, "error", err)
+		return nil, err
+	}
+
+	dbPath = filepath.Join(dbDir, config.SessionLogDBName)
+	_, err := os.Stat(dbPath)
+	if err != nil {
+		slog.Info("Database does not exist at %s, creating new database...", "dbPath", dbPath, "error", err)
+	}
+
+	dbCon, err := gorm.Open(sqlite.Open(dbPath), opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	// Configure GORM to use slog logger (logs to file via slog setup, not stdout)
+	dbCon.Logger = log.NewGormLogger(200*time.Millisecond, true, gormlogger.Info)
+
+	if err := dbCon.AutoMigrate(GetSessionLogModels()...); err != nil {
+		return nil, err
+	}
+
+	return &SessionLog{conn: dbCon}, nil
+}
+
+// CreateSession creates a new chat session and returns the session ID
+func (s *SessionLog) CreateSession() (uint, error) {
+	session := SessionHistory{}
+	if err := s.conn.Create(&session).Error; err != nil {
+		slog.Error("Error creating session", "error", err)
+		return 0, err
+	}
+	return session.ID, nil
+}
+
+// SaveSessionMessage saves a message to the database
+func (s *SessionLog) SaveSessionMessage(sessionID uint, message string, role llms.ChatMessageType, modelName string, inputTokens int, outputTokens int, totalTokens int) error {
+	// Convert ChatMessageType to string for database storage
+	roleStr := string(role)
+
+	sessionMessage := SessionMessage{
+		SessionID:    sessionID,
+		Message:      message,
+		Role:         roleStr,
+		ModelName:    modelName,
+		InputTokens:  inputTokens,
+		OutputTokens: outputTokens,
+		TotalTokens:  totalTokens,
+	}
+
+	if err := s.conn.Create(&sessionMessage).Error; err != nil {
+		slog.Error("Error saving session message", "error", err)
+		return err
+	}
+
+	return nil
+}
+
+// GetSessionMessages retrieves all messages for a given session
+func (s *SessionLog) GetSessionMessages(sessionID uint) ([]SessionMessage, error) {
+	var messages []SessionMessage
+	if err := s.conn.Where("session_id = ?", sessionID).Order("created_at ASC").Find(&messages).Error; err != nil {
+		slog.Error("Error getting session messages", "error", err)
+		return nil, err
+	}
+	return messages, nil
+}
+
+// GetSessionStats returns statistics for a given session
+func (s *SessionLog) GetSessionStats(sessionID uint) (SessionStats, error) {
+	var stats SessionStats
+	if err := s.conn.Model(&SessionMessage{}).
+		Where("session_id = ? AND role != ?", sessionID, "system").
+		Select(
+			"COUNT(*) AS message_count, " +
+				"COALESCE(SUM(input_tokens), 0) AS input_tokens, " +
+				"COALESCE(SUM(output_tokens), 0) AS output_tokens, " +
+				"COALESCE(SUM(total_tokens), 0) AS total_tokens",
+		).
+		Scan(&stats).Error; err != nil {
+		slog.Error("Error aggregating session stats", "error", err)
+		return stats, err
+	}
+
+	// Always set explicitly — the aggregate query returns NULL for session_id
+	// when no non-system messages exist, which GORM maps to 0.
+	stats.SessionID = sessionID
+	return stats, nil
+}
+
+// GetAllSessions retrieves all chat sessions with their metadata
+func (s *SessionLog) GetAllSessions() ([]SessionHistory, error) {
+	var sessions []SessionHistory
+
+	// Get all sessions ordered by most recent first
+	if err := s.conn.Order("updated_at DESC").Find(&sessions).Error; err != nil {
+		slog.Error("Error getting sessions", "error", err)
+		return nil, err
+	}
+
+	return sessions, nil
+}
+
+// UpdateSessionSummary updates the summary for a session
+func (s *SessionLog) UpdateSessionSummary(sessionID uint, summary string) error {
+	if err := s.conn.Model(&SessionHistory{}).
+		Where("id = ?", sessionID).
+		Update("summary", summary).Error; err != nil {
+		slog.Error("Error updating session summary", "error", err)
+		return err
+	}
+	return nil
+}
+
+// GetNonEmptySessions retrieves only sessions that have messages
+func (s *SessionLog) GetNonEmptySessions() ([]*utils.SessionItem, error) {
+	var sessions []*utils.SessionItem
+
+	// Get sessions that have at least one message, including summary (excluding system messages)
+	query := `
+		SELECT DISTINCT sh.id as session_id, sh.created_at, sh.updated_at, sh.summary, COUNT(sm.id) as message_count, SUM(sm.input_tokens) as total_input_tokens, SUM(sm.output_tokens) as total_output_tokens
+		FROM session_histories sh
+		INNER JOIN session_messages sm ON sh.id = sm.session_id
+		WHERE sm.role != 'system'
+		GROUP BY sh.id
+		ORDER BY sh.id DESC
+	`
+
+	if err := s.conn.Raw(query).Scan(&sessions).Error; err != nil {
+		slog.Error("Error getting non-empty sessions", "error", err)
+		return nil, err
+	}
+
+	return sessions, nil
+}
+
+// GetSessionSummary retrieves the summary for a given session
+func (s *SessionLog) GetSessionSummary(sessionID uint) (string, error) {
+	var session SessionHistory
+	if err := s.conn.Where("id = ?", sessionID).First(&session).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return "", nil
+		}
+		slog.Error("Error getting session summary", "error", err)
+		return "", err
+	}
+	return session.Summary, nil
+}

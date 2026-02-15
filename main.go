@@ -3,8 +3,8 @@ package main
 import (
 	"log/slog"
 
-	"github.com/GarroshIcecream/yummy/yummy/cmd"
-	"github.com/GarroshIcecream/yummy/yummy/log"
+	"github.com/GarroshIcecream/yummy/internal/cmd"
+	"github.com/GarroshIcecream/yummy/internal/log"
 )
 
 func main() {

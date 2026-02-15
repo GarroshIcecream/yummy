@@ -20,7 +20,7 @@
 - **⚡ Lightweight & Fast**: Zero bloat, instant startup, and smooth navigation across large recipe collections
 - **💾 Portable Storage**: Recipes saved locally in simple, exportable formats (JSON/CSV), making backups and sharing effortless
 - **🔄 Focus on Workflow**: Quick commands for adding, searching, categorizing and exporting recipes — spend less time managing and more time cooking
-- **🔧 Extensible Design**: Modular internal packages (recipe, tui, db, tools) make it easy to extend features or integrate with other tools
+- **🔧 Extensible Design**: Modular packages (cmd, config, db, scrape, themes, tui, utils) make it easy to extend features or integrate with other tools
 
 ## 🚀 Core Features
 
@@ -53,6 +53,23 @@ go build -o yummy
 go install github.com/GarroshIcecream/yummy@latest
 ```
 
+### Add recipe from URL (recipe scraping)
+
+The **Add recipe from URL** feature uses [recipe-scrapers](https://github.com/hhursev/recipe-scrapers) (Python) for best coverage of recipe sites.
+
+- **Python 3** must be on your system. Many macOS and Linux systems already have it; if not, install from [python.org](https://www.python.org/downloads/) or your package manager (e.g. `brew install python`).
+- The **recipe-scrapers** package is **auto-installed** the first time you add a recipe from a URL. You do not need to run `pip install` yourself. If your system Python is **externally managed** (PEP 668, e.g. Homebrew Python on macOS), the app will create a small venv at `~/.yummy/recipe-scrapers-venv` and use it automatically.
+
+If the app cannot find Python, set the path in config (e.g. `~/.yummy/config.json`):
+
+```json
+"add_recipe_from_url_dialog": {
+  "python_path": "/usr/bin/python3"
+}
+```
+
+Use the path to the Python where you want the package installed (or leave empty to use `python3` / `python` from your PATH). If auto-install still fails (e.g. no network), install manually: `python3 -m pip install --user recipe-scrapers`, or point `python_path` to a venv that has it.
+
 ## ⚙️ Configuration
 
 Yummy stores its configuration in `~/.yummy/config.json`. The configuration file is automatically created with default values on first run.
@@ -65,31 +82,37 @@ Yummy stores its configuration in `~/.yummy/config.json`. The configuration file
 - **Database Settings**: Configure auto-backup intervals and retention
 - **General Settings**: Debug mode, log levels, and UI preferences
 
-### Example Configuration
+## 📁 Project Structure
 
-```json
-{
-  "theme": "dark",
-  "chat": {
-    "default_model": "gemma3:4b",
-    "temperature": 0.9,
-    "viewport_height": 30
-  },
-  "keymap": {
-    "custom_bindings": {
-      "quit": ["q", "esc"],
-      "add": ["ctrl+a"]
-    }
-  }
-}
+```
+yummy/
+├── main.go                 # Entry point
+├── yummy/
+│   ├── cmd/                # Cobra CLI (root, export, import)
+│   ├── config/             # Config loading, keybindings
+│   ├── consts/             # Constants
+│   ├── db/                 # GORM + SQLite (cookbook, session_log)
+│   ├── log/                # Structured logging
+│   ├── models/             # common (enums, TUIModel), msg (Bubble Tea messages)
+│   ├── scrape/             # Recipe URL scraping (Python recipe-scrapers)
+│   ├── themes/             # Theme registry, default, YAML loader
+│   ├── tui/                # Bubble Tea TUI
+│   │   ├── chat/           # AI chat (Ollama), executor, tools, mentions
+│   │   ├── detail/         # Recipe detail view, cooking mode
+│   │   ├── dialog/         # Modals (theme, session, model, add-from-URL, etc.)
+│   │   ├── edit/           # Recipe editor
+│   │   ├── list/           # Recipe list, filters, autocomplete
+│   │   ├── main_menu/      # Main menu
+│   │   └── status/         # Status bar
+│   ├── utils/              # Recipe, ingredient, measures helpers
+│   └── version/            # Build-time version info
+├── examples/
+│   ├── sample_recipes/     # Sample recipe data
+│   └── themes/             # YAML theme examples
+└── assets/                 # Logo, etc.
 ```
 
 ## 🛠️ Development
-
-### Prerequisites
-
-- Go 1.24.3 or later
-- Git
 
 ### Development Workflow
 

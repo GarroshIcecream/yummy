@@ -1,348 +1,334 @@
 name: "light"
-description: "Light theme with a clean, bright look"
+description: "Clean light theme with warm tones and sharp contrast"
 
 colors:
-  # Light theme color palette
-  background: "#F9FAFB"
-  background_secondary: "#F3F4F6"
-  background_tertiary: "#E5E7EB"
-  foreground: "#1F2937"
-  foreground_secondary: "#6B7280"
-  foreground_tertiary: "#9CA3AF"
-  primary: "#2563EB"
-  secondary: "#059669"
-  accent: "#7C3AED"
-  warning: "#D97706"
-  warning_secondary: "#D97706"
-  error: "#DC2626"
-  success: "#059669"
-  info: "#7C3AED"
-  border: "#D1D5DB"
+  bg: "#FAFAFA"
+  bg2: "#F0F0F0"
+  bg3: "#E4E4E4"
+  bg4: "#D0D0D0"
+  fg: "#1A1A2E"
+  fg2: "#404060"
+  fg3: "#707090"
+  fg4: "#9090A8"
+  blue: "#1A73E8"
+  blue_dim: "#4A90D9"
+  green: "#0B8043"
+  green_bg: "#C8E6C9"
+  red: "#C62828"
+  red_dim: "#EF5350"
+  orange: "#E65100"
+  orange_bg: "#FFE0B2"
+  purple: "#6A1B9A"
+  purple_dim: "#9C27B0"
+  teal: "#00897B"
+  amber: "#F9A825"
   white: "#FFFFFF"
   black: "#000000"
 
 styles:
   title:
     foreground: "white"
-    background: "primary"
+    background: "blue"
     bold: true
     padding: "0,4"
 
   info:
-    foreground: "secondary"
+    foreground: "teal"
     border: "rounded"
+    border_color: "teal"
 
   error:
-    foreground: "error"
+    foreground: "red"
     padding: "0,2"
+    bold: true
 
   header:
-    foreground: "secondary"
+    foreground: "green"
     bold: true
-    padding: "1,0"
+    padding: "1,0,1,0"
 
   ingredient:
-    foreground: "accent"
+    foreground: "purple"
     padding: "0,0,0,2"
 
   doc:
-    margin: "1,2"
+    padding: "0,1"
 
   detail_content:
-    padding: "1,2"
-    margin: "0,1"
+    padding: "0,2"
 
   detail_header:
-    foreground: "white"
-    background: "primary"
+    foreground: "blue"
     bold: true
-    padding: "0,4"
-    margin: "0,0,1,0"
 
   detail_footer:
-    foreground: "secondary"
-    padding: "0,1"
-    margin: "1,0,0,0"
+    foreground: "fg3"
 
   scroll_bar:
-    foreground: "secondary"
+    foreground: "blue_dim"
 
   loading:
-    foreground: "warning"
+    foreground: "orange"
     italic: true
 
   instruction:
-    foreground: "warning"
+    foreground: "orange"
     padding: "0,0,0,2"
 
   warning:
-    foreground: "warning"
-    background: "background_secondary"
+    foreground: "orange"
+    background: "bg2"
     padding: "0,1"
 
   success:
-    foreground: "success"
-    background: "background_secondary"
+    foreground: "green"
+    background: "bg2"
     padding: "0,1"
 
   help:
-    foreground: "foreground_secondary"
-    background: "background_secondary"
+    foreground: "fg3"
+    background: "bg2"
     padding: "0,1"
 
   status_line:
-    foreground: "foreground_secondary"
-    padding: "1,0"
+    foreground: "fg3"
+    background: "bg3"
+    padding: "0,1"
 
   status_line_left:
-    foreground: "foreground_secondary"
-    background: "background_tertiary"
-    padding: "1,0"
+    foreground: "fg2"
+    background: "bg3"
+    padding: "0,1"
 
   status_line_right:
-    foreground: "foreground_secondary"
-    background: "background_tertiary"
-    padding: "1,0"
+    foreground: "fg3"
+    background: "bg3"
+    padding: "0,1"
 
   status_line_mode:
     foreground: "white"
-    background: "primary"
+    background: "blue"
     bold: true
-    padding: "1,0"
+    padding: "0,1"
 
   status_line_file:
-    foreground: "secondary"
-    background: "background_tertiary"
-    padding: "1,0"
+    foreground: "green"
+    background: "bg3"
+    padding: "0,1"
 
   status_line_info:
-    foreground: "accent"
-    background: "background_tertiary"
-    padding: "1,0"
+    foreground: "fg3"
+    background: "bg3"
+    padding: "0,1"
 
   status_line_separator:
-    foreground: "foreground_secondary"
-    background: "background_tertiary"
+    foreground: "bg4"
+    background: "bg3"
 
+  # Chat styles
   chat_title:
-    foreground: "accent"
+    foreground: "fg"
     bold: true
-    margin: "1,0"
-    border: "rounded"
-    border_color: "accent"
     padding: "0,2"
-    align: "center"
-    background: "background_secondary"
 
   chat:
-    border: "rounded"
-    border_color: "border"
     padding: "1,2"
-    margin: "0,1,0,0"
-    foreground: "foreground"
+    foreground: "fg"
 
   sidebar:
-    border: "normal"
-    border_color: "border"
-    padding: "2,2,2,2"
-    margin: "1,1,0,0"
-    width: 28
-    background: "background"
-    foreground: "foreground"
+    padding: "1,2,1,2"
+    foreground: "fg2"
 
   sidebar_header:
-    foreground: "accent"
+    foreground: "purple"
     bold: true
-    align: "center"
-    margin: "0,0,2,0"
-    background: "background_secondary"
-    padding: "1,2"
+    margin: "0,0,1,0"
 
   sidebar_section:
-    foreground: "foreground"
+    foreground: "fg3"
     bold: true
-    margin: "0,0,1,0"
-    border: "normal"
-    border_color: "border"
-    padding: "0,0,1,0"
+    margin: "1,0,0,0"
 
   sidebar_content:
-    foreground: "foreground_secondary"
-    margin: "0,0,0,2"
+    foreground: "fg3"
 
   sidebar_success:
-    foreground: "success"
-    bold: true
+    foreground: "green"
 
   sidebar_error:
-    foreground: "error"
-    bold: true
+    foreground: "red"
+
+  sidebar_value:
+    foreground: "fg"
 
   user_message:
-    foreground: "accent"
+    foreground: "purple"
     bold: true
-    align: "left"
 
   user_content:
-    foreground: "foreground"
-    align: "left"
-    margin: "0,0,1,0"
+    foreground: "fg"
 
   assistant_message:
-    foreground: "secondary"
+    foreground: "green"
     bold: true
-    align: "left"
 
   assistant_content:
-    foreground: "foreground"
-    align: "left"
-    margin: "0,0,1,0"
+    foreground: "fg"
 
   user:
-    foreground: "error"
+    foreground: "purple"
     bold: true
-    padding: "0,1"
-    border: "rounded"
-    border_color: "error"
-    margin: "0,0,1,0"
 
   assistant:
-    foreground: "secondary"
-    padding: "0,1"
-    border: "rounded"
-    border_color: "secondary"
-    margin: "0,0,1,0"
+    foreground: "green"
 
   spinner:
-    foreground: "secondary"
+    foreground: "blue"
+
+  chat_empty_state:
+    foreground: "fg4"
+    italic: true
+
+  chat_mention:
+    foreground: "blue"
     bold: true
 
-  main_menu_border:
-    foreground: "primary"
+  chat_mention_popup_border:
+    border: "rounded"
+    border_color: "fg3"
 
-  main_menu_container:
-    background: "background"
-    padding: "1,2"
+  chat_mention_popup_header:
+    foreground: "fg4"
+    italic: true
+
+  chat_mention_popup_item:
+    foreground: "fg3"
+
+  chat_mention_popup_selected:
+    foreground: "green"
+    bold: true
+
+  # Textarea styles
+  textarea_base:
+    padding: "0,0,0,1"
+
+  textarea_placeholder:
+    foreground: "fg4"
+
+  textarea_text:
+    foreground: "fg"
+
+  textarea_prompt:
+    foreground: "blue"
+    bold: true
+
+  textarea_end_of_buffer:
+    foreground: "bg"
+
+  # Separator styles
+  separator_line:
+    foreground: "bg4"
+
+  message_separator:
+    foreground: "bg3"
+
+  # Dialog row styles
+  dialog_selected_row:
+    foreground: "white"
+    background: "blue"
+    bold: true
+
+  dialog_unselected_row:
+    foreground: "fg2"
+
+  # Main menu styles
+  main_menu_border:
+    foreground: "bg4"
 
   main_menu_separator:
-    foreground: "primary"
+    foreground: "bg4"
 
   main_menu_welcome:
-    foreground: "foreground_secondary"
-    italic: true
-    padding: "1,0"
+    foreground: "fg3"
 
   main_menu_logo:
-    foreground: "accent"
+    foreground: "blue"
     bold: true
 
   main_menu_subtitle:
-    foreground: "foreground_secondary"
-    italic: true
-    padding: "1,0"
+    foreground: "fg3"
 
   main_menu_title_border:
-    border: "double"
-    border_color: "primary"
     align: "center"
-    padding: "1,2"
-    margin: "1,0"
 
   main_menu_selected_arrow:
-    foreground: "warning"
+    foreground: "blue"
     bold: true
 
-  main_menu_selected_item:
-    border: "double"
-    border_color: "warning"
-
-  main_menu_unselected_item:
-    border: "normal"
-    border_color: "primary"
-
   main_menu_selected_icon:
-    foreground: "warning"
+    foreground: "blue"
     bold: true
 
   main_menu_unselected_icon:
-    foreground: "foreground_secondary"
+    foreground: "fg4"
 
   main_menu_selected_title:
     bold: true
-    foreground: "warning"
+    foreground: "blue"
 
   main_menu_unselected_title:
-    foreground: "foreground"
+    foreground: "fg"
 
   main_menu_selected_desc:
-    foreground: "warning"
-    italic: true
-    padding: "0,0,0,4,1"
+    foreground: "fg2"
 
   main_menu_unselected_desc:
-    foreground: "foreground_secondary"
-    italic: true
-    padding: "0,0,0,4,1"
+    foreground: "fg3"
 
   main_menu_help_header:
-    foreground: "primary"
+    foreground: "blue"
     bold: true
-    padding: "0,0,1,0"
 
   main_menu_help_content:
-    foreground: "foreground_secondary"
-    padding: "0,0,0,2"
+    foreground: "fg3"
 
-  main_menu_help_border:
-    border: "double"
-    border_color: "primary"
-    background: "background_secondary"
-    padding: "1,2"
-    margin: "1,0"
+  main_menu_help_key:
+    foreground: "fg"
+
+  main_menu_help_desc:
+    foreground: "fg3"
 
   main_menu_spinner:
-    foreground: "primary"
+    foreground: "blue"
 
+  # State selector styles
   state_selector_container:
     align: "center"
-    width: 50
-    height: 15
-    border: "rounded"
-    border_color: "primary"
-    background: "background"
-    padding: "2,3"
 
   state_selector_dialog:
     border: "rounded"
-    border_color: "secondary"
-    padding: "2,3"
+    border_color: "blue"
+    padding: "1,2"
 
   state_selector_title:
     bold: true
-    foreground: "secondary"
-    margin: "0,0,2,0"
-    align: "center"
+    foreground: "fg"
 
   state_selector_help:
-    foreground: "foreground_tertiary"
-    italic: true
-    align: "center"
-    margin: "2,0,0,0"
+    foreground: "fg4"
 
   state_selector_item:
-    foreground: "foreground_secondary"
-    padding: "0,2"
-    margin: "0,0,1,0"
+    foreground: "fg2"
+    padding: "0,1"
 
   state_selector_selected_item:
     foreground: "white"
-    background: "primary"
+    background: "blue"
     bold: true
-    padding: "0,2"
-    margin: "0,0,1,0"
+    padding: "0,1"
 
   state_selector_indicator:
-    foreground: "warning"
+    foreground: "orange"
     bold: true
 
   state_selector_selected_indicator:
@@ -352,164 +338,369 @@ styles:
   # Session selector styles
   session_selector_container:
     align: "center"
-    background: "background"
 
   session_selector_dialog:
     border: "rounded"
-    border_color: "success"
+    border_color: "green"
     padding: "1,2"
-    background: "background_secondary"
 
   session_selector_title:
-    foreground: "success"
+    foreground: "fg"
     bold: true
-    margin: "1,0,1,2"
 
   session_selector_pagination:
     margin: "0,0,0,2"
-    foreground: "foreground_secondary"
 
   session_selector_help:
-    margin: "0,0,0,2"
-    foreground: "foreground_tertiary"
+    foreground: "fg4"
+
+  session_selector_selected_desc:
+    foreground: "fg3"
+    background: "bg4"
+
+  session_selector_unselected_desc:
+    foreground: "fg4"
 
   # Model selector styles
   model_selector_container:
     align: "center"
-    background: "background"
 
   model_selector_dialog:
     border: "rounded"
-    border_color: "info"
+    border_color: "teal"
     padding: "1,2"
-    background: "background_secondary"
 
   model_selector_title:
-    foreground: "info"
+    foreground: "fg"
     bold: true
-    margin: "1,0,1,2"
 
   model_selector_pagination:
     margin: "0,0,0,2"
-    foreground: "foreground_secondary"
 
   model_selector_help:
-    margin: "0,0,0,2"
-    foreground: "foreground_tertiary"
+    foreground: "fg4"
 
   # Theme selector styles
   theme_selector_container:
     align: "center"
-    background: "background"
 
   theme_selector_dialog:
     border: "rounded"
-    border_color: "accent"
+    border_color: "purple_dim"
     padding: "1,2"
-    background: "background_secondary"
 
   theme_selector_title:
-    foreground: "accent"
+    foreground: "fg"
     bold: true
-    margin: "1,0,1,2"
 
   theme_selector_pagination:
     margin: "0,0,0,2"
-    foreground: "foreground_secondary"
 
   theme_selector_help:
-    margin: "0,0,0,2"
-    foreground: "foreground_tertiary"
+    foreground: "fg4"
+
+  # Add recipe from URL styles
+  add_recipe_from_url_container:
+    align: "center"
+
+  add_recipe_from_url_dialog:
+    border: "rounded"
+    border_color: "teal"
+    padding: "1,3"
+
+  add_recipe_from_url_title:
+    foreground: "fg"
+    bold: true
+
+  add_recipe_from_url_separator:
+    foreground: "bg4"
+
+  add_recipe_from_url_help:
+    foreground: "fg4"
+
+  add_recipe_from_url_prompt:
+    foreground: "fg3"
+
+  add_recipe_from_url_error:
+    foreground: "red"
+
+  add_recipe_from_url_spinner:
+    foreground: "teal"
+
+  add_recipe_from_url_accent:
+    foreground: "teal"
+    bold: true
+
+  add_recipe_from_url_input_border:
+    foreground: "teal"
+
+  add_recipe_from_url_key_highlight:
+    foreground: "teal"
+    bold: true
+
+  # Recipe selector styles
+  recipe_selector_container:
+    align: "center"
+
+  recipe_selector_dialog:
+    border: "rounded"
+    border_color: "green"
+    padding: "1,2"
+
+  recipe_selector_title:
+    foreground: "fg"
+    bold: true
+
+  recipe_selector_help:
+    foreground: "fg4"
+
+  recipe_selector_selected:
+    foreground: "white"
+    background: "blue"
+    bold: true
+
+  # Command palette styles
+  command_palette_container:
+    align: "center"
+
+  command_palette_dialog:
+    border: "rounded"
+    border_color: "purple_dim"
+    padding: "1,2"
+
+  command_palette_title:
+    foreground: "fg"
+    bold: true
+
+  command_palette_help:
+    foreground: "fg4"
+
+  command_palette_shortcut:
+    foreground: "fg4"
+
+  command_palette_selected:
+    foreground: "white"
+    background: "purple_dim"
+    bold: true
+
+  # Rating styles
+  rating_bar:
+    foreground: "fg3"
+    padding: "0,0,0,2"
+
+  rating_star_active:
+    foreground: "amber"
+    bold: true
+
+  rating_star_inactive:
+    foreground: "bg4"
+
+  rating_dialog_container:
+    align: "center"
+
+  rating_dialog_box:
+    border: "rounded"
+    border_color: "amber"
+    padding: "0,2"
+
+  rating_dialog_title:
+    foreground: "fg"
+    bold: true
+
+  rating_dialog_help:
+    foreground: "fg4"
+
+  # Cooking mode styles
+  cooking_step_counter:
+    foreground: "blue"
+    bold: true
+
+  cooking_instruction:
+    foreground: "fg"
+    bold: true
+    padding: "1,4"
+
+  cooking_nav_hint:
+    foreground: "fg4"
+
+  cooking_sidebar:
+    padding: "0,0,0,2"
+
+  cooking_sidebar_title:
+    foreground: "blue"
+    bold: true
+
+  cooking_ingredient:
+    foreground: "fg3"
+
+  cooking_ingredient_amount:
+    foreground: "orange"
+    bold: true
+
+  cooking_ingredient_detail:
+    foreground: "fg4"
+    italic: true
+
+  cooking_chat_panel:
+    padding: "0,0,0,1"
+
+  cooking_chat_title:
+    foreground: "blue"
+    bold: true
+
+  cooking_timer_active:
+    foreground: "red"
+    bold: true
+
+  cooking_timer_done:
+    foreground: "green"
+    bold: true
+
+  cooking_timer_label:
+    foreground: "orange"
+    bold: true
+
+  cooking_timer_message:
+    foreground: "fg3"
+    italic: true
+
+  cooking_timer_bar_filled:
+    foreground: "red"
+
+  cooking_timer_bar_empty:
+    foreground: "bg4"
+
+  cooking_timer_bar_completed:
+    foreground: "green"
+
+  cooking_chat_user_label:
+    foreground: "blue"
+    bold: true
+
+  cooking_chat_assistant_label:
+    foreground: "green"
+    bold: true
+
+  cooking_chat_empty:
+    foreground: "fg4"
+    italic: true
+
+  cooking_no_recipe:
+    foreground: "fg4"
+
+  cooking_recipe_name:
+    foreground: "fg"
+    bold: true
+
+  cooking_progress_filled:
+    foreground: "blue"
+
+  cooking_progress_unfilled:
+    foreground: "bg4"
+
+  cooking_ingredient_highlight:
+    foreground: "orange"
+    background: "orange_bg"
+    bold: true
+
+  cooking_nav_arrow:
+    foreground: "fg"
+
+  cooking_help_key:
+    foreground: "fg"
 
 lists:
   title_bar:
-    foreground: "primary"
-    background: "background_secondary"
+    foreground: "white"
+    background: "blue"
     bold: true
     padding: "1,2"
 
   title:
-    foreground: "primary"
+    foreground: "white"
     bold: true
-    padding: "1,2"
+    padding: "0,1"
 
   spinner:
-    foreground: "primary"
+    foreground: "blue"
 
   filter_prompt:
-    foreground: "primary"
-    padding: "1,2"
+    foreground: "blue"
+    bold: true
+    padding: "0,0,0,2"
 
   filter_cursor:
-    foreground: "primary"
+    foreground: "blue"
     bold: true
 
   default_filter_character_match:
-    foreground: "secondary"
+    foreground: "blue"
+    underline: true
 
   status_bar:
-    foreground: "foreground_secondary"
-    background: "background_secondary"
+    foreground: "fg3"
+    padding: "0,0,1,2"
 
   status_empty:
-    foreground: "error"
+    foreground: "fg3"
 
   status_bar_active_filter:
-    foreground: "warning"
+    foreground: "blue"
 
   status_bar_filter_count:
-    foreground: "warning"
+    foreground: "fg3"
 
   no_items:
-    foreground: "error"
+    foreground: "fg4"
+    padding: "0,0,0,2"
 
   pagination_style:
-    foreground: "primary"
+    padding: "0,0,0,2"
 
   help_style:
-    foreground: "foreground_secondary"
-    background: "background_secondary"
+    foreground: "fg3"
+    padding: "1,0,0,2"
 
   active_pagination_dot:
-    foreground: "primary"
+    foreground: "blue"
 
   inactive_pagination_dot:
-    foreground: "foreground_tertiary"
+    foreground: "bg4"
 
   arabic_pagination:
-    foreground: "primary"
+    foreground: "fg3"
 
   divider_dot:
-    foreground: "primary"
+    foreground: "bg4"
 
   normal_title:
-    foreground: "foreground"
-    padding: "0,2"
+    foreground: "fg"
+    bold: true
+    padding: "0,0,0,1"
 
   normal_desc:
-    foreground: "foreground_secondary"
-    padding: "0,2"
+    foreground: "fg3"
+    padding: "0,0,0,1"
 
   selected_title:
-    foreground: "primary"
-    border: "normal"
-    border_color: "primary"
-    padding: "0,2"
+    foreground: "blue"
+    bold: true
+    border: "thick"
+    border_color: "blue"
+    padding: "0,0,0,1"
 
   selected_desc:
-    foreground: "secondary"
-    border: "normal"
-    border_color: "primary"
-    padding: "0,2"
+    foreground: "fg2"
+    padding: "0,0,0,2"
 
   dimmed_title:
-    foreground: "foreground_secondary"
-    padding: "0,2"
+    foreground: "fg4"
+    padding: "0,0,0,1"
 
   dimmed_desc:
-    foreground: "foreground_secondary"
-    padding: "0,2"
+    foreground: "fg4"
+    padding: "0,0,0,1"
 
   filter_match:
-    foreground: "primary"
+    foreground: "blue"
     underline: true

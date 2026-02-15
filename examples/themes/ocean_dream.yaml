@@ -1,555 +1,712 @@
 name: "ocean_dream"
-description: "A beautiful ocean-inspired theme with calming blues, teals, and soft accents"
+description: "Deep ocean with bioluminescent coral and teal highlights"
 
 colors:
-  # Ocean Dream color palette
-  background: "#0F1419"
-  background_secondary: "#1A2332"
-  background_tertiary: "#243447"
-  foreground: "#E8F4F8"
-  foreground_secondary: "#B8D4E3"
-  foreground_tertiary: "#7FA8C0"
-  
-  # Primary colors
-  primary: "#4ECDC4"
-  primary_light: "#7EE3DD"
-  primary_dark: "#2B9FA6"
-  
-  # Secondary colors
-  secondary: "#5B9BD5"
-  secondary_light: "#8BB5E8"
-  secondary_dark: "#3D7AB8"
-  
-  # Accent colors
-  accent: "#9B59B6"
-  accent_light: "#BB8FCE"
-  accent_dark: "#7D3C98"
-  
-  # Status colors
-  success: "#52C9A2"
-  warning: "#F4A460"
-  warning_light: "#F8C471"
-  error: "#E74C3C"
-  error_light: "#EC7063"
-  info: "#3498DB"
-  
-  # Neutral colors
-  border: "#3D5A80"
-  border_light: "#5A7FA8"
+  abyss: "#0A0E14"
+  deep: "#0F1923"
+  reef: "#1A2A3A"
+  shelf: "#2A3D52"
+  sand: "#E8F4F8"
+  foam: "#B8D4E3"
+  wave: "#7FA8C0"
+  mist: "#5A7F98"
+  coral: "#FF6B6B"
+  coral_dim: "#993F3F"
+  teal: "#4ECDC4"
+  teal_dim: "#2B9FA6"
+  teal_dark: "#1A6B65"
+  sky: "#5B9BD5"
+  sky_dim: "#3D7AB8"
+  biolum: "#7EE3DD"
+  purple: "#BB8FCE"
+  purple_dim: "#7D3C98"
+  amber: "#F4A460"
+  amber_dim: "#A06B3A"
+  gold: "#F8C471"
+  red: "#E74C3C"
+  green: "#52C9A2"
+  green_dim: "#2E8C6E"
   white: "#FFFFFF"
-  black: "#000000"
 
 styles:
-  # Core styles
   title:
     foreground: "white"
-    background: "primary_dark"
+    background: "teal_dim"
     bold: true
     padding: "0,4"
-  
+
   info:
-    foreground: "primary"
+    foreground: "teal"
     border: "rounded"
-    border_color: "primary"
-    padding: "0,2"
-  
+    border_color: "teal_dim"
+
   error:
-    foreground: "error"
+    foreground: "coral"
     padding: "0,2"
     bold: true
-  
+
   header:
-    foreground: "secondary"
+    foreground: "sky"
     bold: true
-    padding: "1,0"
-  
+    padding: "1,0,1,0"
+
   ingredient:
-    foreground: "accent_light"
+    foreground: "purple"
     padding: "0,0,0,2"
-  
+
   doc:
-    margin: "1,2"
-    foreground: "foreground"
-  
+    padding: "0,1"
+
   detail_content:
-    padding: "1,2"
-    margin: "0,1"
-    foreground: "foreground"
-  
+    padding: "0,2"
+
   detail_header:
-    foreground: "white"
-    background: "primary_dark"
+    foreground: "sky"
     bold: true
-    padding: "0,4"
-    margin: "0,0,1,0"
-  
+
   detail_footer:
-    foreground: "primary"
-    padding: "0,1"
-    margin: "1,0,0,0"
-  
+    foreground: "mist"
+
   scroll_bar:
-    foreground: "primary"
-  
+    foreground: "teal"
+
   loading:
-    foreground: "warning_light"
+    foreground: "gold"
     italic: true
-  
+
   instruction:
-    foreground: "warning"
+    foreground: "amber"
     padding: "0,0,0,2"
-  
-  # Status line styles
+
   warning:
-    foreground: "warning"
-    background: "background_secondary"
+    foreground: "amber"
+    background: "deep"
     padding: "0,1"
-    bold: true
-  
+
   success:
-    foreground: "success"
-    background: "background_secondary"
+    foreground: "green"
+    background: "deep"
     padding: "0,1"
-    bold: true
-  
+
   help:
-    foreground: "foreground_secondary"
-    background: "background_secondary"
+    foreground: "wave"
+    background: "deep"
     padding: "0,1"
-  
+
   status_line:
-    foreground: "foreground_secondary"
-    padding: "1,0"
-  
+    foreground: "wave"
+    background: "deep"
+    padding: "0,1"
+
   status_line_left:
-    foreground: "foreground_secondary"
-    background: "background"
-    padding: "1,0"
-  
+    foreground: "foam"
+    background: "deep"
+    padding: "0,1"
+
   status_line_right:
-    foreground: "foreground_secondary"
-    background: "background"
-    padding: "1,0"
-  
+    foreground: "wave"
+    background: "deep"
+    padding: "0,1"
+
   status_line_mode:
     foreground: "white"
-    background: "primary"
+    background: "teal_dim"
     bold: true
-    padding: "1,0"
-  
+    padding: "0,1"
+
   status_line_file:
-    foreground: "primary"
-    background: "background"
-    padding: "1,0"
-  
+    foreground: "teal"
+    background: "deep"
+    padding: "0,1"
+
   status_line_info:
-    foreground: "secondary"
-    background: "background"
-    padding: "1,0"
-  
+    foreground: "wave"
+    background: "deep"
+    padding: "0,1"
+
   status_line_separator:
-    foreground: "border"
-    background: "background"
-  
+    foreground: "shelf"
+    background: "deep"
+
   # Chat styles
   chat_title:
-    foreground: "accent"
+    foreground: "sand"
     bold: true
-    margin: "1,0"
-    border: "rounded"
-    border_color: "accent"
     padding: "0,2"
-    align: "center"
-    background: "background_secondary"
-  
+
   chat:
-    border: "rounded"
-    border_color: "border"
     padding: "1,2"
-    margin: "0,1,0,0"
-    foreground: "foreground"
-    background: "background"
-  
+    foreground: "sand"
+
   sidebar:
-    border: "normal"
-    border_color: "border"
-    padding: "2,2"
-    margin: "1,1,0,0"
-    width: 28
-    background: "background"
-    foreground: "foreground"
-  
+    padding: "1,2,1,2"
+    foreground: "foam"
+
   sidebar_header:
-    foreground: "accent"
+    foreground: "purple"
     bold: true
-    align: "center"
-    margin: "0,0,2,0"
-    background: "background_secondary"
-    padding: "1,2"
-  
+    margin: "0,0,1,0"
+
   sidebar_section:
-    foreground: "foreground"
+    foreground: "wave"
     bold: true
-    margin: "0,0,1,0"
-    border: "normal"
-    border_color: "border"
-    padding: "0,0,1,0"
-  
+    margin: "1,0,0,0"
+
   sidebar_content:
-    foreground: "foreground_secondary"
-    margin: "0,0,0,2"
-  
+    foreground: "wave"
+
   sidebar_success:
-    foreground: "success"
-    bold: true
-  
+    foreground: "green"
+
   sidebar_error:
-    foreground: "error"
-    bold: true
-  
+    foreground: "coral"
+
+  sidebar_value:
+    foreground: "sand"
+
   user_message:
-    foreground: "accent"
+    foreground: "purple"
     bold: true
-    align: "left"
-  
+
   user_content:
-    foreground: "foreground"
-    align: "left"
-    margin: "0,0,1,0"
-  
+    foreground: "sand"
+
   assistant_message:
-    foreground: "secondary"
+    foreground: "teal"
     bold: true
-    align: "left"
-  
+
   assistant_content:
-    foreground: "foreground"
-    align: "left"
-    margin: "0,0,1,0"
-  
+    foreground: "sand"
+
   user:
-    foreground: "accent"
+    foreground: "purple"
     bold: true
-    padding: "0,1"
-    border: "rounded"
-    border_color: "accent"
-    margin: "0,0,1,0"
-  
+
   assistant:
-    foreground: "secondary"
-    padding: "0,1"
-    border: "rounded"
-    border_color: "secondary"
-    margin: "0,0,1,0"
-  
+    foreground: "teal"
+
   spinner:
-    foreground: "primary"
+    foreground: "teal"
+
+  chat_empty_state:
+    foreground: "mist"
+    italic: true
+
+  chat_mention:
+    foreground: "sky"
     bold: true
-  
+
+  chat_mention_popup_border:
+    border: "rounded"
+    border_color: "reef"
+
+  chat_mention_popup_header:
+    foreground: "mist"
+    italic: true
+
+  chat_mention_popup_item:
+    foreground: "foam"
+
+  chat_mention_popup_selected:
+    foreground: "teal"
+    bold: true
+
+  # Textarea styles
+  textarea_base:
+    padding: "0,0,0,1"
+
+  textarea_placeholder:
+    foreground: "mist"
+
+  textarea_text:
+    foreground: "sand"
+
+  textarea_prompt:
+    foreground: "sky"
+    bold: true
+
+  textarea_end_of_buffer:
+    foreground: "abyss"
+
+  # Separator styles
+  separator_line:
+    foreground: "shelf"
+
+  message_separator:
+    foreground: "reef"
+
+  # Dialog row styles
+  dialog_selected_row:
+    foreground: "white"
+    background: "shelf"
+    bold: true
+
+  dialog_unselected_row:
+    foreground: "foam"
+
   # Main menu styles
   main_menu_border:
-    foreground: "primary"
-  
-  main_menu_container:
-    background: "background"
-    padding: "1,2"
-  
+    foreground: "shelf"
+
   main_menu_separator:
-    foreground: "primary"
-  
+    foreground: "shelf"
+
   main_menu_welcome:
-    foreground: "foreground_secondary"
-    italic: true
-    padding: "1,0"
-  
+    foreground: "wave"
+
   main_menu_logo:
-    foreground: "accent"
+    foreground: "teal"
     bold: true
-  
+
   main_menu_subtitle:
-    foreground: "foreground_secondary"
-    italic: true
-    padding: "1,0"
-  
+    foreground: "wave"
+
   main_menu_title_border:
-    border: "double"
-    border_color: "primary"
     align: "center"
-    padding: "1,2"
-    margin: "1,0"
-  
+
   main_menu_selected_arrow:
-    foreground: "primary_light"
+    foreground: "biolum"
     bold: true
-  
-  main_menu_selected_item:
-    border: "double"
-    border_color: "primary"
-    padding: "1,2"
-  
-  main_menu_unselected_item:
-    border: "normal"
-    border_color: "border"
-    padding: "1,2"
-  
+
   main_menu_selected_icon:
-    foreground: "primary_light"
+    foreground: "biolum"
     bold: true
-  
+
   main_menu_unselected_icon:
-    foreground: "foreground_tertiary"
-  
+    foreground: "mist"
+
   main_menu_selected_title:
     bold: true
-    foreground: "primary_light"
-  
+    foreground: "biolum"
+
   main_menu_unselected_title:
-    foreground: "foreground"
-  
+    foreground: "sand"
+
   main_menu_selected_desc:
-    foreground: "primary"
-    italic: true
-    padding: "0,0,0,4"
-  
+    foreground: "teal"
+
   main_menu_unselected_desc:
-    foreground: "foreground_secondary"
-    italic: true
-    padding: "0,0,0,4"
-  
+    foreground: "wave"
+
   main_menu_help_header:
-    foreground: "primary"
+    foreground: "teal"
     bold: true
-    padding: "0,0,1,0"
-  
+
   main_menu_help_content:
-    foreground: "foreground_secondary"
-    padding: "0,0,0,2"
-  
-  main_menu_help_border:
-    border: "double"
-    border_color: "primary"
-    background: "background_secondary"
-    padding: "1,2"
-    margin: "1,0"
-  
+    foreground: "wave"
+
+  main_menu_help_key:
+    foreground: "sand"
+
+  main_menu_help_desc:
+    foreground: "wave"
+
   main_menu_spinner:
-    foreground: "primary"
-  
+    foreground: "teal"
+
   # State selector styles
   state_selector_container:
     align: "center"
-    width: 50
-    height: 15
-    border: "rounded"
-    border_color: "primary"
-    background: "background"
-    padding: "2,3"
-  
+
   state_selector_dialog:
     border: "rounded"
-    border_color: "secondary"
-    padding: "2,3"
-    background: "background_secondary"
-  
+    border_color: "teal_dim"
+    padding: "1,2"
+
   state_selector_title:
     bold: true
-    foreground: "secondary"
-    margin: "0,0,2,0"
-    align: "center"
-  
+    foreground: "sand"
+
   state_selector_help:
-    foreground: "foreground_tertiary"
-    italic: true
-    align: "center"
-    margin: "2,0,0,0"
-  
+    foreground: "mist"
+
   state_selector_item:
-    foreground: "foreground_secondary"
-    padding: "0,2"
-    margin: "0,0,1,0"
-  
+    foreground: "wave"
+    padding: "0,1"
+
   state_selector_selected_item:
     foreground: "white"
-    background: "primary"
+    background: "teal_dim"
     bold: true
-    padding: "0,2"
-    margin: "0,0,1,0"
-  
+    padding: "0,1"
+
   state_selector_indicator:
-    foreground: "warning"
+    foreground: "amber"
     bold: true
-  
+
   state_selector_selected_indicator:
     foreground: "white"
     bold: true
-  
+
   # Session selector styles
   session_selector_container:
     align: "center"
-    background: "background"
-  
+
   session_selector_dialog:
     border: "rounded"
-    border_color: "success"
+    border_color: "green_dim"
     padding: "1,2"
-    background: "background_secondary"
-  
+
   session_selector_title:
-    foreground: "success"
+    foreground: "sand"
     bold: true
-    margin: "1,0,1,2"
-  
+
   session_selector_pagination:
     margin: "0,0,0,2"
-    foreground: "foreground_secondary"
-  
+
   session_selector_help:
-    margin: "0,0,0,2"
-    foreground: "foreground_tertiary"
-  
+    foreground: "mist"
+
+  session_selector_selected_desc:
+    foreground: "wave"
+    background: "shelf"
+
+  session_selector_unselected_desc:
+    foreground: "mist"
+
   # Model selector styles
   model_selector_container:
     align: "center"
-    background: "background"
-  
+
   model_selector_dialog:
     border: "rounded"
-    border_color: "info"
+    border_color: "sky_dim"
     padding: "1,2"
-    background: "background_secondary"
-  
+
   model_selector_title:
-    foreground: "info"
+    foreground: "sand"
     bold: true
-    margin: "1,0,1,2"
-  
+
   model_selector_pagination:
     margin: "0,0,0,2"
-    foreground: "foreground_secondary"
-  
+
   model_selector_help:
-    margin: "0,0,0,2"
-    foreground: "foreground_tertiary"
-  
+    foreground: "mist"
+
   # Theme selector styles
   theme_selector_container:
     align: "center"
-    background: "background"
-  
+
   theme_selector_dialog:
     border: "rounded"
-    border_color: "accent"
+    border_color: "purple_dim"
     padding: "1,2"
-    background: "background_secondary"
-  
+
   theme_selector_title:
-    foreground: "accent"
+    foreground: "sand"
     bold: true
-    margin: "1,0,1,2"
-  
+
   theme_selector_pagination:
     margin: "0,0,0,2"
-    foreground: "foreground_secondary"
-  
+
   theme_selector_help:
-    margin: "0,0,0,2"
-    foreground: "foreground_tertiary"
+    foreground: "mist"
+
+  # Add recipe from URL styles
+  add_recipe_from_url_container:
+    align: "center"
+
+  add_recipe_from_url_dialog:
+    border: "rounded"
+    border_color: "sky_dim"
+    padding: "1,3"
+
+  add_recipe_from_url_title:
+    foreground: "sand"
+    bold: true
+
+  add_recipe_from_url_separator:
+    foreground: "shelf"
+
+  add_recipe_from_url_help:
+    foreground: "mist"
+
+  add_recipe_from_url_prompt:
+    foreground: "wave"
+
+  add_recipe_from_url_error:
+    foreground: "coral"
+
+  add_recipe_from_url_spinner:
+    foreground: "sky"
+
+  add_recipe_from_url_accent:
+    foreground: "sky"
+    bold: true
+
+  add_recipe_from_url_input_border:
+    foreground: "sky_dim"
+
+  add_recipe_from_url_key_highlight:
+    foreground: "sky"
+    bold: true
+
+  # Recipe selector styles
+  recipe_selector_container:
+    align: "center"
+
+  recipe_selector_dialog:
+    border: "rounded"
+    border_color: "teal_dim"
+    padding: "1,2"
+
+  recipe_selector_title:
+    foreground: "sand"
+    bold: true
+
+  recipe_selector_help:
+    foreground: "mist"
+
+  recipe_selector_selected:
+    foreground: "white"
+    background: "shelf"
+    bold: true
+
+  # Command palette styles
+  command_palette_container:
+    align: "center"
+
+  command_palette_dialog:
+    border: "rounded"
+    border_color: "purple_dim"
+    padding: "1,2"
+
+  command_palette_title:
+    foreground: "sand"
+    bold: true
+
+  command_palette_help:
+    foreground: "mist"
+
+  command_palette_shortcut:
+    foreground: "mist"
+
+  command_palette_selected:
+    foreground: "white"
+    background: "purple_dim"
+    bold: true
+
+  # Rating styles
+  rating_bar:
+    foreground: "wave"
+    padding: "0,0,0,2"
+
+  rating_star_active:
+    foreground: "gold"
+    bold: true
+
+  rating_star_inactive:
+    foreground: "mist"
+
+  rating_dialog_container:
+    align: "center"
+
+  rating_dialog_box:
+    border: "rounded"
+    border_color: "amber_dim"
+    padding: "0,2"
+
+  rating_dialog_title:
+    foreground: "sand"
+    bold: true
+
+  rating_dialog_help:
+    foreground: "mist"
+
+  # Cooking mode styles
+  cooking_step_counter:
+    foreground: "sky"
+    bold: true
+
+  cooking_instruction:
+    foreground: "sand"
+    bold: true
+    padding: "1,4"
+
+  cooking_nav_hint:
+    foreground: "mist"
+
+  cooking_sidebar:
+    padding: "0,0,0,2"
+
+  cooking_sidebar_title:
+    foreground: "sky"
+    bold: true
+
+  cooking_ingredient:
+    foreground: "wave"
+
+  cooking_ingredient_amount:
+    foreground: "amber"
+    bold: true
+
+  cooking_ingredient_detail:
+    foreground: "mist"
+    italic: true
+
+  cooking_chat_panel:
+    padding: "0,0,0,1"
+
+  cooking_chat_title:
+    foreground: "sky"
+    bold: true
+
+  cooking_timer_active:
+    foreground: "coral"
+    bold: true
+
+  cooking_timer_done:
+    foreground: "green"
+    bold: true
+
+  cooking_timer_label:
+    foreground: "amber"
+    bold: true
+
+  cooking_timer_message:
+    foreground: "wave"
+    italic: true
+
+  cooking_timer_bar_filled:
+    foreground: "coral"
+    background: "coral_dim"
+
+  cooking_timer_bar_empty:
+    foreground: "mist"
+    background: "deep"
+
+  cooking_timer_bar_completed:
+    foreground: "green"
+    background: "green_dim"
+
+  cooking_chat_user_label:
+    foreground: "sky"
+    bold: true
+
+  cooking_chat_assistant_label:
+    foreground: "green"
+    bold: true
+
+  cooking_chat_empty:
+    foreground: "mist"
+    italic: true
+
+  cooking_no_recipe:
+    foreground: "mist"
+
+  cooking_recipe_name:
+    foreground: "sand"
+    bold: true
+
+  cooking_progress_filled:
+    foreground: "teal"
+
+  cooking_progress_unfilled:
+    foreground: "shelf"
+
+  cooking_ingredient_highlight:
+    foreground: "amber"
+    background: "amber_dim"
+    bold: true
+
+  cooking_nav_arrow:
+    foreground: "sand"
+
+  cooking_help_key:
+    foreground: "sand"
 
 lists:
   title_bar:
-    foreground: "primary"
-    background: "background_secondary"
+    foreground: "sand"
+    background: "deep"
     bold: true
     padding: "1,2"
-  
+
   title:
-    foreground: "primary"
+    foreground: "sand"
     bold: true
-    padding: "1,2"
-  
+    padding: "0,1"
+
   spinner:
-    foreground: "primary"
-  
+    foreground: "teal"
+
   filter_prompt:
-    foreground: "primary"
-    padding: "1,2"
-  
+    foreground: "sky"
+    bold: true
+    padding: "0,0,0,2"
+
   filter_cursor:
-    foreground: "primary_light"
+    foreground: "biolum"
     bold: true
-  
+
   default_filter_character_match:
-    foreground: "primary"
-  
-  status_bar:
-    foreground: "foreground_secondary"
-    background: "background_secondary"
-  
-  status_empty:
-    foreground: "error"
-  
-  status_bar_active_filter:
-    foreground: "warning"
-    bold: true
-  
-  status_bar_filter_count:
-    foreground: "warning"
-  
-  no_items:
-    foreground: "error"
-    italic: true
-  
-  pagination_style:
-    foreground: "primary"
-  
-  help_style:
-    foreground: "foreground_secondary"
-    background: "background_secondary"
-  
-  active_pagination_dot:
-    foreground: "primary"
-    bold: true
-  
-  inactive_pagination_dot:
-    foreground: "border"
-  
-  arabic_pagination:
-    foreground: "primary"
-  
-  divider_dot:
-    foreground: "primary"
-  
-  # Delegate styles
-  normal_title:
-    foreground: "foreground"
-    padding: "0,2"
-  
-  normal_desc:
-    foreground: "foreground_secondary"
-    padding: "0,2"
-  
-  selected_title:
-    foreground: "primary"
-    border: "normal"
-    border_color: "primary"
-    padding: "0,2"
-    bold: true
-  
-  selected_desc:
-    foreground: "secondary"
-    border: "normal"
-    border_color: "primary"
-    padding: "0,2"
-  
-  dimmed_title:
-    foreground: "foreground_tertiary"
-    padding: "0,2"
-  
-  dimmed_desc:
-    foreground: "foreground_tertiary"
-    padding: "0,2"
-  
-  filter_match:
-    foreground: "primary_light"
+    foreground: "teal"
     underline: true
+
+  status_bar:
+    foreground: "wave"
+    padding: "0,0,1,2"
+
+  status_empty:
+    foreground: "coral"
+
+  status_bar_active_filter:
+    foreground: "amber"
+
+  status_bar_filter_count:
+    foreground: "wave"
+
+  no_items:
+    foreground: "mist"
+    padding: "0,0,0,2"
+
+  pagination_style:
+    padding: "0,0,0,2"
+
+  help_style:
+    foreground: "wave"
+    padding: "1,0,0,2"
+
+  active_pagination_dot:
+    foreground: "teal"
+
+  inactive_pagination_dot:
+    foreground: "shelf"
+
+  arabic_pagination:
+    foreground: "wave"
+
+  divider_dot:
+    foreground: "shelf"
+
+  normal_title:
+    foreground: "sand"
     bold: true
+    padding: "0,0,0,1"
+
+  normal_desc:
+    foreground: "wave"
+    padding: "0,0,0,1"
+
+  selected_title:
+    foreground: "teal"
+    bold: true
+    border: "thick"
+    border_color: "teal_dim"
+    padding: "0,0,0,1"
+
+  selected_desc:
+    foreground: "foam"
+    padding: "0,0,0,2"
+
+  dimmed_title:
+    foreground: "mist"
+    padding: "0,0,0,1"
+
+  dimmed_desc:
+    foreground: "mist"
+    padding: "0,0,0,1"
+
+  filter_match:
+    foreground: "biolum"
+    underline: true
