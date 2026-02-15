@@ -93,6 +93,7 @@ homebrew_casks:
       owner: GarroshIcecream
       name: homebrew-yummy
       branch: master
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
     homepage: "https://github.com/GarroshIcecream/yummy"
     description: "Terminal-based cookbook manager and recipe assistant"
     license: "MIT"
@@ -116,6 +117,7 @@ scoops:
       owner: GarroshIcecream
       name: scoop-yummy
       branch: master
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
     # Persist data directory
     persist:
       - ".yummy"
