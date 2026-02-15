@@ -55,6 +55,7 @@ release:
   github:
     owner: GarroshIcecream
     name: yummy
+    replace_existing_artifacts: true
 
   header: |
     ## 🍳 Yummy Recipe Manager {{ .Version }}
