@@ -7,7 +7,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
+	"image/color"
+
+	lipgloss "charm.land/lipgloss/v2"
+	lipglossv1 "github.com/charmbracelet/lipgloss"
 	"gopkg.in/yaml.v3"
 )
 
@@ -119,27 +122,27 @@ func (yt *YAMLTheme) ToTheme() (Theme, error) {
 	theme := NewDefaultTheme()
 	theme.Name = yt.Name
 
-	// Helper function to resolve color references
-	resolveColor := func(color string) lipgloss.Color {
+	// Helper function to resolve color references, returning a plain string
+	resolveColor := func(color string) string {
 		if color == "" {
-			return lipgloss.Color("")
+			return ""
 		}
 		// Check if it's a color reference
 		if resolved, exists := yt.Colors[color]; exists {
-			return lipgloss.Color(resolved)
+			return resolved
 		}
-		return lipgloss.Color(color)
+		return color
 	}
 
-	// Helper function to create a style from YAMLStyle
+	// Helper function to create a v2 lipgloss style from YAMLStyle
 	createStyle := func(ys YAMLStyle) lipgloss.Style {
 		style := lipgloss.NewStyle()
 
 		if ys.Foreground != "" {
-			style = style.Foreground(resolveColor(ys.Foreground))
+			style = style.Foreground(lipgloss.Color(resolveColor(ys.Foreground)))
 		}
 		if ys.Background != "" {
-			style = style.Background(resolveColor(ys.Background))
+			style = style.Background(lipgloss.Color(resolveColor(ys.Background)))
 		}
 		if ys.Bold {
 			style = style.Bold(true)
@@ -166,7 +169,7 @@ func (yt *YAMLTheme) ToTheme() (Theme, error) {
 
 		// Handle border
 		if ys.Border != "" && ys.Border != "none" {
-			style = applyBorder(style, ys.Border, resolveColor(ys.BorderColor))
+			style = applyBorder(style, ys.Border, lipgloss.Color(resolveColor(ys.BorderColor)))
 		}
 
 		// Handle alignment
@@ -179,6 +182,33 @@ func (yt *YAMLTheme) ToTheme() (Theme, error) {
 		}
 		if ys.Height > 0 {
 			style = style.Height(ys.Height)
+		}
+
+		return style
+	}
+
+	// Helper function to create a v1 lipgloss style for list/delegate fields
+	// (bubbles/list still uses github.com/charmbracelet/lipgloss v1)
+	createStyleV1 := func(ys YAMLStyle) lipglossv1.Style {
+		style := lipglossv1.NewStyle()
+
+		if ys.Foreground != "" {
+			style = style.Foreground(lipglossv1.Color(resolveColor(ys.Foreground)))
+		}
+		if ys.Background != "" {
+			style = style.Background(lipglossv1.Color(resolveColor(ys.Background)))
+		}
+		if ys.Bold {
+			style = style.Bold(true)
+		}
+		if ys.Italic {
+			style = style.Italic(true)
+		}
+		if ys.Underline {
+			style = style.Underline(true)
+		}
+		if ys.Strikethrough {
+			style = style.Strikethrough(true)
 		}
 
 		return style
@@ -507,80 +537,80 @@ func (yt *YAMLTheme) ToTheme() (Theme, error) {
 		}
 	}
 
-	// Handle list styles
+	// Handle list styles (use createStyleV1 — bubbles/list still uses lipgloss v1)
 	if yt.Lists.TitleBar != (YAMLStyle{}) {
-		theme.ListStyles.TitleBar = createStyle(yt.Lists.TitleBar)
+		theme.ListStyles.TitleBar = createStyleV1(yt.Lists.TitleBar)
 	}
 	if yt.Lists.Title != (YAMLStyle{}) {
-		theme.ListStyles.Title = createStyle(yt.Lists.Title)
+		theme.ListStyles.Title = createStyleV1(yt.Lists.Title)
 	}
 	if yt.Lists.Spinner != (YAMLStyle{}) {
-		theme.ListStyles.Spinner = createStyle(yt.Lists.Spinner)
+		theme.ListStyles.Spinner = createStyleV1(yt.Lists.Spinner)
 	}
 	if yt.Lists.FilterPrompt != (YAMLStyle{}) {
-		theme.ListStyles.FilterPrompt = createStyle(yt.Lists.FilterPrompt)
+		theme.ListStyles.FilterPrompt = createStyleV1(yt.Lists.FilterPrompt)
 	}
 	if yt.Lists.FilterCursor != (YAMLStyle{}) {
-		theme.ListStyles.FilterCursor = createStyle(yt.Lists.FilterCursor)
+		theme.ListStyles.FilterCursor = createStyleV1(yt.Lists.FilterCursor)
 	}
 	if yt.Lists.DefaultFilterCharacterMatch != (YAMLStyle{}) {
-		theme.ListStyles.DefaultFilterCharacterMatch = createStyle(yt.Lists.DefaultFilterCharacterMatch)
+		theme.ListStyles.DefaultFilterCharacterMatch = createStyleV1(yt.Lists.DefaultFilterCharacterMatch)
 	}
 	if yt.Lists.StatusBar != (YAMLStyle{}) {
-		theme.ListStyles.StatusBar = createStyle(yt.Lists.StatusBar)
+		theme.ListStyles.StatusBar = createStyleV1(yt.Lists.StatusBar)
 	}
 	if yt.Lists.StatusEmpty != (YAMLStyle{}) {
-		theme.ListStyles.StatusEmpty = createStyle(yt.Lists.StatusEmpty)
+		theme.ListStyles.StatusEmpty = createStyleV1(yt.Lists.StatusEmpty)
 	}
 	if yt.Lists.StatusBarActiveFilter != (YAMLStyle{}) {
-		theme.ListStyles.StatusBarActiveFilter = createStyle(yt.Lists.StatusBarActiveFilter)
+		theme.ListStyles.StatusBarActiveFilter = createStyleV1(yt.Lists.StatusBarActiveFilter)
 	}
 	if yt.Lists.StatusBarFilterCount != (YAMLStyle{}) {
-		theme.ListStyles.StatusBarFilterCount = createStyle(yt.Lists.StatusBarFilterCount)
+		theme.ListStyles.StatusBarFilterCount = createStyleV1(yt.Lists.StatusBarFilterCount)
 	}
 	if yt.Lists.NoItems != (YAMLStyle{}) {
-		theme.ListStyles.NoItems = createStyle(yt.Lists.NoItems)
+		theme.ListStyles.NoItems = createStyleV1(yt.Lists.NoItems)
 	}
 	if yt.Lists.PaginationStyle != (YAMLStyle{}) {
-		theme.ListStyles.PaginationStyle = createStyle(yt.Lists.PaginationStyle)
+		theme.ListStyles.PaginationStyle = createStyleV1(yt.Lists.PaginationStyle)
 	}
 	if yt.Lists.HelpStyle != (YAMLStyle{}) {
-		theme.ListStyles.HelpStyle = createStyle(yt.Lists.HelpStyle)
+		theme.ListStyles.HelpStyle = createStyleV1(yt.Lists.HelpStyle)
 	}
 	if yt.Lists.ActivePaginationDot != (YAMLStyle{}) {
-		theme.ListStyles.ActivePaginationDot = createStyle(yt.Lists.ActivePaginationDot)
+		theme.ListStyles.ActivePaginationDot = createStyleV1(yt.Lists.ActivePaginationDot)
 	}
 	if yt.Lists.InactivePaginationDot != (YAMLStyle{}) {
-		theme.ListStyles.InactivePaginationDot = createStyle(yt.Lists.InactivePaginationDot)
+		theme.ListStyles.InactivePaginationDot = createStyleV1(yt.Lists.InactivePaginationDot)
 	}
 	if yt.Lists.ArabicPagination != (YAMLStyle{}) {
-		theme.ListStyles.ArabicPagination = createStyle(yt.Lists.ArabicPagination)
+		theme.ListStyles.ArabicPagination = createStyleV1(yt.Lists.ArabicPagination)
 	}
 	if yt.Lists.DividerDot != (YAMLStyle{}) {
-		theme.ListStyles.DividerDot = createStyle(yt.Lists.DividerDot)
+		theme.ListStyles.DividerDot = createStyleV1(yt.Lists.DividerDot)
 	}
 
-	// Handle delegate styles
+	// Handle delegate styles (use createStyleV1 — bubbles/list still uses lipgloss v1)
 	if yt.Lists.NormalTitle != (YAMLStyle{}) {
-		theme.DelegateStyles.NormalTitle = createStyle(yt.Lists.NormalTitle)
+		theme.DelegateStyles.NormalTitle = createStyleV1(yt.Lists.NormalTitle)
 	}
 	if yt.Lists.NormalDesc != (YAMLStyle{}) {
-		theme.DelegateStyles.NormalDesc = createStyle(yt.Lists.NormalDesc)
+		theme.DelegateStyles.NormalDesc = createStyleV1(yt.Lists.NormalDesc)
 	}
 	if yt.Lists.SelectedTitle != (YAMLStyle{}) {
-		theme.DelegateStyles.SelectedTitle = createStyle(yt.Lists.SelectedTitle)
+		theme.DelegateStyles.SelectedTitle = createStyleV1(yt.Lists.SelectedTitle)
 	}
 	if yt.Lists.SelectedDesc != (YAMLStyle{}) {
-		theme.DelegateStyles.SelectedDesc = createStyle(yt.Lists.SelectedDesc)
+		theme.DelegateStyles.SelectedDesc = createStyleV1(yt.Lists.SelectedDesc)
 	}
 	if yt.Lists.DimmedTitle != (YAMLStyle{}) {
-		theme.DelegateStyles.DimmedTitle = createStyle(yt.Lists.DimmedTitle)
+		theme.DelegateStyles.DimmedTitle = createStyleV1(yt.Lists.DimmedTitle)
 	}
 	if yt.Lists.DimmedDesc != (YAMLStyle{}) {
-		theme.DelegateStyles.DimmedDesc = createStyle(yt.Lists.DimmedDesc)
+		theme.DelegateStyles.DimmedDesc = createStyleV1(yt.Lists.DimmedDesc)
 	}
 	if yt.Lists.FilterMatch != (YAMLStyle{}) {
-		theme.DelegateStyles.FilterMatch = createStyle(yt.Lists.FilterMatch)
+		theme.DelegateStyles.FilterMatch = createStyleV1(yt.Lists.FilterMatch)
 	}
 
 	return theme, nil
@@ -617,7 +647,7 @@ func applyMargin(style lipgloss.Style, margin string) lipgloss.Style {
 	return style
 }
 
-func applyBorder(style lipgloss.Style, borderType string, borderColor lipgloss.Color) lipgloss.Style {
+func applyBorder(style lipgloss.Style, borderType string, borderColor color.Color) lipgloss.Style {
 	switch borderType {
 	case "normal":
 		return style.Border(lipgloss.NormalBorder()).BorderForeground(borderColor)
