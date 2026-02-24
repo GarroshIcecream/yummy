@@ -18,7 +18,7 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/llms/ollama"
 )
@@ -823,7 +823,17 @@ func (m *CookingModel) renderIngredientsSidebar(width, height int) string {
 	sidebar.WriteString(sep)
 	sidebar.WriteString("\n\n")
 
+	currentGroup := ""
 	for _, ing := range m.Recipe.Metadata.Ingredients {
+		if ing.Group != currentGroup {
+			currentGroup = ing.Group
+			if currentGroup != "" {
+				sidebar.WriteString("\n")
+				sidebar.WriteString(m.theme.CookingSidebarTitle.Render("  "+currentGroup))
+				sidebar.WriteString("\n")
+			}
+		}
+
 		// Bullet prefix
 		bullet := m.theme.CookingNavHint.Render("  • ")
 

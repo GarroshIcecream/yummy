@@ -11,7 +11,7 @@ import (
 	"github.com/GarroshIcecream/yummy/internal/tui/detail"
 	yummy_list "github.com/GarroshIcecream/yummy/internal/tui/list"
 	"github.com/GarroshIcecream/yummy/internal/utils"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 )
 
 type StatusLine struct {

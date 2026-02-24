@@ -10,7 +10,7 @@ import (
 	themes "github.com/GarroshIcecream/yummy/internal/themes"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 )
 
 // Action constants for command palette commands.

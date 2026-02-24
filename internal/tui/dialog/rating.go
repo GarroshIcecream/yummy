@@ -6,7 +6,7 @@ import (
 	messages "github.com/GarroshIcecream/yummy/internal/models/msg"
 	themes "github.com/GarroshIcecream/yummy/internal/themes"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 )
 
 // RatingDialogCmp is a small top-anchored modal for setting a recipe rating.

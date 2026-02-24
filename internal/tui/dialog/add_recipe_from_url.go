@@ -19,7 +19,7 @@ import (
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 )
 
 var addRecipeSubmitKey = key.NewBinding(key.WithKeys("enter"))
@@ -409,7 +409,49 @@ func recipeRawFromScraper(s scrape.Scraper, sourceURL string, llmModel string) *
 	if y, ok := s.Yields(); ok && y != "" {
 		r.Metadata.Quantity = strings.TrimSpace(y)
 	}
-	if ingList, ok := s.Ingredients(); ok {
+	if groups, ok := s.IngredientGroups(); ok {
+		// Check if any groups are missing a purpose label.
+		needsLabels := false
+		if len(groups) > 1 {
+			for _, g := range groups {
+				if g.Purpose == nil || strings.TrimSpace(*g.Purpose) == "" {
+					needsLabels = true
+					break
+				}
+			}
+		}
+
+		// Ask LLM to generate labels for unlabelled groups.
+		var llmLabels []string
+		if needsLabels && llmModel != "" {
+			unlabelled := make([][]string, len(groups))
+			for i, g := range groups {
+				unlabelled[i] = g.Ingredients
+			}
+			labels, err := utils.LabelIngredientGroups(context.Background(), unlabelled, llmModel)
+			if err != nil {
+				slog.Error("LLM group labelling failed, groups will be unlabelled", "error", err)
+			} else {
+				llmLabels = labels
+			}
+		}
+
+		for i, g := range groups {
+			purpose := ""
+			if g.Purpose != nil {
+				purpose = strings.TrimSpace(*g.Purpose)
+			}
+			// Fill in missing purpose from LLM labels.
+			if purpose == "" && i < len(llmLabels) {
+				purpose = strings.TrimSpace(llmLabels[i])
+			}
+			parsed := parseIngredientList(g.Ingredients, llmModel)
+			for j := range parsed {
+				parsed[j].Group = purpose
+			}
+			r.Metadata.Ingredients = append(r.Metadata.Ingredients, parsed...)
+		}
+	} else if ingList, ok := s.Ingredients(); ok {
 		r.Metadata.Ingredients = parseIngredientList(ingList, llmModel)
 	}
 	if instr, ok := s.Instructions(); ok {

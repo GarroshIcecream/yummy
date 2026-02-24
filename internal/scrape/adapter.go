@@ -17,6 +17,7 @@ type Scraper interface {
 	Description() (string, bool)
 	ImageURL() (string, bool)
 	Ingredients() ([]string, bool)
+	IngredientGroups() ([]IngredientGroup, bool)
 	Instructions() ([]string, bool)
 	Language() (string, bool)
 	Name() (string, bool)
@@ -74,6 +75,13 @@ func (a *adapter) Ingredients() ([]string, bool) {
 		return nil, false
 	}
 	return a.j.Ingredients, true
+}
+
+func (a *adapter) IngredientGroups() ([]IngredientGroup, bool) {
+	if len(a.j.IngredientGroups) == 0 {
+		return nil, false
+	}
+	return a.j.IngredientGroups, true
 }
 
 func (a *adapter) Instructions() ([]string, bool) {

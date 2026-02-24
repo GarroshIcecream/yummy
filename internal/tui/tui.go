@@ -20,7 +20,7 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	list "github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 	overlay "github.com/rmhubbert/bubbletea-overlay"
 )
 

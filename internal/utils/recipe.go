@@ -206,7 +206,15 @@ func (r *RecipeRaw) FormatRecipeMarkdown() string {
 
 	// Ingredients
 	s.WriteString("### 🥘 Ingredients\n\n")
+	currentGroup := ""
 	for _, ing := range r.Metadata.Ingredients {
+		if ing.Group != currentGroup {
+			currentGroup = ing.Group
+			if currentGroup != "" {
+				s.WriteString(fmt.Sprintf("**%s**\n\n", currentGroup))
+			}
+		}
+
 		var ingredient strings.Builder
 		ingredient.WriteString("• ")
 
@@ -347,6 +355,7 @@ func ParseJSONRecipe(filePath string, customName string) (*RecipeRaw, error) {
 			Unit    string `json:"unit"`
 			Name    string `json:"name"`
 			Details string `json:"details"`
+			Group   string `json:"group"`
 		} `json:"ingredients"`
 		Instructions []string `json:"instructions"`
 		Categories   []string `json:"categories"`
@@ -385,6 +394,7 @@ func ParseJSONRecipe(filePath string, customName string) (*RecipeRaw, error) {
 			Unit:    ing.Unit,
 			Name:    ing.Name,
 			Details: ing.Details,
+			Group:   ing.Group,
 		})
 	}
 

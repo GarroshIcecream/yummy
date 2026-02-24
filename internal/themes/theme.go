@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/bubbles/list"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 )
 
 // Theme represents a complete theme with all styling components
