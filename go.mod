@@ -3,7 +3,7 @@ module github.com/GarroshIcecream/yummy
 go 1.26.0
 
 require (
-	github.com/charmbracelet/bubbles v1.0.0
+	github.com/charmbracelet/bubbles/v2 v2.0.0
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/fang v0.4.4
 	github.com/charmbracelet/glamour v0.10.0
