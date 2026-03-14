@@ -8,7 +8,7 @@ require (
 	github.com/charmbracelet/fang v0.4.4
 	github.com/charmbracelet/glamour v0.10.0
 	github.com/charmbracelet/huh v0.8.0
-	github.com/charmbracelet/lipgloss v1.1.1-0.20250404203927-76690c660834
+	github.com/charmbracelet/lipgloss/v2 v2.0.2
 	github.com/charmbracelet/x/term v0.2.2
 	github.com/glebarez/sqlite v1.11.0
 	github.com/kkyr/go-recipe v0.4.0
