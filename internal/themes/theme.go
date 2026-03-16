@@ -3,7 +3,7 @@ package themes
 import (
 	"strings"
 
-	"github.com/charmbracelet/bubbles/list"
+	"charm.land/bubbles/v2/list"
 	"charm.land/lipgloss/v2"
 )
 

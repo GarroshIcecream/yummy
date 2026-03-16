@@ -3,8 +3,6 @@ package scrape
 import (
 	"strings"
 	"time"
-
-	"github.com/kkyr/go-recipe"
 )
 
 type Scraper interface {
@@ -21,9 +19,9 @@ type Scraper interface {
 	Instructions() ([]string, bool)
 	Language() (string, bool)
 	Name() (string, bool)
-	Nutrition() (recipe.Nutrition, bool)
+	Nutrition() (Nutrition, bool)
 	PrepTime() (time.Duration, bool)
-	SuitableDiets() ([]recipe.Diet, bool)
+	SuitableDiets() ([]Diet, bool)
 	TotalTime() (time.Duration, bool)
 	Yields() (string, bool)
 }
@@ -109,8 +107,8 @@ func (a *adapter) Name() (string, bool) {
 	return strings.TrimSpace(a.j.Title), a.j.Title != ""
 }
 
-func (a *adapter) Nutrition() (recipe.Nutrition, bool) {
-	return recipe.Nutrition{}, false
+func (a *adapter) Nutrition() (Nutrition, bool) {
+	return Nutrition{}, false
 }
 
 func (a *adapter) PrepTime() (time.Duration, bool) {
@@ -120,7 +118,7 @@ func (a *adapter) PrepTime() (time.Duration, bool) {
 	return time.Duration(*a.j.PrepTime) * time.Minute, true
 }
 
-func (a *adapter) SuitableDiets() ([]recipe.Diet, bool) {
+func (a *adapter) SuitableDiets() ([]Diet, bool) {
 	return nil, false
 }
 

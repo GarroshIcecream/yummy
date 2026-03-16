@@ -1,9 +1,9 @@
 package themes
 
 import (
-	"github.com/charmbracelet/bubbles/list"
+	"charm.land/bubbles/v2/list"
+	"charm.land/bubbles/v2/textinput"
 	lipgloss "charm.land/lipgloss/v2"
-	lipglossv1 "github.com/charmbracelet/lipgloss"
 )
 
 // NewDefaultTheme creates a new default theme with all styles initialized
@@ -117,73 +117,73 @@ func NewDefaultTheme() Theme {
 		Background(statusBg)
 
 	// List styles
-	accentBlue := lipglossv1.Color("#4a9eff")
-	mutedGray := lipglossv1.Color("#626262")
-	dimGray := lipglossv1.Color("#3a3a3a")
+	accentBlue := lipgloss.Color("#4a9eff")
+	mutedGray := lipgloss.Color("#626262")
+	dimGray := lipgloss.Color("#3a3a3a")
+
+	filterStyles := textinput.DefaultStyles(true)
+	filterPrompt := lipgloss.NewStyle().Foreground(accentBlue).Bold(true).Padding(0, 0, 0, 2)
+	filterStyles.Focused.Prompt = filterPrompt
+	filterStyles.Blurred.Prompt = filterPrompt
+	filterStyles.Cursor.Color = accentBlue
 
 	t.ListStyles = list.Styles{
-		TitleBar: lipglossv1.NewStyle().
-			Foreground(lipglossv1.Color("#FFFFFF")).
+		TitleBar: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#FFFFFF")).
 			Bold(true).
 			Padding(1, 2),
-		Title: lipglossv1.NewStyle().
-			Foreground(lipglossv1.Color("#FFFFFF")).
+		Title: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#FFFFFF")).
 			Bold(true).
 			Padding(0, 1),
-		Spinner: lipglossv1.NewStyle().
+		Spinner: lipgloss.NewStyle().
 			Foreground(accentBlue),
-		FilterPrompt: lipglossv1.NewStyle().
-			Foreground(accentBlue).
-			Bold(true).
-			Padding(0, 0, 0, 2),
-		FilterCursor: lipglossv1.NewStyle().
-			Foreground(accentBlue).
-			Bold(true),
+		Filter: filterStyles,
 
-		DefaultFilterCharacterMatch: lipglossv1.NewStyle().
+		DefaultFilterCharacterMatch: lipgloss.NewStyle().
 			Foreground(accentBlue).
 			Underline(true),
-		StatusBar: lipglossv1.NewStyle().
+		StatusBar: lipgloss.NewStyle().
 			Foreground(mutedGray).
 			Padding(0, 0, 1, 2),
-		StatusEmpty: lipglossv1.NewStyle().
+		StatusEmpty: lipgloss.NewStyle().
 			Foreground(mutedGray),
-		StatusBarActiveFilter: lipglossv1.NewStyle().
+		StatusBarActiveFilter: lipgloss.NewStyle().
 			Foreground(accentBlue),
-		StatusBarFilterCount: lipglossv1.NewStyle().
+		StatusBarFilterCount: lipgloss.NewStyle().
 			Foreground(mutedGray),
-		NoItems: lipglossv1.NewStyle().
+		NoItems: lipgloss.NewStyle().
 			Foreground(mutedGray).
 			Padding(0, 0, 0, 2),
-		PaginationStyle: lipglossv1.NewStyle().
+		PaginationStyle: lipgloss.NewStyle().
 			PaddingLeft(2),
-		HelpStyle: lipglossv1.NewStyle().
+		HelpStyle: lipgloss.NewStyle().
 			Foreground(mutedGray).
 			Padding(1, 0, 0, 2),
-		ActivePaginationDot: lipglossv1.NewStyle().
+		ActivePaginationDot: lipgloss.NewStyle().
 			Foreground(accentBlue),
-		InactivePaginationDot: lipglossv1.NewStyle().
+		InactivePaginationDot: lipgloss.NewStyle().
 			Foreground(dimGray),
-		ArabicPagination: lipglossv1.NewStyle().
+		ArabicPagination: lipgloss.NewStyle().
 			Foreground(mutedGray),
-		DividerDot: lipglossv1.NewStyle().
+		DividerDot: lipgloss.NewStyle().
 			Foreground(dimGray),
 	}
 
 	// Delegate styles for lists
-	normalTitle := lipglossv1.NewStyle().
-		Foreground(lipglossv1.Color("#e0e0e0")).
+	normalTitle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#e0e0e0")).
 		Bold(true).
 		Padding(0, 0, 0, 1)
 
-	normalDesc := lipglossv1.NewStyle().
-		Foreground(lipglossv1.Color("#777777")).
+	normalDesc := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#777777")).
 		Padding(0, 0, 0, 1)
 
-	selectedTitle := lipglossv1.NewStyle().
+	selectedTitle := lipgloss.NewStyle().
 		Foreground(accentBlue).
 		Bold(true).
-		BorderStyle(lipglossv1.ThickBorder()).
+		BorderStyle(lipgloss.ThickBorder()).
 		BorderLeft(true).
 		BorderTop(false).
 		BorderBottom(false).
@@ -191,19 +191,19 @@ func NewDefaultTheme() Theme {
 		BorderLeftForeground(accentBlue).
 		PaddingLeft(1)
 
-	selectedDesc := lipglossv1.NewStyle().
-		Foreground(lipglossv1.Color("#888888")).
+	selectedDesc := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#888888")).
 		PaddingLeft(2)
 
-	dimmedTitle := lipglossv1.NewStyle().
-		Foreground(lipglossv1.Color("#555555")).
+	dimmedTitle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#555555")).
 		Padding(0, 0, 0, 1)
 
-	dimmedDesc := lipglossv1.NewStyle().
-		Foreground(lipglossv1.Color("#444444")).
+	dimmedDesc := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#444444")).
 		Padding(0, 0, 0, 1)
 
-	filterMatch := lipglossv1.NewStyle().
+	filterMatch := lipgloss.NewStyle().
 		Foreground(accentBlue).
 		Underline(true)
 
@@ -458,11 +458,11 @@ func NewDefaultTheme() Theme {
 		Foreground(lipgloss.Color("#626262"))
 
 	// Legacy delegate styles kept for YAML theme compatibility
-	themeSelectorSelectedTitle := lipglossv1.NewStyle().
-		Foreground(lipglossv1.Color("#FF6B6B")).
+	themeSelectorSelectedTitle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#FF6B6B")).
 		Bold(true)
-	themeSelectorNormalTitle := lipglossv1.NewStyle().
-		Foreground(lipglossv1.Color("#FFFFFF"))
+	themeSelectorNormalTitle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#FFFFFF"))
 	t.ThemeSelectorDelegateStyles = list.DefaultItemStyles{
 		NormalTitle:   themeSelectorNormalTitle,
 		NormalDesc:    t.DelegateStyles.NormalDesc,

@@ -4,14 +4,14 @@ import (
 	"fmt"
 	"strings"
 
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/GarroshIcecream/yummy/internal/config"
 	db "github.com/GarroshIcecream/yummy/internal/db"
 	common "github.com/GarroshIcecream/yummy/internal/models/common"
 	messages "github.com/GarroshIcecream/yummy/internal/models/msg"
 	themes "github.com/GarroshIcecream/yummy/internal/themes"
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
-	"charm.land/lipgloss/v2"
 )
 
 const maxVisibleRecipes = 8
@@ -55,9 +55,9 @@ func NewRecipeSelectorDialog(cookbook *db.CookBook, theme *themes.Theme) (*Recip
 	ti.Focus()
 	ti.CharLimit = 64
 	if w := recipeSelectorConfig.Width - 8; w > 10 {
-		ti.Width = w
+		ti.SetWidth(w)
 	} else {
-		ti.Width = 40
+		ti.SetWidth(40)
 	}
 
 	return &RecipeSelectorDialogCmp{
@@ -71,14 +71,14 @@ func NewRecipeSelectorDialog(cookbook *db.CookBook, theme *themes.Theme) (*Recip
 }
 
 func (r *RecipeSelectorDialogCmp) Init() tea.Cmd {
-	return textinput.Blink
+	return r.searchInput.Focus()
 }
 
 func (r *RecipeSelectorDialogCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		switch msg.String() {
 		case "esc":
 			cmds = append(cmds, messages.SendCloseModalViewMsg())
@@ -87,11 +87,7 @@ func (r *RecipeSelectorDialogCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "enter":
 			if len(r.filtered) > 0 && r.selectedIndex < len(r.filtered) {
 				selected := r.filtered[r.selectedIndex]
-				return r, tea.Sequence(
-					messages.SendCloseModalViewMsg(),
-					messages.SendSessionStateMsg(common.SessionStateDetail),
-					messages.SendRecipeSelectedMsg(selected.ID),
-				)
+				return r, messages.SendRecipeSelectedMsg(selected.ID)
 			}
 			return r, tea.Batch(cmds...)
 
@@ -148,7 +144,7 @@ func (r *RecipeSelectorDialogCmp) applyFilter() {
 	r.scrollOffset = 0
 }
 
-func (r *RecipeSelectorDialogCmp) View() string {
+func (r *RecipeSelectorDialogCmp) View() tea.View {
 	innerWidth := r.width - 6
 	if innerWidth < 20 {
 		innerWidth = 20
@@ -227,14 +223,14 @@ func (r *RecipeSelectorDialogCmp) View() string {
 		Width(r.width).
 		Render(content)
 
-	return r.theme.RecipeSelectorContainer.Render(rendered)
+	return tea.NewView(r.theme.RecipeSelectorContainer.Render(rendered))
 }
 
 func (r *RecipeSelectorDialogCmp) SetSize(width, height int) {
 	r.width = width
 	r.height = height
 	if w := r.width - 8; w > 10 {
-		r.searchInput.Width = w
+		r.searchInput.SetWidth(w)
 	}
 }
 

@@ -4,13 +4,13 @@ import (
 	"fmt"
 	"strings"
 
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/GarroshIcecream/yummy/internal/config"
 	common "github.com/GarroshIcecream/yummy/internal/models/common"
 	messages "github.com/GarroshIcecream/yummy/internal/models/msg"
 	themes "github.com/GarroshIcecream/yummy/internal/themes"
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
-	"charm.land/lipgloss/v2"
 )
 
 // Action constants for command palette commands.
@@ -61,9 +61,9 @@ func NewCommandPaletteDialog(theme *themes.Theme) (*CommandPaletteDialogCmp, err
 	ti.Focus()
 	ti.CharLimit = 64
 	if w := dialogConfig.Width - 8; w > 10 {
-		ti.Width = w
+		ti.SetWidth(w)
 	} else {
-		ti.Width = 40
+		ti.SetWidth(40)
 	}
 
 	return &CommandPaletteDialogCmp{
@@ -84,7 +84,7 @@ func (c *CommandPaletteDialogCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		switch msg.String() {
 		case "esc":
 			cmds = append(cmds, messages.SendCloseModalViewMsg())
@@ -143,7 +143,7 @@ func (c *CommandPaletteDialogCmp) applyFilter() {
 	c.selectedIndex = 0
 }
 
-func (c *CommandPaletteDialogCmp) View() string {
+func (c *CommandPaletteDialogCmp) View() tea.View {
 	innerWidth := c.width - 6 // border (2) + padding (4)
 	if innerWidth < 30 {
 		innerWidth = 30
@@ -207,14 +207,14 @@ func (c *CommandPaletteDialogCmp) View() string {
 		Width(c.width).
 		Render(content)
 
-	return c.theme.CommandPaletteContainer.Render(rendered)
+	return tea.NewView(c.theme.CommandPaletteContainer.Render(rendered))
 }
 
 func (c *CommandPaletteDialogCmp) SetSize(width, height int) {
 	c.width = width
 	c.height = height
 	if w := c.width - 8; w > 10 {
-		c.searchInput.Width = w
+		c.searchInput.SetWidth(w)
 	}
 }
 

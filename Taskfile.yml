@@ -1,0 +1,70 @@
+version: '3'
+
+vars:
+  BINARY_NAME: yummy
+  BINARY_PATH: '{{if eq OS "windows"}}yummy.exe{{else}}yummy{{end}}'
+  BUILD_FLAGS: -trimpath -ldflags "-s -w"
+
+tasks:
+  default:
+    desc: Show available tasks
+    cmds:
+      - task --list
+
+  deps:
+    desc: Download and tidy dependencies
+    cmds:
+      - go mod download
+      - go mod tidy
+
+  test:
+    desc: Run tests
+    cmds:
+      - go test -v ./...
+
+  test-coverage:
+    desc: Run tests with coverage output
+    cmds:
+      - go test -v -coverprofile=coverage.out ./...
+      - go tool cover -html=coverage.out -o coverage.html
+
+  build:
+    desc: Build the CLI binary
+    cmds:
+      - go build {{.BUILD_FLAGS}} -o {{.BINARY_PATH}} .
+
+  run:
+    desc: Run the application
+    cmds:
+      - go run .
+
+  fmt:
+    desc: Format Go code
+    cmds:
+      - go fmt ./...
+
+  lint:
+    desc: Run golangci-lint
+    cmds:
+      - golangci-lint run
+
+  release-snapshot:
+    desc: Run a GoReleaser snapshot build
+    cmds:
+      - go run github.com/goreleaser/goreleaser/v2@latest release --snapshot --clean
+
+  check:
+    desc: Run the main local validation suite
+    deps:
+      - test
+      - lint
+      - build
+
+  ci:
+    desc: Run the full CI-style validation suite
+    deps:
+      - deps
+      - test
+      - test-coverage
+      - lint
+      - build

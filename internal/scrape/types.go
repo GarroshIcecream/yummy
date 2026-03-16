@@ -54,3 +54,37 @@ type IngredientGroup struct {
 	Ingredients []string `json:"ingredients"`
 	Purpose     *string  `json:"purpose"`
 }
+
+// Nutrition represents nutritional information about a recipe.
+type Nutrition struct {
+	Calories              float32
+	CarbohydrateGrams     float32
+	CholesterolMilligrams float32
+	FatGrams              float32
+	FiberGrams            float32
+	ProteinGrams          float32
+	SaturatedFatGrams     float32
+	ServingSize           string
+	SodiumMilligrams      float32
+	SugarGrams            float32
+	TransFatGrams         float32
+	UnsaturatedFatGrams   float32
+}
+
+// Diet is a diet restricted to certain foods or preparations.
+type Diet int
+
+const (
+	UnknownDiet Diet = iota
+	DiabeticDiet
+	GlutenFreeDiet
+	HalalDiet
+	HinduDiet
+	KosherDiet
+	LowCalorieDiet
+	LowFatDiet
+	LowLactoseDiet
+	LowSaltDiet
+	VeganDiet
+	VegetarianDiet
+)

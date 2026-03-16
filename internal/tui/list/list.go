@@ -6,6 +6,9 @@ import (
 	"os"
 	"time"
 
+	"charm.land/bubbles/v2/key"
+	"charm.land/bubbles/v2/list"
+	tea "charm.land/bubbletea/v2"
 	"github.com/GarroshIcecream/yummy/internal/config"
 	db "github.com/GarroshIcecream/yummy/internal/db"
 	common "github.com/GarroshIcecream/yummy/internal/models/common"
@@ -13,9 +16,6 @@ import (
 	themes "github.com/GarroshIcecream/yummy/internal/themes"
 	"github.com/GarroshIcecream/yummy/internal/tui/dialog"
 	"github.com/GarroshIcecream/yummy/internal/utils"
-	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/bubbles/list"
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/term"
 )
 
@@ -96,7 +96,6 @@ func (m *ListModel) Update(msg tea.Msg) (common.TUIModel, tea.Cmd) {
 	switch msg := msg.(type) {
 
 	case messages.RecipeAddedFromURLMsg:
-		cmds = append(cmds, messages.SendSessionStateMsg(common.SessionStateDetail))
 		cmds = append(cmds, messages.SendRecipeSelectedMsg(msg.RecipeID))
 		cmds = append(cmds, m.RefreshRecipeList())
 		cmds = append(cmds, m.RecipeList.NewStatusMessage(msg.StatusMessage))
@@ -110,7 +109,7 @@ func (m *ListModel) Update(msg tea.Msg) (common.TUIModel, tea.Cmd) {
 		cmds = append(cmds, m.RefreshRecipeList())
 		cmds = append(cmds, messages.SendFavouriteSetMsg(newFavourite))
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		if m.RecipeList.FilterState() != list.Filtering {
 			switch {
 			case key.Matches(msg, m.keyMap.Add):
@@ -132,7 +131,6 @@ func (m *ListModel) Update(msg tea.Msg) (common.TUIModel, tea.Cmd) {
 				}
 			case key.Matches(msg, m.keyMap.Enter):
 				if i, ok := m.SelectedItemToRecipeWithDescription(); ok {
-					cmds = append(cmds, messages.SendSessionStateMsg(common.SessionStateDetail))
 					cmds = append(cmds, messages.SendRecipeSelectedMsg(i.RecipeID))
 				}
 

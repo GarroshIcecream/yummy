@@ -3,8 +3,8 @@ package config
 import (
 	"strings"
 
-	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/bubbles/list"
+	"charm.land/bubbles/v2/key"
+	"charm.land/bubbles/v2/list"
 )
 
 type KeyMap struct {

@@ -1,8 +1,8 @@
 package common
 
 import (
+	tea "charm.land/bubbletea/v2"
 	themes "github.com/GarroshIcecream/yummy/internal/themes"
-	tea "github.com/charmbracelet/bubbletea"
 )
 
 type TUIModel interface {
