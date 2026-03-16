@@ -1,10 +1,10 @@
 package messages
 
 import (
+	tea "charm.land/bubbletea/v2"
 	"github.com/GarroshIcecream/yummy/internal/config"
 	common "github.com/GarroshIcecream/yummy/internal/models/common"
 	utils "github.com/GarroshIcecream/yummy/internal/utils"
-	tea "github.com/charmbracelet/bubbletea"
 )
 
 type GenerateResponseMsg struct {
@@ -35,8 +35,6 @@ type LoadRecipeMsg struct {
 	Markdown string
 	Content  string
 }
-
-type CloseDialogMsg struct{}
 
 type StatusInfoMsg struct {
 	Msg  string
@@ -110,10 +108,6 @@ func CmdHandler(msg tea.Msg) tea.Cmd {
 	return func() tea.Msg {
 		return msg
 	}
-}
-
-func SendCloseDialogMsg() tea.Cmd {
-	return CmdHandler(CloseDialogMsg{})
 }
 
 func SendFavouriteSetMsg(isFavourite bool) tea.Cmd {

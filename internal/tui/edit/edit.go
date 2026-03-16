@@ -6,14 +6,14 @@ import (
 	"strings"
 	"time"
 
+	tea "charm.land/bubbletea/v2"
+	"charm.land/huh/v2"
 	"github.com/GarroshIcecream/yummy/internal/config"
 	db "github.com/GarroshIcecream/yummy/internal/db"
 	common "github.com/GarroshIcecream/yummy/internal/models/common"
 	messages "github.com/GarroshIcecream/yummy/internal/models/msg"
 	themes "github.com/GarroshIcecream/yummy/internal/themes"
 	utils "github.com/GarroshIcecream/yummy/internal/utils"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/huh"
 )
 
 type EditState int
@@ -104,7 +104,11 @@ func NewEditModel(cookbook *db.CookBook, theme *themes.Theme, recipeID uint) (*E
 }
 
 func (m *EditModel) Init() tea.Cmd {
-	return m.mainForm.Init()
+	huhInit := m.mainForm.Init()
+	if huhInit == nil {
+		return nil
+	}
+	return func() tea.Msg { return huhInit() }
 }
 
 func (m *EditModel) Update(msg tea.Msg) (common.TUIModel, tea.Cmd) {
@@ -129,10 +133,12 @@ func (m *EditModel) Update(msg tea.Msg) (common.TUIModel, tea.Cmd) {
 	}
 
 	// Update the form casually
-	form, cmd := m.mainForm.Update(msg)
+	form, huhCmd := m.mainForm.Update(msg)
 	if f, ok := form.(*huh.Form); ok {
 		m.mainForm = f
-		cmds = append(cmds, cmd)
+		if huhCmd != nil {
+			cmds = append(cmds, func() tea.Msg { return huhCmd() })
+		}
 	}
 
 	// Check if form is completed and handle submission
@@ -331,7 +337,7 @@ func (m *EditModel) setupForms() {
 				Negative("No"),
 		),
 	).
-		WithTheme(huh.ThemeCharm()).
+		WithTheme(huh.ThemeFunc(huh.ThemeCharm)).
 		WithWidth(80)
 
 	// m.ingredientForm = huh.NewForm(
@@ -381,7 +387,7 @@ func (m *EditModel) setupForms() {
 	// 			Value(&m.currentIngredient.Details).
 	// 			Placeholder("finely chopped, room temperature"),
 	// 	),
-	// ).WithTheme(huh.ThemeCharm())
+	// ).WithTheme(huh.ThemeFunc(huh.ThemeCharm))
 
 	// m.instructionForm = huh.NewForm(
 	// 	huh.NewGroup(
@@ -392,7 +398,7 @@ func (m *EditModel) setupForms() {
 	// 			Value(&m.currentInstruction).
 	// 			Validate(utils.ValidateRequired),
 	// 	),
-	// ).WithTheme(huh.ThemeCharm())
+	// ).WithTheme(huh.ThemeFunc(huh.ThemeCharm))
 }
 
 func (m *EditModel) GetModelState() common.ModelState {

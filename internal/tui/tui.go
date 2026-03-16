@@ -5,6 +5,10 @@ import (
 	"fmt"
 	"log/slog"
 
+	"charm.land/bubbles/v2/key"
+	list "charm.land/bubbles/v2/list"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/GarroshIcecream/yummy/internal/config"
 	db "github.com/GarroshIcecream/yummy/internal/db"
 	common "github.com/GarroshIcecream/yummy/internal/models/common"
@@ -16,12 +20,8 @@ import (
 	edit "github.com/GarroshIcecream/yummy/internal/tui/edit"
 	yummy_list "github.com/GarroshIcecream/yummy/internal/tui/list"
 	main_menu "github.com/GarroshIcecream/yummy/internal/tui/main_menu"
+	overlay "github.com/GarroshIcecream/yummy/internal/tui/overlay"
 	status "github.com/GarroshIcecream/yummy/internal/tui/status"
-	"github.com/charmbracelet/bubbles/key"
-	list "github.com/charmbracelet/bubbles/list"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
-	overlay "github.com/rmhubbert/bubbletea-overlay"
 )
 
 type Manager struct {
@@ -128,7 +128,6 @@ func New(cookbook *db.CookBook, sessionLog *db.SessionLog, themeManager *themes.
 
 func (m *Manager) Init() tea.Cmd {
 	var cmds []tea.Cmd
-	cmds = append(cmds, tea.SetWindowTitle("Yummy"))
 
 	if currentModel, exists := m.models[m.CurrentSessionState]; exists {
 		cmds = append(cmds, currentModel.Init())
@@ -141,6 +140,19 @@ func (m *Manager) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
+
+	case messages.RecipeSelectedMsg:
+		// Close the recipe selector modal if open, then always navigate to detail.
+		// This must happen unconditionally because the list model sends
+		// RecipeSelectedMsg and SessionStateMsg(Detail) as a sequence; by the time
+		// RecipeSelectedMsg is processed the OpenModalViewMsg command from
+		// SessionStateMsg hasn't fired yet, so m.ModalView would still be false.
+		if m.ModalView && m.CurrentModalType == common.ModalTypeRecipeSelector {
+			m.ModalView = false
+			m.overlayModel = nil
+			m.modalModel = nil
+		}
+		m.SetCurrentSessionState(common.SessionStateDetail)
 
 	case messages.SessionStateMsg:
 		previousState := m.CurrentSessionState
@@ -235,7 +247,7 @@ func (m *Manager) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 			m.overlayModel = overlay.New(
-				m.modalModel,
+				overlay.WrapTeaViewable(m.modalModel),
 				m.GetCurrentModel(),
 				overlay.Center,
 				yPos,
@@ -262,7 +274,7 @@ func (m *Manager) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.updateAllModelsTheme(newTheme)
 		m.statusLine.SetTheme(newTheme)
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		switch {
 		case key.Matches(msg, m.keyMap.ForceQuit):
 			return m, tea.Quit
@@ -350,7 +362,7 @@ func (m *Manager) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			yPos = overlay.Top
 		}
 		m.overlayModel = overlay.New(
-			m.modalModel,
+			overlay.WrapTeaViewable(m.modalModel),
 			m.GetCurrentModel(),
 			overlay.Center,
 			yPos,
@@ -372,7 +384,7 @@ func (m *Manager) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(cmds...)
 }
 
-func (m Manager) View() string {
+func (m Manager) View() tea.View {
 	var content string
 
 	// If state selector overlay is showing, render the overlay
@@ -390,7 +402,11 @@ func (m Manager) View() string {
 		content = lipgloss.JoinVertical(lipgloss.Left, content, statusLine)
 	}
 
-	return content
+	v := tea.NewView(content)
+	v.WindowTitle = "Yummy"
+	v.AltScreen = true
+	v.MouseMode = tea.MouseModeAllMotion
+	return v
 }
 
 func (m *Manager) SetCurrentSessionState(state common.SessionState) {

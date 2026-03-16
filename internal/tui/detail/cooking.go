@@ -7,18 +7,18 @@ import (
 	"strings"
 	"time"
 
+	"charm.land/bubbles/v2/key"
+	"charm.land/bubbles/v2/spinner"
+	"charm.land/bubbles/v2/textarea"
+	"charm.land/bubbles/v2/viewport"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/glamour/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/GarroshIcecream/yummy/internal/config"
 	common "github.com/GarroshIcecream/yummy/internal/models/common"
 	messages "github.com/GarroshIcecream/yummy/internal/models/msg"
 	themes "github.com/GarroshIcecream/yummy/internal/themes"
 	utils "github.com/GarroshIcecream/yummy/internal/utils"
-	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/bubbles/spinner"
-	"github.com/charmbracelet/bubbles/textarea"
-	"github.com/charmbracelet/bubbles/viewport"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/glamour"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/llms/ollama"
 )
@@ -83,27 +83,19 @@ func NewCookingModel(theme *themes.Theme) (*CookingModel, error) {
 	ta.SetWidth(30)
 	ta.SetHeight(2)
 	ta.ShowLineNumbers = false
-	ta.FocusedStyle.CursorLine = theme.TextareaCursorLine
-	ta.FocusedStyle.Base = theme.TextareaBase
-	ta.BlurredStyle.Base = theme.TextareaBase
-	ta.FocusedStyle.Placeholder = theme.TextareaPlaceholder
-	ta.FocusedStyle.Text = theme.TextareaText
-	ta.FocusedStyle.Prompt = theme.TextareaPrompt
 	ta.Prompt = "› "
-	ta.FocusedStyle.EndOfBuffer = theme.TextareaEndOfBuffer
 	ta.Blur()
 
 	// Viewport for chat messages
-	vp := viewport.New(30, 10)
+	vp := viewport.New(viewport.WithWidth(30), viewport.WithHeight(10))
 
 	// Spinner for loading state
 	s := spinner.New()
 	s.Spinner = spinner.Dot
-	s.Style = theme.Spinner
 
 	// Markdown renderer for chat responses
 	mdRenderer, err := glamour.NewTermRenderer(
-		glamour.WithAutoStyle(),
+		glamour.WithEnvironmentConfig(),
 		glamour.WithWordWrap(26),
 	)
 	if err != nil {
@@ -185,7 +177,7 @@ func (m *CookingModel) Update(msg tea.Msg) (common.TUIModel, tea.Cmd) {
 			}
 		}
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		if m.showChat {
 			// Chat panel is open — only handle keys that don't conflict
 			// with typing in the textarea (ctrl-combos and esc).
@@ -431,41 +423,41 @@ func (m *CookingModel) buildRecipeContext() string {
 	}
 
 	var ctx strings.Builder
-	ctx.WriteString(fmt.Sprintf("Recipe: %s\n", m.Recipe.RecipeName))
+	fmt.Fprintf(&ctx, "Recipe: %s\n", m.Recipe.RecipeName)
 	if m.Recipe.RecipeDescription != "" {
-		ctx.WriteString(fmt.Sprintf("Description: %s\n", m.Recipe.RecipeDescription))
+		fmt.Fprintf(&ctx, "Description: %s\n", m.Recipe.RecipeDescription)
 	}
 
 	// Recipe metadata
 	meta := m.Recipe.Metadata
 	if meta.Author != "" {
-		ctx.WriteString(fmt.Sprintf("Author: %s\n", meta.Author))
+		fmt.Fprintf(&ctx, "Author: %s\n", meta.Author)
 	}
 	if meta.Quantity != "" {
-		ctx.WriteString(fmt.Sprintf("Servings: %s\n", meta.Quantity))
+		fmt.Fprintf(&ctx, "Servings: %s\n", meta.Quantity)
 	}
 	if meta.PrepTime > 0 {
-		ctx.WriteString(fmt.Sprintf("Prep Time: %s\n", meta.PrepTime))
+		fmt.Fprintf(&ctx, "Prep Time: %s\n", meta.PrepTime)
 	}
 	if meta.CookTime > 0 {
-		ctx.WriteString(fmt.Sprintf("Cook Time: %s\n", meta.CookTime))
+		fmt.Fprintf(&ctx, "Cook Time: %s\n", meta.CookTime)
 	}
 	if meta.TotalTime > 0 {
-		ctx.WriteString(fmt.Sprintf("Total Time: %s\n", meta.TotalTime))
+		fmt.Fprintf(&ctx, "Total Time: %s\n", meta.TotalTime)
 	}
 	if meta.Rating > 0 {
-		ctx.WriteString(fmt.Sprintf("Rating: %d/5\n", meta.Rating))
+		fmt.Fprintf(&ctx, "Rating: %d/5\n", meta.Rating)
 	}
 	if len(meta.Categories) > 0 {
-		ctx.WriteString(fmt.Sprintf("Categories: %s\n", strings.Join(meta.Categories, ", ")))
+		fmt.Fprintf(&ctx, "Categories: %s\n", strings.Join(meta.Categories, ", "))
 	}
 	if meta.URL != "" {
-		ctx.WriteString(fmt.Sprintf("Source URL: %s\n", meta.URL))
+		fmt.Fprintf(&ctx, "Source URL: %s\n", meta.URL)
 	}
 
-	ctx.WriteString(fmt.Sprintf("\nCurrent Step (%d of %d):\n%s\n",
+	fmt.Fprintf(&ctx, "\nCurrent Step (%d of %d):\n%s\n",
 		m.CurrentStep+1, m.TotalSteps,
-		m.Recipe.Metadata.Instructions[m.CurrentStep]))
+		m.Recipe.Metadata.Instructions[m.CurrentStep])
 
 	ctx.WriteString("\nIngredients:\n")
 	for _, ing := range m.Recipe.Metadata.Ingredients {
@@ -475,9 +467,9 @@ func (m *CookingModel) buildRecipeContext() string {
 				line += " " + ing.Unit
 			}
 			line += " " + ing.Name
-			ctx.WriteString(fmt.Sprintf("- %s\n", line))
+			fmt.Fprintf(&ctx, "- %s\n", line)
 		} else {
-			ctx.WriteString(fmt.Sprintf("- %s\n", ing.Name))
+			fmt.Fprintf(&ctx, "- %s\n", ing.Name)
 		}
 	}
 
@@ -487,7 +479,7 @@ func (m *CookingModel) buildRecipeContext() string {
 		if i == m.CurrentStep {
 			marker = "→ "
 		}
-		ctx.WriteString(fmt.Sprintf("%s%d. %s\n", marker, i+1, step))
+		fmt.Fprintf(&ctx, "%s%d. %s\n", marker, i+1, step)
 	}
 	return ctx.String()
 }
@@ -540,7 +532,7 @@ func (m *CookingModel) sendChatMessage(userMessage string) tea.Cmd {
 
 // updateChatViewport rebuilds the chat viewport content from history.
 func (m *CookingModel) updateChatViewport() {
-	innerWidth := m.chatViewport.Width - 2
+	innerWidth := m.chatViewport.Width() - 2
 	if innerWidth < 10 {
 		innerWidth = 10
 	}
@@ -590,7 +582,7 @@ func (m *CookingModel) updateChatViewport() {
 			conv.WriteString("\n" + sepLine + "\n\n")
 		}
 		conv.WriteString(assistantLabel + "\n\n")
-		conv.WriteString(m.chatSpinner.View() + " Thinking...\n")
+		conv.WriteString(m.theme.Spinner.Render(m.chatSpinner.View()) + " Thinking...\n")
 	}
 
 	wasAtBottom := m.chatViewport.AtBottom()
@@ -751,9 +743,9 @@ func (m *CookingModel) renderChatPanel(width, height int) string {
 
 	// Recreate the markdown renderer if the width changed
 	mdWidth := max(innerWidth-4, 12)
-	if m.markdownRenderer == nil || m.chatViewport.Width != innerWidth {
+	if m.markdownRenderer == nil || m.chatViewport.Width() != innerWidth {
 		if r, err := glamour.NewTermRenderer(
-			glamour.WithAutoStyle(),
+			glamour.WithEnvironmentConfig(),
 			glamour.WithWordWrap(mdWidth),
 		); err == nil {
 			m.markdownRenderer = r
@@ -773,8 +765,8 @@ func (m *CookingModel) renderChatPanel(width, height int) string {
 	}
 
 	// Update viewport/textarea dimensions
-	m.chatViewport.Width = innerWidth
-	m.chatViewport.Height = viewportHeight
+	m.chatViewport.SetWidth(innerWidth)
+	m.chatViewport.SetHeight(viewportHeight)
 	m.chatTextarea.SetWidth(innerWidth)
 	m.updateChatViewport()
 
@@ -823,7 +815,17 @@ func (m *CookingModel) renderIngredientsSidebar(width, height int) string {
 	sidebar.WriteString(sep)
 	sidebar.WriteString("\n\n")
 
+	currentGroup := ""
 	for _, ing := range m.Recipe.Metadata.Ingredients {
+		if ing.Group != currentGroup {
+			currentGroup = ing.Group
+			if currentGroup != "" {
+				sidebar.WriteString("\n")
+				sidebar.WriteString(m.theme.CookingSidebarTitle.Render("  " + currentGroup))
+				sidebar.WriteString("\n")
+			}
+		}
+
 		// Bullet prefix
 		bullet := m.theme.CookingNavHint.Render("  • ")
 

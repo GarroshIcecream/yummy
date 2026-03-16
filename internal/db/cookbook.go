@@ -404,6 +404,7 @@ func (c *CookBook) SaveScrapedRecipe(recipeRaw *utils.RecipeRaw) (uint, error) {
 			Amount:         ingredient.Amount,
 			Unit:           ingredient.Unit,
 			BaseName:       ingredient.BaseName,
+			GroupName:      ingredient.Group,
 		}
 		if err := c.conn.Create(&ing).Error; err != nil {
 			slog.Error("Error creating ingredient", "error", err)
@@ -488,6 +489,7 @@ func (c *CookBook) UpdateRecipe(recipeRaw *utils.RecipeRaw) error {
 			Amount:         ingredient.Amount,
 			Unit:           ingredient.Unit,
 			BaseName:       ingredient.BaseName,
+			GroupName:      ingredient.Group,
 		}
 		if err := tx.Create(&ing).Error; err != nil {
 			tx.Rollback()
@@ -607,6 +609,7 @@ func (c *CookBook) GetFullRecipe(recipeID uint) (*utils.RecipeRaw, error) {
 			Amount:   ing.Amount,
 			Unit:     ing.Unit,
 			BaseName: ing.BaseName,
+			Group:    ing.GroupName,
 		}
 	}
 

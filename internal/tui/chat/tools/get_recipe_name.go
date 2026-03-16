@@ -61,21 +61,21 @@ func (t *GetRecipeNameTool) Call(ctx context.Context, input string) (string, err
 	// Format results
 	var result strings.Builder
 	if len(matches) == 1 {
-		result.WriteString(fmt.Sprintf("Found 1 recipe matching '%s':\n\n", input))
+		fmt.Fprintf(&result, "Found 1 recipe matching '%s':\n\n", input)
 	} else {
-		result.WriteString(fmt.Sprintf("Found %d recipes matching '%s':\n\n", len(matches), input))
+		fmt.Fprintf(&result, "Found %d recipes matching '%s':\n\n", len(matches), input)
 	}
 
 	for i, match := range matches {
-		result.WriteString(fmt.Sprintf("%d. **%s** (ID: %d)\n", i+1, match.RecipeName, match.RecipeID))
+		fmt.Fprintf(&result, "%d. **%s** (ID: %d)\n", i+1, match.RecipeName, match.RecipeID)
 		if match.RecipeDescription != "" {
-			result.WriteString(fmt.Sprintf("   Description: %s\n", match.RecipeDescription))
+			fmt.Fprintf(&result, "   Description: %s\n", match.RecipeDescription)
 		}
 		if match.Metadata.Author != "" {
-			result.WriteString(fmt.Sprintf("   Author: %s\n", match.Metadata.Author))
+			fmt.Fprintf(&result, "   Author: %s\n", match.Metadata.Author)
 		}
 		if len(match.Metadata.Categories) > 0 {
-			result.WriteString(fmt.Sprintf("   Categories: %s\n", strings.Join(match.Metadata.Categories, ", ")))
+			fmt.Fprintf(&result, "   Categories: %s\n", strings.Join(match.Metadata.Categories, ", "))
 		}
 		result.WriteString("\n")
 	}

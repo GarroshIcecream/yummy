@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 )
 
 type Ingredient struct {
@@ -16,6 +16,7 @@ type Ingredient struct {
 	Name     string
 	Details  string
 	BaseName string // core ingredient word(s) for highlighting (e.g. "thyme" from "dried thyme")
+	Group    string // ingredient group/purpose (e.g. "For the dough"), empty = ungrouped
 }
 
 func ParseIngredient(input string) (Ingredient, error) {
@@ -185,8 +186,20 @@ func ParseIngredientsFromMarkdown(text string) ([]Ingredient, error) {
 	ingredientsSection := text[ingredientsStart:ingredientsEnd]
 	ingredients := []Ingredient{}
 	lines := strings.Split(ingredientsSection, "\n")
+
+	// Regex to detect group subheading lines like **For the dough**
+	groupRe := regexp.MustCompile(`^\*\*(.+?)\*\*$`)
+	currentGroup := ""
+
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
+
+		// Check for group subheading
+		if m := groupRe.FindStringSubmatch(line); len(m) > 1 {
+			currentGroup = m[1]
+			continue
+		}
+
 		if strings.HasPrefix(line, "• ") {
 			ingredientText := strings.TrimPrefix(line, "• ")
 			ingredient, err := ParseIngredient(ingredientText)
@@ -194,6 +207,7 @@ func ParseIngredientsFromMarkdown(text string) ([]Ingredient, error) {
 				slog.Error("Failed to parse ingredient", "error", err)
 				continue
 			}
+			ingredient.Group = currentGroup
 			ingredients = append(ingredients, ingredient)
 		}
 	}

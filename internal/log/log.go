@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	charmlog "charm.land/log/v2"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
@@ -33,12 +34,13 @@ func Setup(logfiledir string, debug bool) {
 		if debug {
 			level = slog.LevelDebug
 		}
-		logger := slog.NewJSONHandler(logRotator, &slog.HandlerOptions{
-			Level:     level,
-			AddSource: true,
+		charmLogger := charmlog.NewWithOptions(logRotator, charmlog.Options{
+			Level:           charmlog.Level(level),
+			ReportCaller:    true,
+			ReportTimestamp: true,
+			TimeFormat:      time.DateTime,
 		})
-
-		slog.SetDefault(slog.New(logger))
+		slog.SetDefault(slog.New(charmLogger))
 		initialized.Store(true)
 	})
 }

@@ -9,8 +9,8 @@ import (
 	"github.com/GarroshIcecream/yummy/internal/config"
 	"github.com/GarroshIcecream/yummy/internal/log"
 	utils "github.com/GarroshIcecream/yummy/internal/utils"
-	"github.com/tmc/langchaingo/llms"
 	"github.com/glebarez/sqlite"
+	"github.com/tmc/langchaingo/llms"
 	"gorm.io/gorm"
 	gormlogger "gorm.io/gorm/logger"
 )

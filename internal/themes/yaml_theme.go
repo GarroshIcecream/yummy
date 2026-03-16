@@ -7,7 +7,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
+	"image/color"
+
+	lipgloss "charm.land/lipgloss/v2"
 	"gopkg.in/yaml.v3"
 )
 
@@ -119,27 +121,27 @@ func (yt *YAMLTheme) ToTheme() (Theme, error) {
 	theme := NewDefaultTheme()
 	theme.Name = yt.Name
 
-	// Helper function to resolve color references
-	resolveColor := func(color string) lipgloss.Color {
+	// Helper function to resolve color references, returning a plain string
+	resolveColor := func(color string) string {
 		if color == "" {
-			return lipgloss.Color("")
+			return ""
 		}
 		// Check if it's a color reference
 		if resolved, exists := yt.Colors[color]; exists {
-			return lipgloss.Color(resolved)
+			return resolved
 		}
-		return lipgloss.Color(color)
+		return color
 	}
 
-	// Helper function to create a style from YAMLStyle
+	// Helper function to create a v2 lipgloss style from YAMLStyle
 	createStyle := func(ys YAMLStyle) lipgloss.Style {
 		style := lipgloss.NewStyle()
 
 		if ys.Foreground != "" {
-			style = style.Foreground(resolveColor(ys.Foreground))
+			style = style.Foreground(lipgloss.Color(resolveColor(ys.Foreground)))
 		}
 		if ys.Background != "" {
-			style = style.Background(resolveColor(ys.Background))
+			style = style.Background(lipgloss.Color(resolveColor(ys.Background)))
 		}
 		if ys.Bold {
 			style = style.Bold(true)
@@ -166,7 +168,7 @@ func (yt *YAMLTheme) ToTheme() (Theme, error) {
 
 		// Handle border
 		if ys.Border != "" && ys.Border != "none" {
-			style = applyBorder(style, ys.Border, resolveColor(ys.BorderColor))
+			style = applyBorder(style, ys.Border, lipgloss.Color(resolveColor(ys.BorderColor)))
 		}
 
 		// Handle alignment
@@ -518,10 +520,16 @@ func (yt *YAMLTheme) ToTheme() (Theme, error) {
 		theme.ListStyles.Spinner = createStyle(yt.Lists.Spinner)
 	}
 	if yt.Lists.FilterPrompt != (YAMLStyle{}) {
-		theme.ListStyles.FilterPrompt = createStyle(yt.Lists.FilterPrompt)
+		// FilterPrompt maps to Filter.Focused.Prompt and Filter.Blurred.Prompt in bubbles v2
+		promptStyle := createStyle(yt.Lists.FilterPrompt)
+		theme.ListStyles.Filter.Focused.Prompt = promptStyle
+		theme.ListStyles.Filter.Blurred.Prompt = promptStyle
 	}
 	if yt.Lists.FilterCursor != (YAMLStyle{}) {
-		theme.ListStyles.FilterCursor = createStyle(yt.Lists.FilterCursor)
+		// FilterCursor maps to Filter.Cursor.Color in bubbles v2
+		if yt.Lists.FilterCursor.Foreground != "" {
+			theme.ListStyles.Filter.Cursor.Color = lipgloss.Color(resolveColor(yt.Lists.FilterCursor.Foreground))
+		}
 	}
 	if yt.Lists.DefaultFilterCharacterMatch != (YAMLStyle{}) {
 		theme.ListStyles.DefaultFilterCharacterMatch = createStyle(yt.Lists.DefaultFilterCharacterMatch)
@@ -617,7 +625,7 @@ func applyMargin(style lipgloss.Style, margin string) lipgloss.Style {
 	return style
 }
 
-func applyBorder(style lipgloss.Style, borderType string, borderColor lipgloss.Color) lipgloss.Style {
+func applyBorder(style lipgloss.Style, borderType string, borderColor color.Color) lipgloss.Style {
 	switch borderType {
 	case "normal":
 		return style.Border(lipgloss.NormalBorder()).BorderForeground(borderColor)

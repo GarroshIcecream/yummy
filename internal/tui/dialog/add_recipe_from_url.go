@@ -8,6 +8,11 @@ import (
 	"strconv"
 	"strings"
 
+	"charm.land/bubbles/v2/key"
+	"charm.land/bubbles/v2/spinner"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/GarroshIcecream/yummy/internal/config"
 	db "github.com/GarroshIcecream/yummy/internal/db"
 	common "github.com/GarroshIcecream/yummy/internal/models/common"
@@ -15,11 +20,6 @@ import (
 	"github.com/GarroshIcecream/yummy/internal/scrape"
 	themes "github.com/GarroshIcecream/yummy/internal/themes"
 	"github.com/GarroshIcecream/yummy/internal/utils"
-	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/bubbles/spinner"
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 )
 
 var addRecipeSubmitKey = key.NewBinding(key.WithKeys("enter"))
@@ -52,15 +52,14 @@ func NewAddRecipeFromURLDialog(cookbook *db.CookBook, theme *themes.Theme) (*Add
 	ti := textinput.New()
 	ti.Placeholder = "https://example.com/recipe"
 	if w := dialogConfig.Width - 16; w > 24 {
-		ti.Width = w
+		ti.SetWidth(w)
 	} else {
-		ti.Width = 48
+		ti.SetWidth(48)
 	}
 	ti.Focus()
 
 	s := spinner.New()
 	s.Spinner = spinner.Dot
-	s.Style = theme.AddRecipeFromURLSpinner
 
 	// Resolve LLM model name: use dedicated model if set, otherwise fall back to chat default.
 	llmModel := dialogConfig.LLMIngredientModel
@@ -117,7 +116,7 @@ func (m *AddRecipeFromURLDialogCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, messages.SendRecipeAddedFromURLMsg(msg.recipeID, statusMsg))
 		return m, tea.Sequence(cmds...)
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		if m.loading {
 			return m, nil
 		}
@@ -170,7 +169,7 @@ func (m *AddRecipeFromURLDialogCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(cmds...)
 }
 
-func (m *AddRecipeFromURLDialogCmp) View() string {
+func (m *AddRecipeFromURLDialogCmp) View() tea.View {
 	innerWidth := m.width - 6 // account for dialog border (2) + padding (4)
 	if innerWidth < 40 {
 		innerWidth = 40
@@ -257,7 +256,7 @@ func (m *AddRecipeFromURLDialogCmp) View() string {
 		Width(m.width).
 		Render(content)
 
-	return m.theme.AddRecipeFromURLContainer.Render(rendered)
+	return tea.NewView(m.theme.AddRecipeFromURLContainer.Render(rendered))
 }
 
 func (m *AddRecipeFromURLDialogCmp) SetSize(width, height int) {
@@ -275,9 +274,9 @@ func (m *AddRecipeFromURLDialogCmp) SetSize(width, height int) {
 	// scrolling kicks in. Account for: dialog border (2) + dialog padding (4)
 	// + input padding (2) = 8 chars of overhead.
 	if w := m.width - 8; w > 20 {
-		m.urlInput.Width = w
-	} else if m.urlInput.Width <= 0 {
-		m.urlInput.Width = 48
+		m.urlInput.SetWidth(w)
+	} else if m.urlInput.Width() <= 0 {
+		m.urlInput.SetWidth(48)
 	}
 }
 
@@ -409,7 +408,49 @@ func recipeRawFromScraper(s scrape.Scraper, sourceURL string, llmModel string) *
 	if y, ok := s.Yields(); ok && y != "" {
 		r.Metadata.Quantity = strings.TrimSpace(y)
 	}
-	if ingList, ok := s.Ingredients(); ok {
+	if groups, ok := s.IngredientGroups(); ok {
+		// Check if any groups are missing a purpose label.
+		needsLabels := false
+		if len(groups) > 1 {
+			for _, g := range groups {
+				if g.Purpose == nil || strings.TrimSpace(*g.Purpose) == "" {
+					needsLabels = true
+					break
+				}
+			}
+		}
+
+		// Ask LLM to generate labels for unlabelled groups.
+		var llmLabels []string
+		if needsLabels && llmModel != "" {
+			unlabelled := make([][]string, len(groups))
+			for i, g := range groups {
+				unlabelled[i] = g.Ingredients
+			}
+			labels, err := utils.LabelIngredientGroups(context.Background(), unlabelled, llmModel)
+			if err != nil {
+				slog.Error("LLM group labelling failed, groups will be unlabelled", "error", err)
+			} else {
+				llmLabels = labels
+			}
+		}
+
+		for i, g := range groups {
+			purpose := ""
+			if g.Purpose != nil {
+				purpose = strings.TrimSpace(*g.Purpose)
+			}
+			// Fill in missing purpose from LLM labels.
+			if purpose == "" && i < len(llmLabels) {
+				purpose = strings.TrimSpace(llmLabels[i])
+			}
+			parsed := parseIngredientList(g.Ingredients, llmModel)
+			for j := range parsed {
+				parsed[j].Group = purpose
+			}
+			r.Metadata.Ingredients = append(r.Metadata.Ingredients, parsed...)
+		}
+	} else if ingList, ok := s.Ingredients(); ok {
 		r.Metadata.Ingredients = parseIngredientList(ingList, llmModel)
 	}
 	if instr, ok := s.Instructions(); ok {

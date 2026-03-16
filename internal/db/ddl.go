@@ -58,6 +58,7 @@ type Ingredients struct {
 	Amount         string
 	Unit           string
 	BaseName       string // core ingredient word(s) for highlighting (e.g. "thyme" from "dried thyme")
+	GroupName      string // ingredient group/purpose (e.g. "For the dough")
 }
 
 type RecipeMetadata struct {

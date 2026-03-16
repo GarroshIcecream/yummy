@@ -5,13 +5,13 @@ import (
 	"strconv"
 	"strings"
 
+	"charm.land/bubbles/v2/key"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	config "github.com/GarroshIcecream/yummy/internal/config"
 	common "github.com/GarroshIcecream/yummy/internal/models/common"
 	messages "github.com/GarroshIcecream/yummy/internal/models/msg"
 	themes "github.com/GarroshIcecream/yummy/internal/themes"
-	"github.com/charmbracelet/bubbles/key"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 )
 
 type StateSelectorDialogCmp struct {
@@ -59,7 +59,7 @@ func (s *StateSelectorDialogCmp) Init() tea.Cmd {
 	return nil
 }
 
-func (s *StateSelectorDialogCmp) GetStateIndexFromNumberKey(msg tea.KeyMsg) *int {
+func (s *StateSelectorDialogCmp) getStateIndexFromNumberKey(msg tea.KeyPressMsg) *int {
 	keyStr := msg.String()
 	i, err := strconv.Atoi(keyStr)
 	if err != nil {
@@ -84,7 +84,7 @@ func (s *StateSelectorDialogCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		s.width = msg.Width
 		s.height = msg.Height
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		switch {
 		case key.Matches(msg, s.keymap.CursorUp):
 			if s.selectedIndex > 0 {
@@ -99,18 +99,17 @@ func (s *StateSelectorDialogCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				s.selectedIndex = 0
 			}
 		// Handle number keys for direct state selection
-		case s.GetStateIndexFromNumberKey(msg) != nil:
-			s.selectedIndex = *s.GetStateIndexFromNumberKey(msg)
+		case s.getStateIndexFromNumberKey(msg) != nil:
 			selectedState := s.states[s.selectedIndex]
 			cmds = append(cmds, tea.Batch(
 				messages.SendSessionStateMsg(selectedState),
-				messages.SendCloseDialogMsg(),
+				messages.SendCloseModalViewMsg(),
 			))
 		case key.Matches(msg, s.keymap.Enter):
 			selectedState := s.states[s.selectedIndex]
 			cmds = append(cmds, tea.Batch(
 				messages.SendSessionStateMsg(selectedState),
-				messages.SendCloseDialogMsg(),
+				messages.SendCloseModalViewMsg(),
 			))
 		}
 	}
@@ -119,7 +118,7 @@ func (s *StateSelectorDialogCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // View renders the state selector dialog with a list of states.
-func (s *StateSelectorDialogCmp) View() string {
+func (s *StateSelectorDialogCmp) View() tea.View {
 	// Header: title left, esc hint right
 	titleLeft := s.theme.StateSelectorTitle.Render("Switch View")
 	escHint := s.theme.StateSelectorHelp.Render("esc")
@@ -158,7 +157,7 @@ func (s *StateSelectorDialogCmp) View() string {
 	content := lipgloss.JoinVertical(lipgloss.Left, parts...)
 
 	dialogBox := s.theme.StateSelectorDialog.Render(content)
-	return dialogBox
+	return tea.NewView(dialogBox)
 }
 
 func (s *StateSelectorDialogCmp) SetSize(width, height int) {

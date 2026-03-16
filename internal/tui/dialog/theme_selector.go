@@ -5,13 +5,13 @@ import (
 	"sort"
 	"strings"
 
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/GarroshIcecream/yummy/internal/config"
 	common "github.com/GarroshIcecream/yummy/internal/models/common"
 	messages "github.com/GarroshIcecream/yummy/internal/models/msg"
 	themes "github.com/GarroshIcecream/yummy/internal/themes"
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 )
 
 type themeEntry struct {
@@ -48,9 +48,9 @@ func NewThemeSelectorDialog(availableThemes []string, currentThemeName string, t
 	ti.Focus()
 	ti.CharLimit = 64
 	if w := themeSelectorConfig.Width - 8; w > 10 {
-		ti.Width = w
+		ti.SetWidth(w)
 	} else {
-		ti.Width = 40
+		ti.SetWidth(40)
 	}
 
 	return &ThemeSelectorDialogCmp{
@@ -64,14 +64,14 @@ func NewThemeSelectorDialog(availableThemes []string, currentThemeName string, t
 }
 
 func (t *ThemeSelectorDialogCmp) Init() tea.Cmd {
-	return textinput.Blink
+	return t.searchInput.Focus()
 }
 
 func (t *ThemeSelectorDialogCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		switch msg.String() {
 		case "esc":
 			cmds = append(cmds, messages.SendCloseModalViewMsg())
@@ -126,7 +126,7 @@ func (t *ThemeSelectorDialogCmp) applyFilter() {
 	t.selectedIndex = 0
 }
 
-func (t *ThemeSelectorDialogCmp) View() string {
+func (t *ThemeSelectorDialogCmp) View() tea.View {
 	innerWidth := t.width - 6
 	if innerWidth < 20 {
 		innerWidth = 20
@@ -179,14 +179,14 @@ func (t *ThemeSelectorDialogCmp) View() string {
 		Width(t.width).
 		Render(content)
 
-	return t.theme.ThemeSelectorContainer.Render(rendered)
+	return tea.NewView(t.theme.ThemeSelectorContainer.Render(rendered))
 }
 
 func (t *ThemeSelectorDialogCmp) SetSize(width, height int) {
 	t.width = width
 	t.height = height
 	if w := t.width - 8; w > 10 {
-		t.searchInput.Width = w
+		t.searchInput.SetWidth(w)
 	}
 }
 

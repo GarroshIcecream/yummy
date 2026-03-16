@@ -1,8 +1,9 @@
 package themes
 
 import (
-	"github.com/charmbracelet/bubbles/list"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/list"
+	"charm.land/bubbles/v2/textinput"
+	lipgloss "charm.land/lipgloss/v2"
 )
 
 // NewDefaultTheme creates a new default theme with all styles initialized
@@ -120,6 +121,12 @@ func NewDefaultTheme() Theme {
 	mutedGray := lipgloss.Color("#626262")
 	dimGray := lipgloss.Color("#3a3a3a")
 
+	filterStyles := textinput.DefaultStyles(true)
+	filterPrompt := lipgloss.NewStyle().Foreground(accentBlue).Bold(true).Padding(0, 0, 0, 2)
+	filterStyles.Focused.Prompt = filterPrompt
+	filterStyles.Blurred.Prompt = filterPrompt
+	filterStyles.Cursor.Color = accentBlue
+
 	t.ListStyles = list.Styles{
 		TitleBar: lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#FFFFFF")).
@@ -131,13 +138,7 @@ func NewDefaultTheme() Theme {
 			Padding(0, 1),
 		Spinner: lipgloss.NewStyle().
 			Foreground(accentBlue),
-		FilterPrompt: lipgloss.NewStyle().
-			Foreground(accentBlue).
-			Bold(true).
-			Padding(0, 0, 0, 2),
-		FilterCursor: lipgloss.NewStyle().
-			Foreground(accentBlue).
-			Bold(true),
+		Filter: filterStyles,
 
 		DefaultFilterCharacterMatch: lipgloss.NewStyle().
 			Foreground(accentBlue).

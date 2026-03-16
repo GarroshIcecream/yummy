@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 
+	tea "charm.land/bubbletea/v2"
+	"charm.land/fang/v2"
 	"github.com/GarroshIcecream/yummy/internal/config"
 	db "github.com/GarroshIcecream/yummy/internal/db"
 	log "github.com/GarroshIcecream/yummy/internal/log"
@@ -14,8 +16,6 @@ import (
 	tui "github.com/GarroshIcecream/yummy/internal/tui"
 	"github.com/GarroshIcecream/yummy/internal/tui/chat"
 	"github.com/GarroshIcecream/yummy/internal/version"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/fang"
 	"github.com/spf13/cobra"
 )
 
@@ -28,22 +28,9 @@ func init() {
 
 var rootCmd = &cobra.Command{
 	Use:   "yummy",
-	Short: "Yummy - Terminal-based cookbook manager and recipe assistant",
-	Long: `🍳 Yummy — Your Command-Line Recipe Companion
-
-A fast, delightful command-line application for managing recipes. Built with care and powered by Bubble Tea,
-Yummy brings a beautiful terminal-first experience to every home cook, developer, and recipe curator.
-
-🚀 Core Features:
-• Recipe Management: Add, edit, and organize recipes with ingredient lists, measures, instructions, and metadata
-• Powerful Search: Quick search and categorization to find the recipe you need
-• Export Options: Export collections to JSON or CSV for sharing or migration
-• Clean TUI: Navigable interface with list/detail views, editable forms, and status indicators
-• Developer Friendly: Small codebase with clear package boundaries — ideal for contributors and experimentation
-
-Perfect for developers who can't cook but can definitely write code. Features TUI, JSON export, and zero kitchen fires! 🔥
-
-Cook boldly. Ship deliciousness.`,
+	Short: "Terminal cookbook manager and recipe assistant",
+	Long: `Yummy is a terminal-first cookbook manager with recipe import/export,
+URL scraping, themes, and an Ollama-powered cooking assistant.`,
 	Example: `
 # Run in interactive mode
 yummy
@@ -59,9 +46,6 @@ yummy -d
 
 		program := tea.NewProgram(
 			app,
-			tea.WithAltScreen(),
-			tea.WithMouseCellMotion(),
-			tea.WithMouseAllMotion(),
 			tea.WithContext(cmd.Context()),
 		)
 

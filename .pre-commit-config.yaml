@@ -17,6 +17,7 @@ repos:
     hooks:
       # Repository-wide imports
       - id: go-imports-repo
+        args: [-w]
 
       # Basic formatting (uses built-in gofmt)
       - id: go-fmt-repo

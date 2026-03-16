@@ -5,13 +5,13 @@ import (
 	"sort"
 	"strings"
 
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/GarroshIcecream/yummy/internal/config"
 	common "github.com/GarroshIcecream/yummy/internal/models/common"
 	messages "github.com/GarroshIcecream/yummy/internal/models/msg"
 	themes "github.com/GarroshIcecream/yummy/internal/themes"
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 )
 
 type modelEntry struct {
@@ -48,9 +48,9 @@ func NewModelSelectorDialog(installedModels []string, currentModelName string, t
 	ti.Focus()
 	ti.CharLimit = 64
 	if w := modelSelectorConfig.Width - 8; w > 10 {
-		ti.Width = w
+		ti.SetWidth(w)
 	} else {
-		ti.Width = 40
+		ti.SetWidth(40)
 	}
 
 	return &ModelSelectorDialogCmp{
@@ -71,7 +71,7 @@ func (m *ModelSelectorDialogCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		switch msg.String() {
 		case "esc":
 			cmds = append(cmds, messages.SendCloseModalViewMsg())
@@ -126,7 +126,7 @@ func (m *ModelSelectorDialogCmp) applyFilter() {
 	m.selectedIndex = 0
 }
 
-func (m *ModelSelectorDialogCmp) View() string {
+func (m *ModelSelectorDialogCmp) View() tea.View {
 	innerWidth := m.width - 6
 	if innerWidth < 20 {
 		innerWidth = 20
@@ -179,14 +179,14 @@ func (m *ModelSelectorDialogCmp) View() string {
 		Width(m.width).
 		Render(content)
 
-	return m.theme.ModelSelectorContainer.Render(rendered)
+	return tea.NewView(m.theme.ModelSelectorContainer.Render(rendered))
 }
 
 func (m *ModelSelectorDialogCmp) SetSize(width, height int) {
 	m.width = width
 	m.height = height
 	if w := m.width - 8; w > 10 {
-		m.searchInput.Width = w
+		m.searchInput.SetWidth(w)
 	}
 }
 

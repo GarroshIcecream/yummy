@@ -4,6 +4,10 @@ import (
 	"fmt"
 	"strings"
 
+	"charm.land/bubbles/v2/key"
+	"charm.land/bubbles/v2/spinner"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/GarroshIcecream/yummy/internal/config"
 	consts "github.com/GarroshIcecream/yummy/internal/consts"
 	db "github.com/GarroshIcecream/yummy/internal/db"
@@ -11,10 +15,6 @@ import (
 	messages "github.com/GarroshIcecream/yummy/internal/models/msg"
 	"github.com/GarroshIcecream/yummy/internal/themes"
 	"github.com/GarroshIcecream/yummy/internal/tui/dialog"
-	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/bubbles/spinner"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 )
 
 type MainMenuModel struct {
@@ -82,7 +82,6 @@ func NewMainMenuModel(cookbook *db.CookBook, theme *themes.Theme) (*MainMenuMode
 
 	spinnerModel := spinner.New()
 	spinnerModel.Spinner = spinner.Dot
-	spinnerModel.Style = theme.Spinner
 
 	return &MainMenuModel{
 		cookbook:   cookbook,
@@ -110,7 +109,7 @@ func (m *MainMenuModel) Update(msg tea.Msg) (common.TUIModel, tea.Cmd) {
 		m.spinner, cmd = m.spinner.Update(msg)
 		cmds = append(cmds, cmd)
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		switch {
 		case key.Matches(msg, m.keyMap.CursorUp):
 			if m.selected > 0 {
@@ -154,7 +153,7 @@ func (m *MainMenuModel) Update(msg tea.Msg) (common.TUIModel, tea.Cmd) {
 
 func (m *MainMenuModel) View() string {
 	if m.modelState == common.ModelStateLoading {
-		return m.spinner.View()
+		return m.theme.MainMenuSpinner.Render(m.spinner.View())
 	}
 
 	var content strings.Builder

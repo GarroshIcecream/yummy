@@ -4,14 +4,14 @@ import (
 	"fmt"
 	"strings"
 
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/GarroshIcecream/yummy/internal/config"
 	db "github.com/GarroshIcecream/yummy/internal/db"
 	common "github.com/GarroshIcecream/yummy/internal/models/common"
 	messages "github.com/GarroshIcecream/yummy/internal/models/msg"
 	themes "github.com/GarroshIcecream/yummy/internal/themes"
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 )
 
 const maxVisibleSessions = 8
@@ -63,9 +63,9 @@ func NewSessionSelectorDialog(sessionLog *db.SessionLog, theme *themes.Theme, cu
 	ti.Focus()
 	ti.CharLimit = 64
 	if w := sessionSelectorConfig.Width - 8; w > 10 {
-		ti.Width = w
+		ti.SetWidth(w)
 	} else {
-		ti.Width = 40
+		ti.SetWidth(40)
 	}
 
 	return &SessionSelectorDialogCmp{
@@ -79,14 +79,14 @@ func NewSessionSelectorDialog(sessionLog *db.SessionLog, theme *themes.Theme, cu
 }
 
 func (m *SessionSelectorDialogCmp) Init() tea.Cmd {
-	return textinput.Blink
+	return m.searchInput.Focus()
 }
 
 func (m *SessionSelectorDialogCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		switch msg.String() {
 		case "esc":
 			cmds = append(cmds, messages.SendCloseModalViewMsg())
@@ -157,7 +157,7 @@ func (m *SessionSelectorDialogCmp) applyFilter() {
 	m.scrollOffset = 0
 }
 
-func (m *SessionSelectorDialogCmp) View() string {
+func (m *SessionSelectorDialogCmp) View() tea.View {
 	innerWidth := m.width - 6
 	if innerWidth < 20 {
 		innerWidth = 20
@@ -255,14 +255,14 @@ func (m *SessionSelectorDialogCmp) View() string {
 		Width(m.width).
 		Render(content)
 
-	return m.theme.SessionSelectorContainer.Render(rendered)
+	return tea.NewView(m.theme.SessionSelectorContainer.Render(rendered))
 }
 
 func (m *SessionSelectorDialogCmp) SetSize(width, height int) {
 	m.width = width
 	m.height = height
 	if w := m.width - 8; w > 10 {
-		m.searchInput.Width = w
+		m.searchInput.SetWidth(w)
 	}
 }
 

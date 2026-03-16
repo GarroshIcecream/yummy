@@ -5,6 +5,9 @@ import (
 	"log/slog"
 	"strings"
 
+	"charm.land/bubbles/v2/key"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/glamour/v2"
 	"github.com/GarroshIcecream/yummy/internal/config"
 	db "github.com/GarroshIcecream/yummy/internal/db"
 	common "github.com/GarroshIcecream/yummy/internal/models/common"
@@ -12,9 +15,6 @@ import (
 	themes "github.com/GarroshIcecream/yummy/internal/themes"
 	dialog "github.com/GarroshIcecream/yummy/internal/tui/dialog"
 	utils "github.com/GarroshIcecream/yummy/internal/utils"
-	"github.com/charmbracelet/bubbles/key"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/glamour"
 )
 
 type DetailModel struct {
@@ -46,7 +46,7 @@ func NewDetailModel(cookbook *db.CookBook, theme *themes.Theme) (*DetailModel, e
 	keymaps := cfg.Keymap.ToKeyMap().GetDetailKeyMap()
 	detailConfig := cfg.Detail
 	renderer, err := glamour.NewTermRenderer(
-		glamour.WithAutoStyle(),
+		glamour.WithEnvironmentConfig(),
 		glamour.WithEmoji(),
 		glamour.WithWordWrap(detailConfig.ViewportWidth),
 	)
@@ -100,7 +100,7 @@ func (m *DetailModel) Update(msg tea.Msg) (common.TUIModel, tea.Cmd) {
 			}
 		}
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		switch {
 		case key.Matches(msg, m.keyMap.Edit):
 			if m.Recipe != nil {
@@ -130,14 +130,12 @@ func (m *DetailModel) Update(msg tea.Msg) (common.TUIModel, tea.Cmd) {
 			m.ScrollDown(m.config.ScrollSpeed)
 		}
 
-	case tea.MouseMsg:
-		if msg.Action == tea.MouseActionPress {
-			switch msg.Button {
-			case tea.MouseButtonWheelUp:
-				m.ScrollUp(m.config.ScrollSpeed)
-			case tea.MouseButtonWheelDown:
-				m.ScrollDown(m.config.ScrollSpeed)
-			}
+	case tea.MouseWheelMsg:
+		switch msg.Button {
+		case tea.MouseWheelUp:
+			m.ScrollUp(m.config.ScrollSpeed)
+		case tea.MouseWheelDown:
+			m.ScrollDown(m.config.ScrollSpeed)
 		}
 	}
 
@@ -246,7 +244,7 @@ func (m *DetailModel) refreshContent() {
 	}
 
 	renderer, err := glamour.NewTermRenderer(
-		glamour.WithAutoStyle(),
+		glamour.WithEnvironmentConfig(),
 		glamour.WithWordWrap(m.width),
 		glamour.WithEmoji(),
 	)
@@ -268,7 +266,7 @@ func (m *DetailModel) refreshContentKeepScroll() {
 	}
 	savedScroll := m.scrollPosition
 	renderer, err := glamour.NewTermRenderer(
-		glamour.WithAutoStyle(),
+		glamour.WithEnvironmentConfig(),
 		glamour.WithWordWrap(m.width),
 		glamour.WithEmoji(),
 	)

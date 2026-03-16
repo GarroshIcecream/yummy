@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"charm.land/lipgloss/v2"
 	"github.com/GarroshIcecream/yummy/internal/config"
 	common "github.com/GarroshIcecream/yummy/internal/models/common"
 	themes "github.com/GarroshIcecream/yummy/internal/themes"
@@ -11,7 +12,6 @@ import (
 	"github.com/GarroshIcecream/yummy/internal/tui/detail"
 	yummy_list "github.com/GarroshIcecream/yummy/internal/tui/list"
 	"github.com/GarroshIcecream/yummy/internal/utils"
-	"github.com/charmbracelet/lipgloss"
 )
 
 type StatusLine struct {

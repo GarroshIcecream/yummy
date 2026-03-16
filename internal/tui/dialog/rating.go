@@ -3,10 +3,10 @@ package dialog
 import (
 	"strings"
 
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	messages "github.com/GarroshIcecream/yummy/internal/models/msg"
 	themes "github.com/GarroshIcecream/yummy/internal/themes"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 )
 
 // RatingDialogCmp is a small top-anchored modal for setting a recipe rating.
@@ -37,7 +37,7 @@ func (r *RatingDialogCmp) Init() tea.Cmd {
 
 func (r *RatingDialogCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		switch msg.String() {
 		case "esc":
 			return r, messages.SendCloseModalViewMsg()
@@ -63,7 +63,7 @@ func (r *RatingDialogCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return r, nil
 }
 
-func (r *RatingDialogCmp) View() string {
+func (r *RatingDialogCmp) View() tea.View {
 	// Thick block border matching add-recipe-from-URL style
 	dialogBorder := lipgloss.Border{
 		Top:         "▀",
@@ -107,5 +107,5 @@ func (r *RatingDialogCmp) View() string {
 		Padding(0, 2).
 		Render(b.String())
 
-	return r.theme.RatingDialogContainer.Render(rendered)
+	return tea.NewView(r.theme.RatingDialogContainer.Render(rendered))
 }

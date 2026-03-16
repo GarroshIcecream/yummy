@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"charm.land/bubbles/v2/list"
 	"github.com/GarroshIcecream/yummy/internal/models/common"
-	"github.com/charmbracelet/bubbles/list"
 )
 
 type RecipeMetadata struct {
@@ -148,7 +148,7 @@ func (r *RecipeRaw) FormatRecipeMarkdown() string {
 	var s strings.Builder
 
 	// Title
-	s.WriteString(fmt.Sprintf("# 🍳 %s\n\n", r.RecipeName))
+	fmt.Fprintf(&s, "# 🍳 %s\n\n", r.RecipeName)
 
 	// At-a-glance stats line
 	var stats []string
@@ -166,13 +166,13 @@ func (r *RecipeRaw) FormatRecipeMarkdown() string {
 		stats = append(stats, t)
 	}
 	if len(stats) > 0 {
-		s.WriteString(fmt.Sprintf("*%s*\n\n", strings.Join(stats, " • ")))
+		fmt.Fprintf(&s, "*%s*\n\n", strings.Join(stats, " • "))
 	}
 
 	// Description
 	if r.RecipeDescription != "" {
 		s.WriteString("💭 *About this recipe:*\n")
-		s.WriteString(fmt.Sprintf("> %s\n\n", r.RecipeDescription))
+		fmt.Fprintf(&s, "> %s\n\n", r.RecipeDescription)
 	}
 
 	// Metadata as simple key-value pairs (no table)
@@ -199,27 +199,35 @@ func (r *RecipeRaw) FormatRecipeMarkdown() string {
 	if len(metaRows) > 0 {
 		s.WriteString("---\n\n")
 		for _, row := range metaRows {
-			s.WriteString(fmt.Sprintf("  %s  **%s**\n\n", row.label, row.value))
+			fmt.Fprintf(&s, "  %s  **%s**\n\n", row.label, row.value)
 		}
 		s.WriteString("---\n\n")
 	}
 
 	// Ingredients
 	s.WriteString("### 🥘 Ingredients\n\n")
+	currentGroup := ""
 	for _, ing := range r.Metadata.Ingredients {
+		if ing.Group != currentGroup {
+			currentGroup = ing.Group
+			if currentGroup != "" {
+				fmt.Fprintf(&s, "**%s**\n\n", currentGroup)
+			}
+		}
+
 		var ingredient strings.Builder
 		ingredient.WriteString("• ")
 
 		if ing.Amount != "" && ing.Unit != "" {
-			ingredient.WriteString(fmt.Sprintf("**%s %s** ", ing.Amount, ing.Unit))
+			fmt.Fprintf(&ingredient, "**%s %s** ", ing.Amount, ing.Unit)
 		} else if ing.Amount != "" {
-			ingredient.WriteString(fmt.Sprintf("**%s** ", ing.Amount))
+			fmt.Fprintf(&ingredient, "**%s** ", ing.Amount)
 		}
 
-		ingredient.WriteString(fmt.Sprintf("*%s*", ing.Name))
+		fmt.Fprintf(&ingredient, "*%s*", ing.Name)
 
 		if ing.Details != "" {
-			ingredient.WriteString(fmt.Sprintf(" (%s)", ing.Details))
+			fmt.Fprintf(&ingredient, " (%s)", ing.Details)
 		}
 		s.WriteString(ingredient.String() + "\n\n")
 	}
@@ -228,14 +236,14 @@ func (r *RecipeRaw) FormatRecipeMarkdown() string {
 	s.WriteString("### 👩‍🍳 Instructions\n\n")
 	for i, inst := range r.Metadata.Instructions {
 		highlighted := HighlightIngredientsInMarkdown(inst, r.Metadata.Ingredients)
-		s.WriteString(fmt.Sprintf("**%d.** %s\n\n", i+1, highlighted))
+		fmt.Fprintf(&s, "**%d.** %s\n\n", i+1, highlighted)
 	}
 
 	// Categories
 	if len(r.Metadata.Categories) > 0 {
 		s.WriteString("### 🏷️ Categories\n\n")
 		for _, cat := range r.Metadata.Categories {
-			s.WriteString(fmt.Sprintf("`%s` ", cat))
+			fmt.Fprintf(&s, "`%s` ", cat)
 		}
 		s.WriteString("\n\n")
 	}
@@ -247,9 +255,9 @@ func (r *RecipeRaw) FormatRecipeMarkdown() string {
 
 	// Timestamps
 	if !r.Metadata.CreatedAt.IsZero() {
-		s.WriteString(fmt.Sprintf("📅 Added on %s", r.Metadata.CreatedAt.Format("Jan 2, 2006")))
+		fmt.Fprintf(&s, "📅 Added on %s", r.Metadata.CreatedAt.Format("Jan 2, 2006"))
 		if !r.Metadata.UpdatedAt.IsZero() && r.Metadata.UpdatedAt.Sub(r.Metadata.CreatedAt) > time.Second {
-			s.WriteString(fmt.Sprintf("  ·  🔄 Updated %s", r.Metadata.UpdatedAt.Format("Jan 2, 2006")))
+			fmt.Fprintf(&s, "  ·  🔄 Updated %s", r.Metadata.UpdatedAt.Format("Jan 2, 2006"))
 		}
 		s.WriteString("\n")
 	}
@@ -347,6 +355,7 @@ func ParseJSONRecipe(filePath string, customName string) (*RecipeRaw, error) {
 			Unit    string `json:"unit"`
 			Name    string `json:"name"`
 			Details string `json:"details"`
+			Group   string `json:"group"`
 		} `json:"ingredients"`
 		Instructions []string `json:"instructions"`
 		Categories   []string `json:"categories"`
@@ -385,6 +394,7 @@ func ParseJSONRecipe(filePath string, customName string) (*RecipeRaw, error) {
 			Unit:    ing.Unit,
 			Name:    ing.Name,
 			Details: ing.Details,
+			Group:   ing.Group,
 		})
 	}
 

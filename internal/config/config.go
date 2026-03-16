@@ -438,7 +438,7 @@ func NewDefaultKeyBindings() KeymapConfig {
 		CookingMode:          []string{"c"},
 		ToggleIngredients:    []string{"i"},
 		ToggleChat:           []string{"a"},
-		ToggleTimer:          []string{" "},
+		ToggleTimer:          []string{"space"},
 		ResetTimer:           []string{"r"},
 		ChatScrollUp:         []string{"ctrl+u"},
 		ChatScrollDown:       []string{"ctrl+d"},

@@ -6,15 +6,15 @@ import (
 	"os"
 	"strings"
 
-	"golang.org/x/term"
+	"github.com/charmbracelet/x/term"
 
-	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/bubbles/spinner"
-	"github.com/charmbracelet/bubbles/textarea"
-	"github.com/charmbracelet/bubbles/viewport"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/glamour"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/key"
+	"charm.land/bubbles/v2/spinner"
+	"charm.land/bubbles/v2/textarea"
+	"charm.land/bubbles/v2/viewport"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/glamour/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/tmc/langchaingo/llms"
 
 	"github.com/GarroshIcecream/yummy/internal/config"
@@ -69,7 +69,7 @@ func NewChatModel(executorService *ExecutorService, theme *themes.Theme) (*ChatM
 
 	keymaps := cfg.Keymap.ToKeyMap().GetChatKeyMap()
 	chatConfig := cfg.Chat
-	windowWidth, windowHeight, err := term.GetSize(int(os.Stdout.Fd()))
+	windowWidth, windowHeight, err := term.GetSize(os.Stdout.Fd())
 	if err != nil {
 		windowWidth = chatConfig.UILayout.ViewportWidth
 		windowHeight = chatConfig.UILayout.ViewportHeight
@@ -79,7 +79,7 @@ func NewChatModel(executorService *ExecutorService, theme *themes.Theme) (*ChatM
 	// Calculate markdown width accounting for message formatting
 	markdownWidth := max(windowWidth-chatConfig.UILayout.MarkdownPadding, chatConfig.UILayout.MinMarkdownWidth) // Reserve space for message formatting
 	markdownRenderer, err := glamour.NewTermRenderer(
-		glamour.WithAutoStyle(),
+		glamour.WithEnvironmentConfig(),
 		glamour.WithWordWrap(markdownWidth),
 	)
 	if err != nil {
@@ -95,27 +95,16 @@ func NewChatModel(executorService *ExecutorService, theme *themes.Theme) (*ChatM
 	contentWidth := max(windowWidth-chatConfig.UILayout.ContentPadding, chatConfig.UILayout.MinContentWidth)
 	ta.SetWidth(contentWidth)
 	ta.SetHeight(3)
-	ta.FocusedStyle.CursorLine = theme.TextareaCursorLine
 	ta.ShowLineNumbers = false
-
-	// Clean input styling
-	ta.FocusedStyle.Base = theme.TextareaBase
-	ta.BlurredStyle.Base = theme.TextareaBase
-	ta.FocusedStyle.Placeholder = theme.TextareaPlaceholder
-	ta.FocusedStyle.Text = theme.TextareaText
-	ta.FocusedStyle.Prompt = theme.TextareaPrompt
 	ta.Prompt = "› "
-	ta.FocusedStyle.EndOfBuffer = theme.TextareaEndOfBuffer
 
 	// Calculate viewport height to fully utilize available terminal height
 	viewportHeight := max(windowHeight-chatConfig.UILayout.TitleHeight-ta.Height(), chatConfig.UILayout.MinViewportHeight)
 
-	vp := viewport.New(contentWidth, viewportHeight)
-	vp.Style = theme.Chat
+	vp := viewport.New(viewport.WithWidth(contentWidth), viewport.WithHeight(viewportHeight))
 
 	s := spinner.New()
 	s.Spinner = spinner.Dot
-	s.Style = theme.Spinner
 
 	chatModel := &ChatModel{
 		keyMap:             keymaps,
@@ -138,7 +127,7 @@ func NewChatModel(executorService *ExecutorService, theme *themes.Theme) (*ChatM
 }
 
 func (m *ChatModel) Init() tea.Cmd {
-	return nil
+	return m.textarea.Focus()
 }
 
 func (m *ChatModel) Update(msg tea.Msg) (common.TUIModel, tea.Cmd) {
@@ -217,10 +206,10 @@ func (m *ChatModel) Update(msg tea.Msg) (common.TUIModel, tea.Cmd) {
 		cmds = append(cmds, cmd)
 		cmds = append(cmds, messages.SendRenderConversationAsMarkdownMsg())
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		// When the @-mention popup is active, intercept navigation keys.
 		if m.mention.active {
-			switch msg.Type {
+			switch msg.Key().Code {
 			case tea.KeyUp:
 				m.mention.moveUp()
 				return m, nil
@@ -307,11 +296,11 @@ func (m *ChatModel) Update(msg tea.Msg) (common.TUIModel, tea.Cmd) {
 	// conversation history.
 	forwardToTextarea := true
 	switch typedMsg := msg.(type) {
-	case tea.KeyMsg:
-		if typedMsg.Type == tea.KeyUp || typedMsg.Type == tea.KeyDown {
+	case tea.KeyPressMsg:
+		if typedMsg.Key().Code == tea.KeyUp || typedMsg.Key().Code == tea.KeyDown {
 			forwardToTextarea = false
 		}
-	case tea.MouseMsg:
+	case tea.MouseWheelMsg, tea.MouseClickMsg, tea.MouseReleaseMsg, tea.MouseMotionMsg:
 		forwardToTextarea = false
 	}
 	if forwardToTextarea {
@@ -322,7 +311,7 @@ func (m *ChatModel) Update(msg tea.Msg) (common.TUIModel, tea.Cmd) {
 	cmds = append(cmds, cmd)
 
 	// After updating the textarea, re-evaluate the @-mention state.
-	if _, isKey := msg.(tea.KeyMsg); isKey {
+	if _, isKey := msg.(tea.KeyPressMsg); isKey {
 		m.mention.updateMention(m.textarea.Value(), len(m.textarea.Value()), m.ExecutorService)
 	}
 
@@ -333,7 +322,7 @@ func (m *ChatModel) View() string {
 	chat := m.theme.Chat.Render(m.viewport.View())
 
 	// Input separator + input
-	sepWidth := m.viewport.Width
+	sepWidth := m.viewport.Width()
 	if sepWidth < 10 {
 		sepWidth = 10
 	}
@@ -342,7 +331,7 @@ func (m *ChatModel) View() string {
 		Render(strings.Repeat("─", sepWidth))
 
 	// @-mention autocomplete popup (rendered between separator and textarea)
-	mentionPopup := viewMention(&m.mention, m.theme, m.viewport.Width)
+	mentionPopup := viewMention(&m.mention, m.theme, m.viewport.Width())
 
 	input := m.textarea.View()
 	inputArea := lipgloss.NewStyle().MarginBottom(1).Render(input)
@@ -356,7 +345,7 @@ func (m *ChatModel) View() string {
 	mainContent := lipgloss.JoinVertical(lipgloss.Left, parts...)
 
 	if m.showSidebar {
-		sidebar := RenderSidebar(m.ExecutorService.sessionStats, *m.ExecutorService.ollamaStatus, m.ExecutorService, m.theme, m.sidebarWidth, m.viewport.Height+3)
+		sidebar := RenderSidebar(m.ExecutorService.sessionStats, *m.ExecutorService.ollamaStatus, m.ExecutorService, m.theme, m.sidebarWidth, m.viewport.Height()+3)
 		return lipgloss.JoinHorizontal(lipgloss.Top, mainContent, sidebar)
 	}
 
@@ -426,7 +415,7 @@ func (m *ChatModel) RenderConversationAsMarkdown() error {
 	}
 
 	sepLine := m.theme.MessageSeparator.Render(
-		strings.Repeat("─", max(m.viewport.Width-4, 20)))
+		strings.Repeat("─", max(m.viewport.Width()-4, 20)))
 
 	userLabel := m.chatConfig.UserName
 	assistantLabel := m.chatConfig.AssistantName
@@ -458,7 +447,7 @@ func (m *ChatModel) RenderConversationAsMarkdown() error {
 		if rendered, err := m.markdownRenderer.Render(content); err == nil {
 			msgContent = rendered
 		} else {
-			msgContent = utils.WrapTextToWidth(content, m.viewport.Width-4)
+			msgContent = utils.WrapTextToWidth(content, m.viewport.Width()-4)
 		}
 		conversation.WriteString(HighlightMentions(msgContent, m.theme))
 
@@ -475,7 +464,7 @@ func (m *ChatModel) RenderConversationAsMarkdown() error {
 		if rendered, err := m.markdownRenderer.Render(m.pendingUserInput); err == nil {
 			pendingContent = rendered
 		} else {
-			pendingContent = utils.WrapTextToWidth(m.pendingUserInput, m.viewport.Width-4)
+			pendingContent = utils.WrapTextToWidth(m.pendingUserInput, m.viewport.Width()-4)
 		}
 		conversation.WriteString(HighlightMentions(pendingContent, m.theme))
 		msgCount++
@@ -493,12 +482,12 @@ func (m *ChatModel) RenderConversationAsMarkdown() error {
 			if rendered, err := m.markdownRenderer.Render(m.streamingResponse); err == nil {
 				streamContent = rendered
 			} else {
-				streamContent = utils.WrapTextToWidth(m.streamingResponse, m.viewport.Width-4)
+				streamContent = utils.WrapTextToWidth(m.streamingResponse, m.viewport.Width()-4)
 			}
 			conversation.WriteString(HighlightMentions(streamContent, m.theme))
 			conversation.WriteString("▋")
 		} else {
-			conversation.WriteString(m.spinner.View() + " " + m.chatConfig.AssistantThinkingMessage)
+			conversation.WriteString(m.theme.Spinner.Render(m.spinner.View()) + " " + m.chatConfig.AssistantThinkingMessage)
 		}
 	}
 
@@ -506,9 +495,9 @@ func (m *ChatModel) RenderConversationAsMarkdown() error {
 	if msgCount == 0 && !m.waitingForResponse && !m.isStreaming {
 		emptyText := m.theme.ChatEmptyState.
 			Render("Start a conversation...")
-		verticalPad := max(m.viewport.Height/2-1, 0)
+		verticalPad := max(m.viewport.Height()/2-1, 0)
 		centered := lipgloss.NewStyle().
-			Width(m.viewport.Width).
+			Width(m.viewport.Width()).
 			Align(lipgloss.Center).
 			PaddingTop(verticalPad).
 			Render(emptyText)
@@ -543,14 +532,14 @@ func (m *ChatModel) SetSize(width, height int) {
 		height-7,
 	)
 
-	m.viewport.Width = contentWidth
-	m.viewport.Height = viewportHeight
+	m.viewport.SetWidth(contentWidth)
+	m.viewport.SetHeight(viewportHeight)
 	m.viewport.YPosition = 0
 	m.textarea.SetWidth(contentWidth)
 
 	if contentWidth > m.chatConfig.UILayout.MinMarkdownWidthForRenderer {
 		m.markdownRenderer, _ = glamour.NewTermRenderer(
-			glamour.WithAutoStyle(),
+			glamour.WithEnvironmentConfig(),
 			glamour.WithWordWrap(contentWidth-m.chatConfig.UILayout.MarkdownPadding),
 		)
 	}

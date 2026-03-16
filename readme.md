@@ -1,4 +1,4 @@
-# Yummy — Your Command-Line Recipe Companion
+# Yummy -- Your Command-Line Recipe Companion
 
 <div align="center">
   <img src="./assets/yummy_logo.svg" alt="Yummy Logo" />
@@ -12,139 +12,191 @@
   [![Release Status](https://github.com/GarroshIcecream/yummy/actions/workflows/release.yml/badge.svg)](https://github.com/GarroshIcecream/yummy/actions/workflows/release.yml)
 </div>
 
-> A fast, delightful command-line application for managing recipes. Built with care and powered by Bubble Tea, Yummy brings a beautiful terminal-first experience to every home cook, developer, and recipe curator.
+> A terminal-first cookbook manager with a Bubble Tea TUI, local SQLite storage, recipe import/export, URL scraping, theming, and an Ollama-powered cooking assistant.
 
-## ✨ Why Yummy Stands Out
+## Features
 
-- **🎨 Polished Terminal UI**: A modern, accessible TUI built with Bubble Tea that feels intuitive and responsive
-- **⚡ Lightweight & Fast**: Zero bloat, instant startup, and smooth navigation across large recipe collections
-- **💾 Portable Storage**: Recipes saved locally in simple, exportable formats (JSON/CSV), making backups and sharing effortless
-- **🔄 Focus on Workflow**: Quick commands for adding, searching, categorizing and exporting recipes — spend less time managing and more time cooking
-- **🔧 Extensible Design**: Modular packages (cmd, config, db, scrape, themes, tui, utils) make it easy to extend features or integrate with other tools
+- Recipe browsing with list, detail, edit, rating, and cooking-mode views
+- Local persistence in `~/.yummy` using SQLite databases
+- Recipe import from Markdown or JSON
+- Recipe export to Markdown
+- Add-from-URL flow backed by Python `recipe-scrapers`
+- Ollama-powered cooking chat with recipe-aware context
+- Configurable key bindings, chat settings, and custom YAML themes
 
-## 🚀 Core Features
+## Installation
 
-- **Recipe Management**: Add, edit, and organize recipes with ingredient lists, measures, instructions, and metadata
-- **Powerful Search**: Quick search and categorization to find the recipe you need
-- **Export Options**: Export collections to JSON or CSV for sharing or migration
-- **Clean TUI**: Navigable interface with list/detail views, editable forms, and status indicators
-- **Customizable Configuration**: JSON-based configuration system for themes, key bindings, chat settings, and more
-- **Developer Friendly**: Small codebase with clear package boundaries — ideal for contributors and experimentation
-
-## 📦 Installation
-
-### From Source
+### Homebrew (macOS)
 
 ```bash
-# Clone the repository
+brew tap GarroshIcecream/yummy
+brew install --cask yummy
+```
+
+### From source
+
+```bash
 git clone https://github.com/GarroshIcecream/yummy.git
 cd yummy
-
-# Build the application
 go build -o yummy
-
-# Run it
 ./yummy
 ```
 
-### Using Go Install
+### With Go install
 
 ```bash
 go install github.com/GarroshIcecream/yummy@latest
 ```
 
-### Add recipe from URL (recipe scraping)
+## Runtime Requirements
 
-The **Add recipe from URL** feature uses [recipe-scrapers](https://github.com/hhursev/recipe-scrapers) (Python) for best coverage of recipe sites.
+### Ollama
 
-- **Python 3** must be on your system. Many macOS and Linux systems already have it; if not, install from [python.org](https://www.python.org/downloads/) or your package manager (e.g. `brew install python`).
-- The **recipe-scrapers** package is **auto-installed** the first time you add a recipe from a URL. You do not need to run `pip install` yourself. If your system Python is **externally managed** (PEP 668, e.g. Homebrew Python on macOS), the app will create a small venv at `~/.yummy/recipe-scrapers-venv` and use it automatically.
+The interactive TUI currently checks Ollama during startup. Make sure Ollama is installed, running, and has the configured model available before launching `yummy`.
 
-If the app cannot find Python, set the path in config (e.g. `~/.yummy/config.json`):
+By default, the app uses `gemma3:4b`.
+
+Example:
+
+```bash
+ollama serve
+ollama pull gemma3:4b
+```
+
+### Add recipe from URL
+
+The add-from-URL flow uses [recipe-scrapers](https://github.com/hhursev/recipe-scrapers).
+
+- Python 3 must be installed
+- `recipe-scrapers` is auto-installed on first use
+- On externally managed Python installs, Yummy creates and uses `~/.yummy/recipe-scrapers-venv`
+
+If Python is not auto-detected, set it in `~/.yummy/config.json`:
 
 ```json
-"add_recipe_from_url_dialog": {
-  "python_path": "/usr/bin/python3"
+{
+  "add_recipe_from_url_dialog": {
+    "python_path": "/usr/bin/python3"
+  }
 }
 ```
 
-Use the path to the Python where you want the package installed (or leave empty to use `python3` / `python` from your PATH). If auto-install still fails (e.g. no network), install manually: `python3 -m pip install --user recipe-scrapers`, or point `python_path` to a venv that has it.
+## Usage
 
-## ⚙️ Configuration
-
-Yummy stores its configuration in `~/.yummy/config.json`. The configuration file is automatically created with default values on first run.
-
-### Key Features
-
-- **Theme Selection**: Choose from default, dark, light, monokai, or solarized themes
-- **Chat Customization**: Configure Ollama model, temperature, viewport size, and more
-- **Key Binding Customization**: Remap any key combination to your preference
-- **Database Settings**: Configure auto-backup intervals and retention
-- **General Settings**: Debug mode, log levels, and UI preferences
-
-## 📁 Project Structure
-
-```
-yummy/
-├── main.go                 # Entry point
-├── yummy/
-│   ├── cmd/                # Cobra CLI (root, export, import)
-│   ├── config/             # Config loading, keybindings
-│   ├── consts/             # Constants
-│   ├── db/                 # GORM + SQLite (cookbook, session_log)
-│   ├── log/                # Structured logging
-│   ├── models/             # common (enums, TUIModel), msg (Bubble Tea messages)
-│   ├── scrape/             # Recipe URL scraping (Python recipe-scrapers)
-│   ├── themes/             # Theme registry, default, YAML loader
-│   ├── tui/                # Bubble Tea TUI
-│   │   ├── chat/           # AI chat (Ollama), executor, tools, mentions
-│   │   ├── detail/         # Recipe detail view, cooking mode
-│   │   ├── dialog/         # Modals (theme, session, model, add-from-URL, etc.)
-│   │   ├── edit/           # Recipe editor
-│   │   ├── list/           # Recipe list, filters, autocomplete
-│   │   ├── main_menu/      # Main menu
-│   │   └── status/         # Status bar
-│   ├── utils/              # Recipe, ingredient, measures helpers
-│   └── version/            # Build-time version info
-├── examples/
-│   ├── sample_recipes/     # Sample recipe data
-│   └── themes/             # YAML theme examples
-└── assets/                 # Logo, etc.
-```
-
-## 🛠️ Development
-
-### Development Workflow
+Run the TUI:
 
 ```bash
-# Run all tests
-go test ./...
-
-# Run a single package test
-go test ./yummy/recipe -run TestName
-
-# Format & fix imports
-gofmt -w . && goimports -w .
-
-# Lint (recommended)
-golangci-lint run
+yummy
 ```
 
-## 🤝 Contributing
+Enable debug logging:
 
-Contributions are warmly welcomed! The project favors small, well-documented pull requests that improve UX, add tests, or refine the TUI. Please open issues for larger proposals so we can align on design.
+```bash
+yummy -d
+```
+
+Export a recipe to Markdown:
+
+```bash
+yummy export 123
+```
+
+Import a recipe from Markdown or JSON:
+
+```bash
+yummy import recipe.md
+yummy import recipe.json --name "Weeknight Pasta"
+```
+
+## Configuration
+
+Yummy stores its configuration in `~/.yummy/config.json` and creates it automatically on first run.
+
+Common things to customize:
+
+- `theme`
+- `chat.default_model`
+- key bindings under `keymap`
+- database names and retention settings under `database`
+- dialog sizes and UI behavior
+
+Yummy ships with a built-in `default` theme and can load custom YAML themes from `~/.yummy/themes`. Example theme files live in `examples/themes/`.
+
+## Data Layout
+
+Yummy stores app data under `~/.yummy/`, including:
+
+- `config.json`
+- `cookbook.db`
+- `session_log.db`
+- `themes/`
+- `recipe-scrapers-venv/` when needed for URL imports
+
+## Project Structure
+
+```text
+yummy/
+|- main.go
+|- assets/
+|- examples/
+|- internal/
+|  |- cmd/          # Cobra commands (root, import, export)
+|  |- config/       # Config defaults and loading
+|  |- db/           # SQLite-backed cookbook and session log
+|  |- log/          # Structured logging setup
+|  |- models/       # Shared model interfaces and messages
+|  |- scrape/       # URL scraping integration
+|  |- themes/       # Default theme and YAML theme loading
+|  |- tui/          # Bubble Tea application and views
+|  |- utils/        # Recipe parsing and helpers
+|  `- version/      # Build-time version info
+|- Taskfile.yml     # Primary local task runner
+`- .goreleaser.yaml
+```
+
+## Development
+
+Useful commands:
+
+```bash
+task deps
+task test
+task test-coverage
+task build
+task fmt
+task lint
+task release-snapshot
+```
+
+Install Task with your preferred package manager, for example:
+
+```bash
+brew install go-task/tap/go-task
+```
+
+Run command help locally:
+
+```bash
+go run . --help
+go run . import --help
+go run . export --help
+```
+
+## Contributing
+
+Contributions are welcome. Small, focused pull requests are easiest to review.
 
 1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+2. Create your branch (`git checkout -b feature/amazing-feature`)
 3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+4. Push the branch (`git push origin feature/amazing-feature`)
+5. Open a pull request
 
-## 📄 License
+## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License. See `LICENSE`.
 
-## 📧 Contact
+## Contact
 
 Questions, ideas, or recipes to share? Email [garroshicecream@gmail.com](mailto:garroshicecream@gmail.com)
 

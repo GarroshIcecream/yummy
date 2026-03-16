@@ -5,8 +5,8 @@ import (
 	"log/slog"
 	"strings"
 
+	"charm.land/bubbles/v2/list"
 	common "github.com/GarroshIcecream/yummy/internal/models/common"
-	"github.com/charmbracelet/bubbles/list"
 )
 
 // CustomFilter handles filtering with special commands like @author and @category

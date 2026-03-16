@@ -261,6 +261,68 @@ func ExtractBaseNamesWithLLM(ctx context.Context, ingredients []Ingredient, mode
 	return nil
 }
 
+const groupPurposePrompt = `You are a recipe organiser. Given numbered groups of ingredients from a recipe, generate a short purpose label for each group (e.g. "For the dough", "For the sauce", "For the filling", "For the topping").
+
+Rules:
+1. Return ONLY a JSON array of strings — one label per group, in the same order.
+2. Each label should be a short phrase starting with "For the …" that describes what the group of ingredients is used for.
+3. No markdown fences, no explanation.
+
+Groups:
+%s
+
+JSON output:`
+
+// LabelIngredientGroups asks an Ollama model to generate purpose labels for
+// ingredient groups that don't have one. groups is a slice of string slices,
+// where each inner slice contains the raw ingredient strings for that group.
+// Returns a slice of labels in the same order.
+func LabelIngredientGroups(ctx context.Context, groups [][]string, modelName string) ([]string, error) {
+	if len(groups) == 0 {
+		return nil, nil
+	}
+
+	llm, err := ollama.New(ollama.WithModel(modelName))
+	if err != nil {
+		return nil, fmt.Errorf("create ollama client: %w", err)
+	}
+
+	var sb strings.Builder
+	for i, g := range groups {
+		fmt.Fprintf(&sb, "Group %d:\n", i+1)
+		for _, ing := range g {
+			fmt.Fprintf(&sb, "  - %s\n", ing)
+		}
+	}
+
+	prompt := fmt.Sprintf(groupPurposePrompt, sb.String())
+
+	resp, err := llm.GenerateContent(ctx, []llms.MessageContent{
+		llms.TextParts(llms.ChatMessageTypeHuman, prompt),
+	},
+		llms.WithTemperature(0.0),
+		llms.WithMaxTokens(1024),
+		llms.WithJSONMode(),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("ollama generate: %w", err)
+	}
+
+	if len(resp.Choices) == 0 || resp.Choices[0].Content == "" {
+		return nil, fmt.Errorf("empty response from LLM")
+	}
+
+	body := stripCodeFences(strings.TrimSpace(resp.Choices[0].Content))
+
+	var labels []string
+	if err := json.Unmarshal([]byte(body), &labels); err != nil {
+		return nil, fmt.Errorf("json decode: %w (body: %s)", err, body)
+	}
+
+	slog.Info("LLM generated group labels", "count", len(labels), "model", modelName)
+	return labels, nil
+}
+
 // stripCodeFences removes ```json ... ``` wrappers.
 func stripCodeFences(s string) string {
 	s = strings.TrimSpace(s)
