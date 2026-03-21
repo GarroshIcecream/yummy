@@ -1,0 +1,14 @@
+[tool.commitizen]
+name = "cz_conventional_commits"
+tag_format = "v$version"
+version_scheme = "semver2"
+use_shortcuts = true
+message_length_limit = 72
+allowed_prefixes = [
+  "Merge",
+  "Revert",
+  "Pull request",
+  "fixup!",
+  "squash!",
+  "amend!",
+]

@@ -4,6 +4,7 @@ vars:
   BINARY_NAME: yummy
   BINARY_PATH: '{{if eq OS "windows"}}yummy.exe{{else}}yummy{{end}}'
   BUILD_FLAGS: -trimpath -ldflags "-s -w"
+  COMMITIZEN_PYTHON: '{{if eq OS "windows"}}.tools/commitizen/Scripts/python.exe{{else}}.tools/commitizen/bin/python{{end}}'
 
 tasks:
   default:
@@ -48,10 +49,87 @@ tasks:
     cmds:
       - golangci-lint run
 
+  commitizen:install:
+    desc: Install Commitizen into the local tools venv
+    status:
+      - '{{.COMMITIZEN_PYTHON}} -m commitizen version'
+    cmds:
+      - python3 -m venv .tools/commitizen
+      - '{{.COMMITIZEN_PYTHON}} -m pip install --upgrade commitizen'
+
+  commit:
+    desc: Create a conventional commit with Commitizen
+    deps:
+      - commitizen:install
+    cmds:
+      - '{{.COMMITIZEN_PYTHON}} -m commitizen commit'
+
+  commit:check:
+    desc: Validate commit messages in a revision range
+    deps:
+      - commitizen:install
+    vars:
+      RANGE: '{{default "HEAD~1..HEAD" .RANGE}}'
+    cmds:
+      - '{{.COMMITIZEN_PYTHON}} -m commitizen check --rev-range {{.RANGE}}'
+
   release-snapshot:
     desc: Run a GoReleaser snapshot build
     cmds:
       - go run github.com/goreleaser/goreleaser/v2@latest release --snapshot --clean
+
+  version:next:
+    desc: Print the next semantic version from svu
+    cmds:
+      - go run github.com/caarlos0/svu/v3@latest next
+
+  tag:
+    desc: Create the next local git tag with svu
+    vars:
+      NEXT_VERSION:
+        sh: go run github.com/caarlos0/svu/v3@latest next
+    preconditions:
+      - sh: git diff --quiet && git diff --cached --quiet
+        msg: Working tree must be clean before creating a release tag.
+    cmds:
+      - git tag {{.NEXT_VERSION}}
+      - 'printf ''Created tag %s\nPush it with: git push origin %s\n'' ''{{.NEXT_VERSION}}'' ''{{.NEXT_VERSION}}'''
+
+  tag:patch:
+    desc: Create the next patch tag locally
+    vars:
+      NEXT_VERSION:
+        sh: go run github.com/caarlos0/svu/v3@latest patch
+    preconditions:
+      - sh: git diff --quiet && git diff --cached --quiet
+        msg: Working tree must be clean before creating a release tag.
+    cmds:
+      - git tag {{.NEXT_VERSION}}
+      - 'printf ''Created tag %s\nPush it with: git push origin %s\n'' ''{{.NEXT_VERSION}}'' ''{{.NEXT_VERSION}}'''
+
+  tag:minor:
+    desc: Create the next minor tag locally
+    vars:
+      NEXT_VERSION:
+        sh: go run github.com/caarlos0/svu/v3@latest minor
+    preconditions:
+      - sh: git diff --quiet && git diff --cached --quiet
+        msg: Working tree must be clean before creating a release tag.
+    cmds:
+      - git tag {{.NEXT_VERSION}}
+      - 'printf ''Created tag %s\nPush it with: git push origin %s\n'' ''{{.NEXT_VERSION}}'' ''{{.NEXT_VERSION}}'''
+
+  tag:major:
+    desc: Create the next major tag locally
+    vars:
+      NEXT_VERSION:
+        sh: go run github.com/caarlos0/svu/v3@latest major
+    preconditions:
+      - sh: git diff --quiet && git diff --cached --quiet
+        msg: Working tree must be clean before creating a release tag.
+    cmds:
+      - git tag {{.NEXT_VERSION}}
+      - 'printf ''Created tag %s\nPush it with: git push origin %s\n'' ''{{.NEXT_VERSION}}'' ''{{.NEXT_VERSION}}'''
 
   check:
     desc: Run the main local validation suite
