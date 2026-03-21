@@ -161,8 +161,8 @@ func (s *StateSelectorDialogCmp) View() tea.View {
 }
 
 func (s *StateSelectorDialogCmp) SetSize(width, height int) {
-	s.width = width
-	s.height = height
+	s.width = clampModalWidth(width, s.width, 24)
+	s.height = clampModalHeight(height, s.height, 8)
 }
 
 func (s *StateSelectorDialogCmp) GetSize() (int, int) {

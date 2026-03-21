@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
-	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/huh/v2"
@@ -14,15 +13,6 @@ import (
 	messages "github.com/GarroshIcecream/yummy/internal/models/msg"
 	themes "github.com/GarroshIcecream/yummy/internal/themes"
 	utils "github.com/GarroshIcecream/yummy/internal/utils"
-)
-
-type EditState int
-
-const (
-	EditStateMainForm EditState = iota
-	EditStateIngredients
-	EditStateInstructions
-	EditStateCompleted
 )
 
 type EditModel struct {
@@ -35,37 +25,23 @@ type EditModel struct {
 	// Recipe
 	recipeID *uint
 	isNew    bool
-	state    EditState
 	width    int
 	height   int
 
 	// Form fields
-	name        string
-	description string
-	author      string
-	prepTime    string
-	cookTime    string
-	servings    string
-	url         string
-	categories  []string
-
-	// Ingredients and instructions
-	ingredients  []utils.Ingredient
-	instructions []string
+	name             string
+	description      string
+	author           string
+	prepTime         string
+	cookTime         string
+	servings         string
+	url              string
+	categoriesText   string
+	ingredientsText  string
+	instructionsText string
 
 	// Forms
-	mainForm        *huh.Form
-	ingredientForm  *huh.Form
-	instructionForm *huh.Form
-
-	// Current ingredient being edited
-	editingIngredientIndex int
-
-	// Current instruction being edited
-	editingInstructionIndex int
-
-	// Navigation
-	showHelp bool
+	mainForm *huh.Form
 }
 
 func NewEditModel(cookbook *db.CookBook, theme *themes.Theme, recipeID uint) (*EditModel, error) {
@@ -76,27 +52,21 @@ func NewEditModel(cookbook *db.CookBook, theme *themes.Theme, recipeID uint) (*E
 
 	keymaps := cfg.Keymap.ToKeyMap().GetEditKeyMap()
 	model := &EditModel{
-		cookbook:                cookbook,
-		keyMap:                  keymaps,
-		recipeID:                &recipeID,
-		isNew:                   recipeID == 0,
-		state:                   EditStateMainForm,
-		showHelp:                false,
-		modelState:              common.ModelStateLoaded,
-		theme:                   theme,
-		ingredients:             []utils.Ingredient{},
-		instructions:            []string{},
-		editingIngredientIndex:  -1,
-		editingInstructionIndex: -1,
+		cookbook:   cookbook,
+		keyMap:     keymaps,
+		modelState: common.ModelStateLoaded,
+		theme:      theme,
 	}
 
-	if !model.isNew {
-		recipe, err := model.FetchRecipe(*model.recipeID)
+	if recipeID != 0 {
+		recipe, err := model.FetchRecipe(recipeID)
 		if err != nil {
-			slog.Error("Failed to fetch recipe: %s", "error", err)
+			slog.Error("Failed to fetch recipe", "error", err)
 			return nil, err
 		}
 		model.loadRecipe(recipe)
+	} else {
+		model.resetRecipe()
 	}
 
 	model.setupForms()
@@ -104,11 +74,10 @@ func NewEditModel(cookbook *db.CookBook, theme *themes.Theme, recipeID uint) (*E
 }
 
 func (m *EditModel) Init() tea.Cmd {
-	huhInit := m.mainForm.Init()
-	if huhInit == nil {
+	if m.mainForm == nil {
 		return nil
 	}
-	return func() tea.Msg { return huhInit() }
+	return m.mainForm.Init()
 }
 
 func (m *EditModel) Update(msg tea.Msg) (common.TUIModel, tea.Cmd) {
@@ -117,22 +86,21 @@ func (m *EditModel) Update(msg tea.Msg) (common.TUIModel, tea.Cmd) {
 	switch msg := msg.(type) {
 	case messages.SaveMsg:
 		cmds = append(cmds, messages.SendSessionStateMsg(common.SessionStateDetail))
-		if m.recipeID != nil {
-			cmds = append(cmds, messages.SendRecipeSelectedMsg(*m.recipeID))
-		}
+		cmds = append(cmds, messages.SendRecipeSelectedMsg(msg.RecipeID))
 		return m, tea.Batch(cmds...)
 
 	case messages.EditRecipeMsg:
-		m.loadRecipe(msg.Recipe)
+		if msg.Recipe == nil {
+			m.resetRecipe()
+		} else {
+			m.loadRecipe(msg.Recipe)
+		}
 		m.setupForms()
-		err := m.mainForm.Run()
-		if err != nil {
-			slog.Error("Failed to run form: %s", "error", err)
-			return m, nil
+		if initCmd := m.Init(); initCmd != nil {
+			cmds = append(cmds, initCmd)
 		}
 	}
 
-	// Update the form casually
 	form, huhCmd := m.mainForm.Update(msg)
 	if f, ok := form.(*huh.Form); ok {
 		m.mainForm = f
@@ -141,19 +109,18 @@ func (m *EditModel) Update(msg tea.Msg) (common.TUIModel, tea.Cmd) {
 		}
 	}
 
-	// Check if form is completed and handle submission
 	if m.mainForm.State == huh.StateCompleted {
 		save := m.mainForm.GetBool("save")
 		if save {
-			msg, err := m.saveRecipe()
+			saveMsg, err := m.saveRecipe()
 			if err != nil {
-				slog.Error("Failed to save recipe: %s", "error", err)
+				slog.Error("Failed to save recipe", "error", err)
 				return m, nil
 			}
-			cmds = append(cmds, messages.CmdHandler(msg))
+			cmds = append(cmds, messages.CmdHandler(saveMsg))
+		} else {
+			cmds = append(cmds, m.cancelCmds()...)
 		}
-
-		cmds = append(cmds, messages.SendSessionStateMsg(common.SessionStateDetail))
 	}
 
 	return m, tea.Batch(cmds...)
@@ -168,7 +135,6 @@ func (m *EditModel) View() string {
 	}
 	content.WriteString(m.theme.DetailHeader.Render(title))
 	content.WriteString("\n")
-
 	content.WriteString(m.mainForm.View())
 	return content.String()
 }
@@ -176,98 +142,136 @@ func (m *EditModel) View() string {
 func (m *EditModel) FetchRecipe(recipeID uint) (*utils.RecipeRaw, error) {
 	recipe, err := m.cookbook.GetFullRecipe(recipeID)
 	if err != nil {
-		slog.Error("Failed to fetch recipe: %s", "error", err)
+		slog.Error("Failed to fetch recipe", "error", err)
 		return nil, err
 	}
 	return recipe, nil
 }
 
+func (m *EditModel) resetRecipe() {
+	m.recipeID = nil
+	m.isNew = true
+	m.name = ""
+	m.description = ""
+	m.author = ""
+	m.prepTime = ""
+	m.cookTime = ""
+	m.servings = ""
+	m.url = ""
+	m.categoriesText = ""
+	m.ingredientsText = ""
+	m.instructionsText = ""
+}
+
 func (m *EditModel) loadRecipe(recipe *utils.RecipeRaw) {
 	m.recipeID = &recipe.RecipeID
+	m.isNew = false
 	m.name = recipe.RecipeName
 	m.description = recipe.RecipeDescription
 	m.author = recipe.Metadata.Author
-	m.prepTime = recipe.Metadata.PrepTime.String()
-	m.cookTime = recipe.Metadata.CookTime.String()
+	m.prepTime = formatDurationInput(recipe.Metadata.PrepTime)
+	m.cookTime = formatDurationInput(recipe.Metadata.CookTime)
 	m.servings = recipe.Metadata.Quantity
 	m.url = recipe.Metadata.URL
-	m.categories = recipe.Metadata.Categories
-	m.ingredients = recipe.Metadata.Ingredients
-	m.instructions = recipe.Metadata.Instructions
+	m.categoriesText = categoriesToText(recipe.Metadata.Categories)
+	m.ingredientsText = ingredientsToText(recipe.Metadata.Ingredients)
+	m.instructionsText = instructionsToText(recipe.Metadata.Instructions)
 }
 
 func (m *EditModel) extractFormRecipe() (*utils.RecipeRaw, error) {
-	prepTime, err := time.ParseDuration(m.mainForm.GetString("prepTime"))
+	prepTime, err := parseDurationInput(m.prepTime)
 	if err != nil {
 		return nil, err
 	}
-	cookTime, err := time.ParseDuration(m.mainForm.GetString("cookTime"))
+	cookTime, err := parseDurationInput(m.cookTime)
+	if err != nil {
+		return nil, err
+	}
+	ingredients, err := parseIngredientsText(m.ingredientsText)
+	if err != nil {
+		return nil, err
+	}
+	instructions, err := parseInstructionsText(m.instructionsText)
 	if err != nil {
 		return nil, err
 	}
 
 	recipe := &utils.RecipeRaw{
-		RecipeName:        m.mainForm.GetString("name"),
-		RecipeDescription: m.mainForm.GetString("description"),
+		RecipeName:        strings.TrimSpace(m.name),
+		RecipeDescription: strings.TrimSpace(m.description),
 		Metadata: utils.RecipeMetadata{
-			Author:       m.mainForm.GetString("author"),
+			Author:       strings.TrimSpace(m.author),
 			PrepTime:     prepTime,
 			CookTime:     cookTime,
 			TotalTime:    prepTime + cookTime,
-			Quantity:     m.mainForm.GetString("servings"),
-			URL:          m.mainForm.GetString("url"),
-			Categories:   m.mainForm.Get("categories").([]string),
-			Ingredients:  m.mainForm.Get("ingredients").([]utils.Ingredient),
-			Instructions: m.mainForm.Get("instructions").([]string),
+			Quantity:     strings.TrimSpace(m.servings),
+			URL:          strings.TrimSpace(m.url),
+			Categories:   parseCategories(m.categoriesText),
+			Ingredients:  ingredients,
+			Instructions: instructions,
 		},
+	}
+
+	if m.recipeID != nil {
+		recipe.RecipeID = *m.recipeID
 	}
 
 	return recipe, nil
 }
 
 func (m *EditModel) saveRecipe() (tea.Msg, error) {
+	recipe, err := m.extractFormRecipe()
+	if err != nil {
+		return nil, err
+	}
+
 	var recipeID uint
 	if m.isNew {
-		recipe, err := m.extractFormRecipe()
-		if err != nil {
-			return nil, err
-		}
 		recipeID, err = m.cookbook.SaveScrapedRecipe(recipe)
 		if err != nil {
 			return nil, err
 		}
+		m.recipeID = &recipeID
+		m.isNew = false
 	} else {
-		recipe, err := m.extractFormRecipe()
-		if err != nil {
+		if err := m.cookbook.UpdateRecipe(recipe); err != nil {
 			return nil, err
 		}
-		err = m.cookbook.UpdateRecipe(recipe)
-		if err != nil {
-			return nil, err
-		}
-		recipeID = *m.recipeID
+		recipeID = recipe.RecipeID
 	}
 
 	return messages.SaveMsg{RecipeID: recipeID}, nil
 }
 
+func (m *EditModel) cancelCmds() []tea.Cmd {
+	if m.recipeID != nil {
+		return []tea.Cmd{
+			messages.SendSessionStateMsg(common.SessionStateDetail),
+			messages.SendRecipeSelectedMsg(*m.recipeID),
+		}
+	}
+
+	return []tea.Cmd{messages.SendSessionStateMsg(common.SessionStateList)}
+}
+
 func (m *EditModel) setupForms() {
-	all_categories, err := m.cookbook.GetAllCategories()
+	allAuthors, err := m.cookbook.GetAllAuthors()
 	if err != nil {
-		slog.Error("Failed to get all categories: %s", "error", err)
+		slog.Error("Failed to get all authors", "error", err)
 	}
 
-	categories_options := make([]huh.Option[string], len(all_categories))
-	for i, category := range all_categories {
-		categories_options[i] = huh.NewOption(category, category)
+	categoryHint := "Comma-separated categories, for example: dinner, pasta, weeknight"
+	if allCategories, err := m.cookbook.GetAllCategories(); err == nil && len(allCategories) > 0 {
+		categoryHint = fmt.Sprintf("Comma-separated categories. Existing: %s", strings.Join(allCategories, ", "))
+	} else if err != nil {
+		slog.Error("Failed to get all categories", "error", err)
 	}
 
-	all_authors, err := m.cookbook.GetAllAuthors()
-	if err != nil {
-		slog.Error("Failed to get all authors: %s", "error", err)
+	width := 80
+	if m.width > 4 {
+		width = m.width - 4
 	}
 
-	// Main recipe form
 	m.mainForm = huh.NewForm(
 		huh.NewGroup(
 			huh.NewInput().
@@ -280,125 +284,84 @@ func (m *EditModel) setupForms() {
 			huh.NewText().
 				Key("description").
 				Title("Description").
-				Description("Describe your recipe").
+				Description("Add a short description or notes about the recipe").
 				Value(&m.description).
-				Placeholder("A delicious recipe that..."),
+				Lines(4).
+				Placeholder("A cozy pasta you can get on the table in 30 minutes."),
 
 			huh.NewInput().
 				Key("author").
 				Title("Author").
 				Description("Who created this recipe?").
 				Value(&m.author).
-				Suggestions(all_authors),
+				Suggestions(allAuthors),
 
 			huh.NewInput().
 				Key("prepTime").
 				Title("Prep Time").
-				Description("Preparation time in hours and minutes (e.g., '1h 30m', '2h', '30m')").
+				Description("Optional. Use formats like 15m, 1h, or 1h 30m.").
 				Value(&m.prepTime).
-				Validate(utils.ValidateDuration).
-				Placeholder("10"),
+				Validate(validateDurationField).
+				Placeholder("15m"),
 
 			huh.NewInput().
 				Key("cookTime").
 				Title("Cook Time").
-				Description("Cooking time in hours and minutes (e.g., '1h 30m', '2h', '30m')").
+				Description("Optional. Use formats like 15m, 1h, or 1h 30m.").
 				Value(&m.cookTime).
-				Validate(utils.ValidateDuration).
-				Placeholder("10"),
+				Validate(validateDurationField).
+				Placeholder("20m"),
 
 			huh.NewInput().
 				Key("servings").
 				Title("Servings").
-				Description("Number of servings (e.g., '4 servings', '2-3 people')").
+				Description("Optional serving yield, for example 4 servings or 2 loaves.").
 				Value(&m.servings).
 				Placeholder("4 servings"),
 
 			huh.NewInput().
 				Key("url").
 				Title("Recipe URL").
-				Description("Source URL (optional)").
+				Description("Optional source URL.").
 				Value(&m.url).
 				Placeholder("https://example.com/recipe").
-				Validate(utils.ValidateURL),
+				Validate(validateOptionalURL),
 
-			huh.NewMultiSelect[string]().
+			huh.NewInput().
 				Key("categories").
 				Title("Categories").
-				Description("Categories (e.g., 'dinner, italian, pasta')").
-				Value(&m.categories).
-				Options(categories_options...),
+				Description(categoryHint).
+				Value(&m.categoriesText).
+				Placeholder("dinner, pasta, vegetarian"),
+
+			huh.NewText().
+				Key("ingredients").
+				Title("Ingredients").
+				Description("One ingredient per line. Add a group heading with a line ending in : like 'For the sauce:'").
+				Value(&m.ingredientsText).
+				Lines(10).
+				Placeholder("12 ounce spaghetti\n2 tbsp olive oil\n4 cloves garlic (minced)\nFor serving:\n1/2 cup parmesan (grated)").
+				Validate(validateIngredientsField),
+
+			huh.NewText().
+				Key("instructions").
+				Title("Instructions").
+				Description("One step per line. Numbering is optional.").
+				Value(&m.instructionsText).
+				Lines(10).
+				Placeholder("Boil the pasta in salted water.\nWarm the oil and cook the garlic for 1 minute.\nToss everything together and serve.").
+				Validate(validateInstructionsField),
 
 			huh.NewConfirm().
 				Key("save").
 				Title("Save").
-				Description("Save the recipe").
+				Description("Save this recipe now?").
 				Affirmative("Yes").
 				Negative("No"),
 		),
 	).
 		WithTheme(huh.ThemeFunc(huh.ThemeCharm)).
-		WithWidth(80)
-
-	// m.ingredientForm = huh.NewForm(
-	// 	huh.NewGroup(
-	// 		huh.NewInput().
-	// 			Key("amount").
-	// 			Title("Amount").
-	// 			Description("Quantity (e.g., '2', '1/2', '1.5')").
-	// 			Value(&m.currentIngredient.Amount).
-	// 			Placeholder("2"),
-
-	// 		huh.NewSelect[string]().
-	// 			Key("unit").
-	// 			Title("Unit").
-	// 			Description("Measurement unit").
-	// 			Options(
-	// 				huh.NewOption("", ""),
-	// 				huh.NewOption("cups", "cups"),
-	// 				huh.NewOption("tablespoons", "tbsp"),
-	// 				huh.NewOption("teaspoons", "tsp"),
-	// 				huh.NewOption("pounds", "lbs"),
-	// 				huh.NewOption("ounces", "oz"),
-	// 				huh.NewOption("grams", "g"),
-	// 				huh.NewOption("kilograms", "kg"),
-	// 				huh.NewOption("milliliters", "ml"),
-	// 				huh.NewOption("liters", "l"),
-	// 				huh.NewOption("pieces", "pieces"),
-	// 				huh.NewOption("cloves", "cloves"),
-	// 				huh.NewOption("slices", "slices"),
-	// 				huh.NewOption("pinch", "pinch"),
-	// 				huh.NewOption("dash", "dash"),
-	// 			).
-	// 			Value(&m.currentIngredient.Unit),
-
-	// 		huh.NewInput().
-	// 			Key("name").
-	// 			Title("Ingredient Name").
-	// 			Description("Name of the ingredient").
-	// 			Value(&m.currentIngredient.Name).
-	// 			Validate(utils.ValidateRequired).
-	// 			Placeholder("flour, salt, olive oil"),
-
-	// 		huh.NewInput().
-	// 			Key("details").
-	// 			Title("Details (optional)").
-	// 			Description("Additional details (e.g., 'finely chopped', 'room temperature')").
-	// 			Value(&m.currentIngredient.Details).
-	// 			Placeholder("finely chopped, room temperature"),
-	// 	),
-	// ).WithTheme(huh.ThemeFunc(huh.ThemeCharm))
-
-	// m.instructionForm = huh.NewForm(
-	// 	huh.NewGroup(
-	// 		huh.NewText().
-	// 			Key("instruction").
-	// 			Title("Cooking Step").
-	// 			Description("Describe this cooking step").
-	// 			Value(&m.currentInstruction).
-	// 			Validate(utils.ValidateRequired),
-	// 	),
-	// ).WithTheme(huh.ThemeFunc(huh.ThemeCharm))
+		WithWidth(width)
 }
 
 func (m *EditModel) GetModelState() common.ModelState {
@@ -409,25 +372,16 @@ func (m *EditModel) GetSessionState() common.SessionState {
 	return common.SessionStateEdit
 }
 
-// GetSize returns the current width and height of the model
 func (m *EditModel) GetSize() (width int, height int) {
 	return m.width, m.height
 }
 
-// SetSize sets the width and height of the model
 func (m *EditModel) SetSize(width, height int) {
 	m.width = width
 	m.height = height
 
-	// Update form sizes to use full screen
 	if m.mainForm != nil {
-		m.mainForm = m.mainForm.WithWidth(width - 4) // Leave some margin
-	}
-	if m.ingredientForm != nil {
-		m.ingredientForm = m.ingredientForm.WithWidth(width - 4)
-	}
-	if m.instructionForm != nil {
-		m.instructionForm = m.instructionForm.WithWidth(width - 4)
+		m.mainForm = m.mainForm.WithWidth(max(20, width-4))
 	}
 }
 
@@ -437,4 +391,7 @@ func (m *EditModel) GetCurrentTheme() *themes.Theme {
 
 func (m *EditModel) SetTheme(theme *themes.Theme) {
 	m.theme = theme
+	if m.mainForm != nil {
+		m.setupForms()
+	}
 }

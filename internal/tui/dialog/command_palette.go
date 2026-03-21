@@ -15,11 +15,13 @@ import (
 
 // Action constants for command palette commands.
 const (
+	ActionCreateRecipe   = "create_recipe"
 	ActionThemeSelector  = "theme_selector"
 	ActionModelSelector  = "model_selector"
 	ActionStateSelector  = "state_selector"
 	ActionAddRecipe      = "add_recipe"
 	ActionRecipeSelector = "recipe_selector"
+	ActionScraperUpdate  = "scraper_update"
 )
 
 // CommandItem represents a single command in the palette.
@@ -52,8 +54,10 @@ func NewCommandPaletteDialog(theme *themes.Theme) (*CommandPaletteDialogCmp, err
 		{Name: "Switch View", Shortcut: strings.Join(km.StateSelector, " / "), Action: ActionStateSelector},
 		{Name: "Change Theme", Shortcut: strings.Join(km.ThemeSelector, " / "), Action: ActionThemeSelector},
 		{Name: "Change Model", Shortcut: strings.Join(km.ModelSelector, " / "), Action: ActionModelSelector},
+		{Name: "Create Recipe", Shortcut: strings.Join(km.Add, " / "), Action: ActionCreateRecipe},
 		{Name: "Add Recipe from URL", Shortcut: strings.Join(km.Add, " / "), Action: ActionAddRecipe},
 		{Name: "Find Recipe", Shortcut: strings.Join(km.RecipeSelector, " / "), Action: ActionRecipeSelector},
+		{Name: "Check recipe-scrapers Update", Action: ActionScraperUpdate},
 	}
 
 	ti := textinput.New()
@@ -211,8 +215,8 @@ func (c *CommandPaletteDialogCmp) View() tea.View {
 }
 
 func (c *CommandPaletteDialogCmp) SetSize(width, height int) {
-	c.width = width
-	c.height = height
+	c.width = clampModalWidth(width, c.width, 24)
+	c.height = clampModalHeight(height, c.height, 8)
 	if w := c.width - 8; w > 10 {
 		c.searchInput.SetWidth(w)
 	}

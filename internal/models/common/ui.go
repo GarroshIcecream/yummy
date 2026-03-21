@@ -110,4 +110,5 @@ const (
 	ModalTypeRecipeSelector   ModalType = "RECIPE_SELECTOR"
 	ModalTypeCommandPalette   ModalType = "COMMAND_PALETTE"
 	ModalTypeRating           ModalType = "RATING"
+	ModalTypeScraperUpdate    ModalType = "SCRAPER_UPDATE"
 )

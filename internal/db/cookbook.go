@@ -461,6 +461,7 @@ func (c *CookBook) UpdateRecipe(recipeRaw *utils.RecipeRaw) error {
 	// Update metadata
 	metadata := RecipeMetadata{
 		Description: recipeRaw.RecipeDescription,
+		Author:      recipeRaw.Metadata.Author,
 		CookTime:    recipeRaw.Metadata.CookTime,
 		PrepTime:    recipeRaw.Metadata.PrepTime,
 		TotalTime:   recipeRaw.Metadata.TotalTime,

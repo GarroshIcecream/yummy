@@ -213,6 +213,13 @@ func SendEnterCookingModeMsg(recipe *utils.RecipeRaw) tea.Cmd {
 	return CmdHandler(EnterCookingModeMsg{Recipe: recipe})
 }
 
+// RecipeScrapersVersionMsg is sent after checking the installed recipe-scrapers version.
+type RecipeScrapersVersionMsg struct {
+	Version string // empty string means not installed
+	Latest  string // latest version from PyPI; empty if unavailable
+	Err     error
+}
+
 // RatingSelectedMsg is sent when the user confirms a rating in the rating dialog.
 type RatingSelectedMsg struct {
 	RecipeID uint

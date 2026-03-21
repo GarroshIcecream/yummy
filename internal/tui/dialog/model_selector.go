@@ -183,8 +183,8 @@ func (m *ModelSelectorDialogCmp) View() tea.View {
 }
 
 func (m *ModelSelectorDialogCmp) SetSize(width, height int) {
-	m.width = width
-	m.height = height
+	m.width = clampModalWidth(width, m.width, 24)
+	m.height = clampModalHeight(height, m.height, 10)
 	if w := m.width - 8; w > 10 {
 		m.searchInput.SetWidth(w)
 	}

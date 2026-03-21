@@ -68,6 +68,7 @@ type MainMenuKeyMap struct {
 	Enter         key.Binding
 	Back          key.Binding
 	Quit          key.Binding
+	ForceQuit     key.Binding
 	Help          key.Binding
 	StateSelector key.Binding
 }
@@ -267,6 +268,7 @@ func (k KeyMap) GetMainMenuKeyMap() MainMenuKeyMap {
 		Enter:         k.Enter,
 		Back:          k.Back,
 		Quit:          k.Quit,
+		ForceQuit:     k.ForceQuit,
 		Help:          k.Help,
 		StateSelector: k.StateSelector,
 	}

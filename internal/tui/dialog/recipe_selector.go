@@ -227,8 +227,8 @@ func (r *RecipeSelectorDialogCmp) View() tea.View {
 }
 
 func (r *RecipeSelectorDialogCmp) SetSize(width, height int) {
-	r.width = width
-	r.height = height
+	r.width = clampModalWidth(width, r.width, 24)
+	r.height = clampModalHeight(height, r.height, 10)
 	if w := r.width - 8; w > 10 {
 		r.searchInput.SetWidth(w)
 	}

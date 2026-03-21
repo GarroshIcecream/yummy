@@ -44,6 +44,8 @@ type Manager struct {
 	CurrentModalType common.ModalType
 	overlayModel     *overlay.Model
 	modalModel       tea.Model
+	width            int
+	height           int
 }
 
 func New(cookbook *db.CookBook, sessionLog *db.SessionLog, themeManager *themes.ThemeManager, ctx context.Context) (*Manager, error) {
@@ -181,6 +183,19 @@ func (m *Manager) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.modalModel = nil
 		return m, nil
 
+	case messages.RecipeScrapersVersionMsg:
+		if menuModel, ok := m.models[common.SessionStateMainMenu]; ok {
+			updated, cmd := menuModel.Update(msg)
+			m.models[common.SessionStateMainMenu] = updated
+			cmds = append(cmds, cmd)
+		}
+		return m, tea.Batch(cmds...)
+
+	case messages.SaveMsg:
+		if listModel, ok := m.models[common.SessionStateList].(*yummy_list.ListModel); ok {
+			cmds = append(cmds, listModel.RefreshRecipeList())
+		}
+
 	case messages.CommandPaletteActionMsg:
 		theme := m.ThemeManager.GetCurrentTheme()
 		switch msg.Action {
@@ -224,6 +239,12 @@ func (m *Manager) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			cmds = append(cmds, messages.SendOpenModalViewMsg(d, common.ModalTypeRecipeSelector))
 
+		case dialog.ActionCreateRecipe:
+			cmds = append(cmds, tea.Sequence(
+				messages.SendSessionStateMsg(common.SessionStateEdit),
+				messages.SendEditRecipeMsg(nil),
+			))
+
 		case dialog.ActionAddRecipe:
 			d, err := dialog.NewAddRecipeFromURLDialog(m.Cookbook, theme)
 			if err != nil {
@@ -231,6 +252,15 @@ func (m *Manager) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 			cmds = append(cmds, messages.SendOpenModalViewMsg(d, common.ModalTypeAddRecipeFromURL))
+
+		case dialog.ActionScraperUpdate:
+			cfg := config.GetGlobalConfig()
+			pythonPath := ""
+			if cfg != nil {
+				pythonPath = cfg.AddRecipeFromURLDialog.PythonPath
+			}
+			d := dialog.NewScraperUpdateDialog(pythonPath, theme)
+			cmds = append(cmds, messages.SendOpenModalViewMsg(d, common.ModalTypeScraperUpdate))
 		}
 
 	case messages.OpenModalViewMsg:
@@ -240,6 +270,8 @@ func (m *Manager) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.ModalView = true
 			m.CurrentModalType = msg.ModalType
 			m.modalModel = msg.ModalModel
+			m.sizeModalModel()
+			cmds = append(cmds, m.modalModel.Init())
 
 			yPos := overlay.Center
 			if msg.ModalType == common.ModalTypeRating {
@@ -257,10 +289,13 @@ func (m *Manager) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		m.height = msg.Height - m.config.Height
 		m.statusLine.SetSize(msg.Width, m.config.Height)
 		for _, model := range m.models {
-			model.SetSize(msg.Width, msg.Height-m.config.Height)
+			model.SetSize(m.width, m.height)
 		}
+		m.sizeModalModel()
 
 	case messages.ThemeSelectedMsg:
 		err := m.ThemeManager.SetThemeByName(msg.ThemeName)
@@ -428,5 +463,15 @@ func (m *Manager) GetModel(state common.SessionState) common.TUIModel {
 func (m *Manager) updateAllModelsTheme(theme *themes.Theme) {
 	for _, model := range m.models {
 		model.SetTheme(theme)
+	}
+}
+
+func (m *Manager) sizeModalModel() {
+	if m.modalModel == nil || m.width <= 0 || m.height <= 0 {
+		return
+	}
+
+	if sizable, ok := m.modalModel.(interface{ SetSize(int, int) }); ok {
+		sizable.SetSize(m.width, m.height)
 	}
 }

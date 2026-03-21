@@ -1,6 +1,6 @@
 package consts
 
-// Mein menu constants
+// Main menu constants
 const (
 	MainMenuLogoText = `
 ██╗   ██╗██╗   ██╗███╗   ███╗███╗   ███╗██╗   ██╗

@@ -14,7 +14,6 @@ import (
 	common "github.com/GarroshIcecream/yummy/internal/models/common"
 	messages "github.com/GarroshIcecream/yummy/internal/models/msg"
 	themes "github.com/GarroshIcecream/yummy/internal/themes"
-	"github.com/GarroshIcecream/yummy/internal/tui/dialog"
 	"github.com/GarroshIcecream/yummy/internal/utils"
 	"github.com/charmbracelet/x/term"
 )
@@ -113,12 +112,10 @@ func (m *ListModel) Update(msg tea.Msg) (common.TUIModel, tea.Cmd) {
 		if m.RecipeList.FilterState() != list.Filtering {
 			switch {
 			case key.Matches(msg, m.keyMap.Add):
-				addRecipeDialog, err := dialog.NewAddRecipeFromURLDialog(m.cookbook, m.theme)
-				if err != nil {
-					slog.Error("Failed to create add recipe from URL dialog", "error", err)
-					return m, nil
-				}
-				cmds = append(cmds, messages.SendOpenModalViewMsg(addRecipeDialog, common.ModalTypeAddRecipeFromURL))
+				cmds = append(cmds,
+					messages.SendSessionStateMsg(common.SessionStateEdit),
+					messages.SendEditRecipeMsg(nil),
+				)
 			case key.Matches(msg, m.keyMap.Delete):
 				if i, ok := m.SelectedItemToRecipeWithDescription(); ok {
 					if err := m.cookbook.DeleteRecipe(i.RecipeID); err != nil {

@@ -183,8 +183,8 @@ func (t *ThemeSelectorDialogCmp) View() tea.View {
 }
 
 func (t *ThemeSelectorDialogCmp) SetSize(width, height int) {
-	t.width = width
-	t.height = height
+	t.width = clampModalWidth(width, t.width, 24)
+	t.height = clampModalHeight(height, t.height, 10)
 	if w := t.width - 8; w > 10 {
 		t.searchInput.SetWidth(w)
 	}

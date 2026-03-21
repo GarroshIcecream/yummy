@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -129,6 +130,56 @@ func runScript(bin, url string) ([]byte, error) {
 		return nil, err
 	}
 	return out, nil
+}
+
+// InstalledVersion returns the installed version of recipe-scrapers, or an error if not found.
+func InstalledVersion(pythonPath string) (string, error) {
+	bin, err := resolvePython(pythonPath)
+	if err != nil {
+		return "", err
+	}
+	out, err := exec.Command(bin, "-c", "import importlib.metadata; print(importlib.metadata.version('recipe-scrapers'))").Output()
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
+// LatestVersion fetches the latest published version of recipe-scrapers from PyPI.
+func LatestVersion() (string, error) {
+	resp, err := http.Get("https://pypi.org/pypi/recipe-scrapers/json") //nolint:noctx
+	if err != nil {
+		return "", fmt.Errorf("PyPI request: %w", err)
+	}
+	defer resp.Body.Close()
+	var data struct {
+		Info struct {
+			Version string `json:"version"`
+		} `json:"info"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		return "", fmt.Errorf("PyPI response: %w", err)
+	}
+	return data.Info.Version, nil
+}
+
+// UpgradeRecipeScrapers upgrades the recipe-scrapers package via pip.
+func UpgradeRecipeScrapers(pythonPath string) error {
+	bin, err := resolvePython(pythonPath)
+	if err != nil {
+		return err
+	}
+	cmd := exec.Command(bin, "-m", "pip", "install", "--upgrade", "recipe-scrapers")
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		msg := strings.TrimSpace(stderr.String())
+		if msg == "" {
+			msg = err.Error()
+		}
+		return fmt.Errorf("%s", msg)
+	}
+	return nil
 }
 
 // ScrapeURL returns a recipe.Scraper for the given URL. pythonPath is optional (e.g. "python3" or "" for default).

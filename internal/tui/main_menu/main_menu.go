@@ -13,6 +13,7 @@ import (
 	db "github.com/GarroshIcecream/yummy/internal/db"
 	common "github.com/GarroshIcecream/yummy/internal/models/common"
 	messages "github.com/GarroshIcecream/yummy/internal/models/msg"
+	"github.com/GarroshIcecream/yummy/internal/scrape"
 	"github.com/GarroshIcecream/yummy/internal/themes"
 	"github.com/GarroshIcecream/yummy/internal/tui/dialog"
 )
@@ -24,6 +25,7 @@ type MainMenuModel struct {
 	keyMap     config.MainMenuKeyMap
 	config     config.MainMenuConfig
 	modelState common.ModelState
+	pythonPath string
 
 	// UI components
 	items    []menuItem
@@ -33,6 +35,11 @@ type MainMenuModel struct {
 
 	// Spinner
 	spinner spinner.Model
+
+	// recipe-scrapers version
+	scraperVersion       string
+	scraperLatest        string
+	scraperVersionLoaded bool
 }
 
 type menuItem struct {
@@ -63,15 +70,14 @@ func NewMainMenuModel(cookbook *db.CookBook, theme *themes.Theme) (*MainMenuMode
 			action:      dialog.ActionRecipeSelector,
 		},
 		{
-			title:       "Add Recipe",
-			description: "Import a new recipe from any URL",
-			action:      dialog.ActionAddRecipe,
+			title:       "Create Recipe",
+			description: "Write a recipe manually from scratch",
+			action:      dialog.ActionCreateRecipe,
 		},
 		{
-			title:       "Random Recipe",
-			description: "Get inspired with a surprise pick from the web",
-			state:       common.SessionStateDetail,
-			handler:     func() tea.Cmd { return RandomRecipeCmd(cookbook) },
+			title:       "Add Recipe",
+			description: "Import a recipe from any URL",
+			action:      dialog.ActionAddRecipe,
 		},
 		{
 			title:       "AI Assistant",
@@ -92,11 +98,20 @@ func NewMainMenuModel(cookbook *db.CookBook, theme *themes.Theme) (*MainMenuMode
 		modelState: common.ModelStateLoading,
 		theme:      theme,
 		config:     mainMenuConfig,
+		pythonPath: cfg.AddRecipeFromURLDialog.PythonPath,
 	}, nil
 }
 
 func (m *MainMenuModel) Init() tea.Cmd {
-	return nil
+	pythonPath := m.pythonPath
+	return func() tea.Msg {
+		version, err := scrape.InstalledVersion(pythonPath)
+		if err != nil {
+			return messages.RecipeScrapersVersionMsg{Err: err}
+		}
+		latest, _ := scrape.LatestVersion() // best-effort; ignore network errors
+		return messages.RecipeScrapersVersionMsg{Version: version, Latest: latest}
+	}
 }
 
 func (m *MainMenuModel) Update(msg tea.Msg) (common.TUIModel, tea.Cmd) {
@@ -104,6 +119,11 @@ func (m *MainMenuModel) Update(msg tea.Msg) (common.TUIModel, tea.Cmd) {
 	var cmd tea.Cmd
 
 	switch msg := msg.(type) {
+
+	case messages.RecipeScrapersVersionMsg:
+		m.scraperVersion = msg.Version
+		m.scraperLatest = msg.Latest
+		m.scraperVersionLoaded = true
 
 	case spinner.TickMsg:
 		m.spinner, cmd = m.spinner.Update(msg)
@@ -182,15 +202,30 @@ func (m *MainMenuModel) View() string {
 	content.WriteString(sep)
 	content.WriteString("\n\n")
 
-	// Help line
+	// Footer: help keys + version info
 	helpKeys := m.theme.MainMenuHelpKey
 	helpDesc := m.theme.MainMenuHelpDesc
 	enterHelp := m.keyMap.Enter.Help().Key
-	quitHelp := m.keyMap.Quit.Help().Key
+	quitHelp := m.keyMap.ForceQuit.Help().Key
 	help := helpKeys.Render("↑↓") + helpDesc.Render(" navigate  ") +
 		helpKeys.Render(enterHelp) + helpDesc.Render(" select  ") +
 		helpKeys.Render(quitHelp) + helpDesc.Render(" quit")
 	content.WriteString(help)
+
+	if m.scraperVersionLoaded {
+		dot := helpDesc.Render(" · ")
+		var versionLine string
+		if m.scraperVersion == "" {
+			versionLine = helpDesc.Render("recipe-scrapers") + dot + m.theme.Warning.Render("not installed")
+		} else if m.scraperLatest != "" && m.scraperLatest != m.scraperVersion {
+			versionLine = helpDesc.Render("recipe-scrapers v"+m.scraperVersion) +
+				dot + m.theme.Warning.Render("v"+m.scraperLatest+" available")
+		} else {
+			versionLine = helpDesc.Render("recipe-scrapers v" + m.scraperVersion)
+		}
+		content.WriteString("\n")
+		content.WriteString(versionLine)
+	}
 
 	// Center everything
 	style := m.theme.MainMenuContainer.
@@ -215,14 +250,6 @@ func (m *MainMenuModel) renderMenuItems() string {
 	}
 
 	return items.String()
-}
-
-func RandomRecipeCmd(cookbook *db.CookBook) tea.Cmd {
-	recipe, err := cookbook.RandomRecipe()
-	if err == nil {
-		return messages.SendRecipeSelectedMsg(recipe.ID)
-	}
-	return nil
 }
 
 func (m *MainMenuModel) SetSize(width, height int) {

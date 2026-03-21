@@ -261,15 +261,12 @@ func (m *AddRecipeFromURLDialogCmp) View() tea.View {
 
 func (m *AddRecipeFromURLDialogCmp) SetSize(width, height int) {
 	if width > 0 {
-		m.width = width - 20
-		if m.width < 50 {
-			m.width = 50
-		}
+		m.width = clampModalWidth(width, m.width, 40)
 		if m.width > 70 {
 			m.width = 70
 		}
 	}
-	m.height = height
+	m.height = clampModalHeight(height, m.height, 10)
 	// textinput.Width controls how many chars are visible before horizontal
 	// scrolling kicks in. Account for: dialog border (2) + dialog padding (4)
 	// + input padding (2) = 8 chars of overhead.
