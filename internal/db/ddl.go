@@ -96,4 +96,7 @@ type SessionMessage struct {
 	InputTokens  int
 	OutputTokens int
 	TotalTokens  int
+	// ToolCalls is the JSON-encoded list of tool calls the assistant made
+	// while producing this message (assistant messages only).
+	ToolCalls string
 }

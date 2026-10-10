@@ -2,8 +2,11 @@ package edit
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/GarroshIcecream/yummy/internal/utils"
 )
 
 func TestParseDurationInput(t *testing.T) {
@@ -86,5 +89,18 @@ func TestParseCategories(t *testing.T) {
 	want := []string{"Dinner", "Pasta", "Vegetarian"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("got %#v, want %#v", got, want)
+	}
+}
+
+func TestIngredientsToTextDoesNotDoubleGroupColon(t *testing.T) {
+	text := ingredientsToText([]utils.Ingredient{
+		{Name: "sugar", Amount: "1", Unit: "cup", Group: "Syrup:"},
+		{Name: "water", Amount: "1", Unit: "cup", Group: "Syrup:"},
+	})
+	if strings.Contains(text, "::") {
+		t.Fatalf("group heading gained a second colon: %q", text)
+	}
+	if !strings.HasPrefix(text, "Syrup:\n") {
+		t.Fatalf("expected a single 'Syrup:' heading, got %q", text)
 	}
 }

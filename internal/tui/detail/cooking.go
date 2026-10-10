@@ -1,7 +1,6 @@
 package detail
 
 import (
-	"context"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -15,18 +14,32 @@ import (
 	"charm.land/glamour/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/GarroshIcecream/yummy/internal/config"
+	"github.com/GarroshIcecream/yummy/internal/llms"
 	common "github.com/GarroshIcecream/yummy/internal/models/common"
 	messages "github.com/GarroshIcecream/yummy/internal/models/msg"
 	themes "github.com/GarroshIcecream/yummy/internal/themes"
+	"github.com/GarroshIcecream/yummy/internal/tui/markdown"
 	utils "github.com/GarroshIcecream/yummy/internal/utils"
-	"github.com/tmc/langchaingo/llms"
-	"github.com/tmc/langchaingo/llms/ollama"
+	"github.com/tmc/langchaingo/agents"
+	"github.com/tmc/langchaingo/chains"
+	"github.com/tmc/langchaingo/memory"
 )
 
-// chatResponseMsg is a local message returned when the LLM responds.
-type chatResponseMsg struct {
+// cookingStreamChunkMsg delivers a streaming chunk from the LLM to the cooking chat.
+type cookingStreamChunkMsg struct {
+	chunk string
+}
+
+// cookingResponseDoneMsg is sent when the LLM generation is complete.
+type cookingResponseDoneMsg struct {
 	response string
 	err      error
+}
+
+// cookingToolCallMsg delivers a tool call event from the agent to the cooking UI.
+type cookingToolCallMsg struct {
+	tool  string
+	input string
 }
 
 // timerTickMsg is sent every second while the cooking timer is running.
@@ -56,9 +69,15 @@ type CookingModel struct {
 	chatSpinner      spinner.Model
 	chatHistory      []chatEntry
 	chatWaiting      bool
-	llm              llms.Model
-	ctx              context.Context
 	markdownRenderer *glamour.TermRenderer
+
+	// LLM service and agent
+	ai                *llms.LLMService
+	executor          *agents.Executor
+	chatMemory        *memory.ConversationBuffer
+	isStreaming       bool
+	streamingResponse string
+	pendingToolCalls  []cookingToolCallMsg
 
 	// Cooking timer
 	timerRunning   bool
@@ -68,7 +87,7 @@ type CookingModel struct {
 	timerDoneAt    time.Time // used to animate the "done" celebration
 }
 
-func NewCookingModel(theme *themes.Theme) (*CookingModel, error) {
+func NewCookingModel(theme *themes.Theme, ai *llms.LLMService) (*CookingModel, error) {
 	cfg := config.GetGlobalConfig()
 	if cfg == nil {
 		return nil, fmt.Errorf("global config not set")
@@ -79,25 +98,28 @@ func NewCookingModel(theme *themes.Theme) (*CookingModel, error) {
 	// Textarea for chat input
 	ta := textarea.New()
 	ta.Placeholder = "Ask about this step..."
+	ta.SetStyles(theme.TextAreaStyles())
 	ta.CharLimit = 300
 	ta.SetWidth(30)
 	ta.SetHeight(2)
 	ta.ShowLineNumbers = false
-	ta.Prompt = "› "
+	// Match the main chat composer: the ">" prompt only on the first row, blank
+	// continuation rows, so an empty input isn't a stack of repeated arrows.
+	ta.SetPromptFunc(themes.ComposerPromptWidth, themes.ComposerPrompt)
 	ta.Blur()
 
-	// Viewport for chat messages
+	// Viewport for chat messages. Its background matches the chat panel so the
+	// area below the messages stays on the same surface.
 	vp := viewport.New(viewport.WithWidth(30), viewport.WithHeight(10))
+	vp.Style = lipgloss.NewStyle().Background(theme.BaseBg)
 
 	// Spinner for loading state
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 
-	// Markdown renderer for chat responses
-	mdRenderer, err := glamour.NewTermRenderer(
-		glamour.WithEnvironmentConfig(),
-		glamour.WithWordWrap(26),
-	)
+	// Markdown renderer for chat responses — the shared themed renderer so the
+	// cooking chat uses the same palette as the main chat and recipe detail.
+	mdRenderer, err := markdown.NewThemedRenderer(theme, 26)
 	if err != nil {
 		slog.Error("Failed to create markdown renderer for cooking chat", "error", err)
 	}
@@ -110,8 +132,8 @@ func NewCookingModel(theme *themes.Theme) (*CookingModel, error) {
 		chatViewport:     vp,
 		chatSpinner:      s,
 		chatHistory:      []chatEntry{},
-		ctx:              context.Background(),
 		markdownRenderer: mdRenderer,
+		ai:               ai,
 	}, nil
 }
 
@@ -119,29 +141,80 @@ func (m *CookingModel) Init() tea.Cmd {
 	return nil
 }
 
+// initAgent creates a fresh agent executor with the cooking-specific system prompt.
+func (m *CookingModel) initAgent() {
+	systemPrompt := m.buildSystemPrompt()
+
+	m.chatMemory = memory.NewConversationBuffer(
+		memory.WithInputKey("input"),
+		memory.WithOutputKey("output"),
+	)
+
+	if err := m.ai.AddSystemPrompt(m.chatMemory, systemPrompt); err != nil {
+		slog.Error("Failed to add cooking system prompt to memory", "error", err)
+	}
+
+	m.executor = m.ai.NewAgent(m.chatMemory)
+}
+
+// buildSystemPrompt creates the cooking-specific system prompt with recipe context.
+func (m *CookingModel) buildSystemPrompt() string {
+	recipeContext := m.buildRecipeContext()
+	return fmt.Sprintf(
+		"You are a concise and helpful cooking assistant. The user is actively cooking "+
+			"a recipe and needs quick help with the current step. Keep your answers brief, "+
+			"practical, and easy to follow while cooking.\n\n"+
+			"You also have access to tools to search for other recipes in the cookbook if needed.\n\n%s", recipeContext)
+}
+
 func (m *CookingModel) Update(msg tea.Msg) (common.TUIModel, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
 	case messages.EnterCookingModeMsg:
+		// Cancel any in-flight generation from a previous recipe
+		if m.chatWaiting || m.isStreaming {
+			m.ai.CancelStreaming()
+		}
 		m.Recipe = msg.Recipe
 		m.CurrentStep = 0
 		m.TotalSteps = len(msg.Recipe.Metadata.Instructions)
 		m.modelState = common.ModelStateLoaded
-		// Reset chat state for new recipe
 		m.chatHistory = []chatEntry{}
 		m.chatWaiting = false
+		m.isStreaming = false
+		m.streamingResponse = ""
+		m.pendingToolCalls = nil
 		m.showChat = false
 		m.chatTextarea.Reset()
 		m.chatTextarea.Blur()
-		// Reset timer state for new recipe
 		m.timerRunning = false
 		m.timerDone = false
 		m.timerTotal = msg.Recipe.Metadata.TotalTime
 		m.timerRemaining = msg.Recipe.Metadata.TotalTime
+		m.initAgent()
 
-	case chatResponseMsg:
+	case cookingToolCallMsg:
+		m.pendingToolCalls = append(m.pendingToolCalls, msg)
+		m.updateChatViewport()
+		cmds = append(cmds, m.listenForToolCalls())
+
+	case cookingStreamChunkMsg:
+		m.streamingResponse += msg.chunk
+		m.updateChatViewport()
+		cmds = append(cmds, m.listenForStreamingChunks())
+
+	case cookingResponseDoneMsg:
 		m.chatWaiting = false
+		m.isStreaming = false
+		// Persist tool calls into chat history before the response
+		for _, tc := range m.pendingToolCalls {
+			m.chatHistory = append(m.chatHistory, chatEntry{
+				role:    "tool",
+				content: tc.tool + ": " + tc.input,
+			})
+		}
+		m.pendingToolCalls = nil
 		if msg.err != nil {
 			slog.Error("Cooking chat LLM error", "error", msg.err)
 			m.chatHistory = append(m.chatHistory, chatEntry{
@@ -149,11 +222,17 @@ func (m *CookingModel) Update(msg tea.Msg) (common.TUIModel, tea.Cmd) {
 				content: "Sorry, I couldn't generate a response. Make sure Ollama is running.",
 			})
 		} else {
+			// Use the streaming response if we have it, otherwise fall back to the final result
+			response := m.streamingResponse
+			if response == "" {
+				response = msg.response
+			}
 			m.chatHistory = append(m.chatHistory, chatEntry{
 				role:    "assistant",
-				content: msg.response,
+				content: response,
 			})
 		}
+		m.streamingResponse = ""
 		m.updateChatViewport()
 
 	case spinner.TickMsg:
@@ -183,7 +262,13 @@ func (m *CookingModel) Update(msg tea.Msg) (common.TUIModel, tea.Cmd) {
 			// with typing in the textarea (ctrl-combos and esc).
 			switch {
 			case key.Matches(msg, m.keyMap.Back):
-				// Close chat panel (esc only)
+				if m.chatWaiting || m.isStreaming {
+					m.ai.CancelStreaming()
+					m.chatWaiting = false
+					m.isStreaming = false
+					m.streamingResponse = ""
+					m.pendingToolCalls = nil
+				}
 				m.showChat = false
 				m.chatTextarea.Blur()
 				return m, nil
@@ -210,9 +295,16 @@ func (m *CookingModel) Update(msg tea.Msg) (common.TUIModel, tea.Cmd) {
 					content: userInput,
 				})
 				m.chatWaiting = true
+				m.isStreaming = true
+				m.streamingResponse = ""
 				m.updateChatViewport()
 				cmds = append(cmds, m.chatSpinner.Tick)
+				// ResetCallbackState replaces the streaming and tool-call
+				// channels, so it must run before the listeners capture them.
+				m.ai.ResetCallbackState()
 				cmds = append(cmds, m.sendChatMessage(userInput))
+				cmds = append(cmds, m.listenForStreamingChunks())
+				cmds = append(cmds, m.listenForToolCalls())
 				return m, tea.Batch(cmds...)
 
 			default:
@@ -237,9 +329,6 @@ func (m *CookingModel) Update(msg tea.Msg) (common.TUIModel, tea.Cmd) {
 			case key.Matches(msg, m.keyMap.ToggleChat):
 				m.showChat = true
 				m.chatTextarea.Focus()
-				if err := m.initLLM(); err != nil {
-					slog.Error("Failed to initialize LLM for cooking chat", "error", err)
-				}
 				return m, nil
 			case key.Matches(msg, m.keyMap.ToggleTimer):
 				if m.timerTotal > 0 && !m.timerDone {
@@ -398,24 +487,6 @@ func timerTick() tea.Cmd {
 	})
 }
 
-// initLLM lazily initializes the Ollama LLM for cooking chat.
-func (m *CookingModel) initLLM() error {
-	if m.llm != nil {
-		return nil
-	}
-
-	chatConfig := config.GetChatConfig()
-	llm, err := ollama.New(
-		ollama.WithModel(chatConfig.DefaultModel),
-	)
-	if err != nil {
-		slog.Error("Failed to create Ollama LLM for cooking chat", "error", err)
-		return fmt.Errorf("failed to create LLM: %w", err)
-	}
-	m.llm = llm
-	return nil
-}
-
 // buildRecipeContext creates a text summary of the recipe for the LLM system prompt.
 func (m *CookingModel) buildRecipeContext() string {
 	if m.Recipe == nil {
@@ -484,63 +555,71 @@ func (m *CookingModel) buildRecipeContext() string {
 	return ctx.String()
 }
 
-// sendChatMessage creates a tea.Cmd that calls the Ollama LLM with recipe context.
+// sendChatMessage creates a tea.Cmd that runs the agent executor with the user message.
 func (m *CookingModel) sendChatMessage(userMessage string) tea.Cmd {
-	llm := m.llm
-	ctx := m.ctx
-	recipeContext := m.buildRecipeContext()
-
-	// Snapshot conversation history
-	history := make([]chatEntry, len(m.chatHistory))
-	copy(history, m.chatHistory)
+	executor := m.executor
+	ai := m.ai
 
 	return func() tea.Msg {
-		if llm == nil {
-			return chatResponseMsg{err: fmt.Errorf("LLM not initialized")}
+		if executor == nil {
+			return cookingResponseDoneMsg{err: fmt.Errorf("agent not initialized")}
 		}
 
-		systemPrompt := fmt.Sprintf(
-			"You are a concise and helpful cooking assistant. The user is actively cooking "+
-				"a recipe and needs quick help with the current step. Keep your answers brief, "+
-				"practical, and easy to follow while cooking.\n\n%s", recipeContext)
-
-		msgs := []llms.MessageContent{
-			llms.TextParts(llms.ChatMessageTypeSystem, systemPrompt),
-		}
-
-		// Add conversation history (skip the last entry which is the current user message)
-		for _, entry := range history {
-			if entry.role == "user" {
-				msgs = append(msgs, llms.TextParts(llms.ChatMessageTypeHuman, entry.content))
-			} else {
-				msgs = append(msgs, llms.TextParts(llms.ChatMessageTypeAI, entry.content))
-			}
-		}
-
-		response, err := llm.GenerateContent(ctx, msgs)
+		ctx := ai.GetContext()
+		result, err := chains.Run(ctx, executor, userMessage)
 		if err != nil {
-			return chatResponseMsg{err: err}
+			return cookingResponseDoneMsg{err: err}
 		}
 
-		if len(response.Choices) > 0 {
-			return chatResponseMsg{response: response.Choices[0].Content}
-		}
+		return cookingResponseDoneMsg{response: result}
+	}
+}
 
-		return chatResponseMsg{response: "I couldn't generate a response."}
+// listenForStreamingChunks returns a tea.Cmd that blocks on the streaming
+// channel and delivers the next chunk as a cookingStreamChunkMsg.
+func (m *CookingModel) listenForStreamingChunks() tea.Cmd {
+	ch := m.ai.GetStreamCh()
+	done := m.ai.GetDoneCh()
+	return func() tea.Msg {
+		select {
+		case chunk, ok := <-ch:
+			if !ok {
+				return nil
+			}
+			return cookingStreamChunkMsg{chunk: chunk}
+		case <-done:
+			// Channels were replaced (cancel or new generation); stop listening.
+			return nil
+		}
+	}
+}
+
+func (m *CookingModel) listenForToolCalls() tea.Cmd {
+	ch := m.ai.GetToolCallCh()
+	done := m.ai.GetDoneCh()
+	return func() tea.Msg {
+		select {
+		case ev, ok := <-ch:
+			if !ok {
+				return nil
+			}
+			return cookingToolCallMsg{tool: ev.Tool, input: ev.Input}
+		case <-done:
+			// Channels were replaced (cancel or new generation); stop listening.
+			return nil
+		}
 	}
 }
 
 // updateChatViewport rebuilds the chat viewport content from history.
 func (m *CookingModel) updateChatViewport() {
-	innerWidth := m.chatViewport.Width() - 2
-	if innerWidth < 10 {
-		innerWidth = 10
-	}
+	innerWidth := max(m.chatViewport.Width()-2, 10)
 
 	userLabel := m.theme.CookingChatUserLabel.Render("You")
 	assistantLabel := m.theme.CookingChatAssistantLabel.Render("Chef")
 
 	sepLine := m.theme.MessageSeparator.
+		Background(m.theme.BaseBg).
 		Render(strings.Repeat("─", max(innerWidth-2, 10)))
 
 	var conv strings.Builder
@@ -557,11 +636,15 @@ func (m *CookingModel) updateChatViewport() {
 		if i > 0 {
 			conv.WriteString("\n" + sepLine + "\n\n")
 		}
-		if entry.role == "user" {
+		switch entry.role {
+		case "user":
 			conv.WriteString(userLabel + "\n")
 			wrapped := utils.WrapTextToWidth(entry.content, innerWidth)
 			conv.WriteString(wrapped + "\n")
-		} else {
+		case "tool":
+			toolLabel := m.theme.ToolCallLabel.Render("🔧 " + entry.content)
+			conv.WriteString(toolLabel + "\n")
+		default:
 			conv.WriteString(assistantLabel + "\n")
 			if m.markdownRenderer != nil {
 				if rendered, err := m.markdownRenderer.Render(entry.content); err == nil {
@@ -577,12 +660,44 @@ func (m *CookingModel) updateChatViewport() {
 		}
 	}
 
-	if m.chatWaiting {
-		if len(m.chatHistory) > 0 {
+	// Show tool call messages
+	for _, tc := range m.pendingToolCalls {
+		if len(m.chatHistory) > 0 || conv.Len() > 0 {
+			conv.WriteString("\n" + sepLine + "\n\n")
+		}
+		toolLabel := m.theme.ToolCallLabel.Render("🔧 " + tc.tool)
+		conv.WriteString(toolLabel + "\n")
+		if tc.input != "" {
+			toolInput := m.theme.ToolCallInput.Render("  " + tc.input)
+			conv.WriteString(toolInput + "\n")
+		}
+	}
+
+	// Show streaming response or thinking spinner
+	hasContent := len(m.chatHistory) > 0 || len(m.pendingToolCalls) > 0
+	if m.isStreaming && m.streamingResponse != "" {
+		if hasContent {
+			conv.WriteString("\n" + sepLine + "\n\n")
+		}
+		conv.WriteString(assistantLabel + "\n")
+		if m.markdownRenderer != nil {
+			if rendered, err := m.markdownRenderer.Render(m.streamingResponse); err == nil {
+				conv.WriteString(rendered)
+			} else {
+				wrapped := utils.WrapTextToWidth(m.streamingResponse, innerWidth)
+				conv.WriteString(wrapped + "\n")
+			}
+		} else {
+			wrapped := utils.WrapTextToWidth(m.streamingResponse, innerWidth)
+			conv.WriteString(wrapped + "\n")
+		}
+		conv.WriteString("▋")
+	} else if m.chatWaiting {
+		if hasContent {
 			conv.WriteString("\n" + sepLine + "\n\n")
 		}
 		conv.WriteString(assistantLabel + "\n\n")
-		conv.WriteString(m.theme.Spinner.Render(m.chatSpinner.View()) + " Thinking...\n")
+		conv.WriteString(m.theme.Spinner.Background(m.theme.BaseBg).Render(m.chatSpinner.View()) + " Thinking...\n")
 	}
 
 	wasAtBottom := m.chatViewport.AtBottom()
@@ -602,13 +717,13 @@ func (m *CookingModel) View() string {
 
 	if m.showChat {
 		chatWidth := max(m.width*2/5, 32)
-		chatPanel := m.renderChatPanel(chatWidth, m.height-2)
+		chatPanel := m.renderChatPanel(chatWidth, m.height)
 		return lipgloss.JoinHorizontal(lipgloss.Top, mainPanel, chatPanel)
 	}
 
 	if m.showIngredients {
 		sidebarWidth := min(m.width/3, 30)
-		sidebar := m.renderIngredientsSidebar(sidebarWidth, m.height-2)
+		sidebar := m.renderIngredientsSidebar(sidebarWidth, m.height)
 		return lipgloss.JoinHorizontal(lipgloss.Top, sidebar, mainPanel)
 	}
 
@@ -632,24 +747,18 @@ func (m *CookingModel) renderMainPanel() string {
 		fmt.Sprintf("Step %d of %d", m.CurrentStep+1, m.TotalSteps))
 
 	// Progress bar
-	progressWidth := min(contentWidth-8, 40)
-	if progressWidth < 5 {
-		progressWidth = 5
-	}
+	progressWidth := max(min(contentWidth-8, 40), 5)
 	filled := (m.CurrentStep + 1) * progressWidth / m.TotalSteps
 	bar := m.theme.CookingProgressFilled.Render(strings.Repeat("━", filled)) +
 		m.theme.CookingProgressUnfilled.Render(strings.Repeat("━", progressWidth-filled))
 
 	// Instruction text (with ingredient names highlighted)
-	instruction := m.Recipe.Metadata.Instructions[m.CurrentStep]
+	instruction := utils.NormalizeSymbols(m.Recipe.Metadata.Instructions[m.CurrentStep])
 	ingredientHighlight := m.theme.CookingIngredientHighlight
 	highlightedInstruction := utils.HighlightIngredientsWithStyle(
 		instruction, m.Recipe.Metadata.Ingredients, ingredientHighlight,
 	)
-	wrappedWidth := min(contentWidth-16, 60)
-	if wrappedWidth < 20 {
-		wrappedWidth = 20
-	}
+	wrappedWidth := max(min(contentWidth-16, 60), 20)
 	instructionText := m.theme.CookingInstruction.
 		Width(wrappedWidth).
 		Align(lipgloss.Center).
@@ -736,33 +845,25 @@ func (m *CookingModel) renderMainPanel() string {
 }
 
 func (m *CookingModel) renderChatPanel(width, height int) string {
-	innerWidth := width - 4
-	if innerWidth < 10 {
-		innerWidth = 10
-	}
+	innerWidth := max(width-4, 10)
 
 	// Recreate the markdown renderer if the width changed
 	mdWidth := max(innerWidth-4, 12)
 	if m.markdownRenderer == nil || m.chatViewport.Width() != innerWidth {
-		if r, err := glamour.NewTermRenderer(
-			glamour.WithEnvironmentConfig(),
-			glamour.WithWordWrap(mdWidth),
-		); err == nil {
+		if r, err := markdown.NewThemedRenderer(m.theme, mdWidth); err == nil {
 			m.markdownRenderer = r
 		}
 	}
 
-	title := m.theme.CookingChatTitle.Render("  Ask about this step")
+	title := m.theme.CookingChatTitle.Render("Ask about this step")
 	titleSep := m.theme.SeparatorLine.
+		Background(m.theme.BaseBg).
 		Render(strings.Repeat("─", innerWidth))
 
-	// Calculate heights: title + sep + blank = 3, separator + textarea = 4
-	titleHeight := 3
+	// Calculate heights: blank + title + sep + blank = 4, separator + textarea = 4
+	titleHeight := 4
 	inputHeight := 4
-	viewportHeight := height - titleHeight - inputHeight
-	if viewportHeight < 3 {
-		viewportHeight = 3
-	}
+	viewportHeight := max(height-titleHeight-inputHeight, 3)
 
 	// Update viewport/textarea dimensions
 	m.chatViewport.SetWidth(innerWidth)
@@ -773,11 +874,13 @@ func (m *CookingModel) renderChatPanel(width, height int) string {
 	vpView := m.chatViewport.View()
 
 	inputSep := m.theme.SeparatorLine.
+		Background(m.theme.BaseBg).
 		Render(strings.Repeat("─", innerWidth))
 
 	input := m.chatTextarea.View()
 
 	panel := lipgloss.JoinVertical(lipgloss.Left,
+		"",
 		title,
 		titleSep,
 		"",
@@ -786,6 +889,11 @@ func (m *CookingModel) renderChatPanel(width, height int) string {
 		input,
 	)
 
+	// Re-establish the panel surface across every line so foreground-only
+	// elements (title, separators) and after-reset cells don't fall through
+	// to the terminal background.
+	panel = utils.FillBackground(panel, m.theme.BaseBg, innerWidth)
+
 	return m.theme.CookingChatPanel.
 		Width(width).
 		Height(height).
@@ -793,43 +901,49 @@ func (m *CookingModel) renderChatPanel(width, height int) string {
 }
 
 func (m *CookingModel) renderIngredientsSidebar(width, height int) string {
-	innerWidth := width - 4
-	if innerWidth < 8 {
-		innerWidth = 8
-	}
+	innerWidth := max(width-4, 8)
 
 	var sidebar strings.Builder
 
-	// Title
-	sidebar.WriteString(m.theme.CookingSidebarTitle.Render("🧾 Ingredients"))
+	// Title with count
+	sidebar.WriteString("\n")
+	sidebar.WriteString(m.theme.CookingSidebarTitle.Render("Ingredients"))
+	sidebar.WriteString(m.theme.CookingIngredientDetail.Render(fmt.Sprintf("  %d", len(m.Recipe.Metadata.Ingredients))))
 	sidebar.WriteString("\n")
 
-	// Count indicator
-	countStr := fmt.Sprintf("   %d items", len(m.Recipe.Metadata.Ingredients))
-	sidebar.WriteString(m.theme.CookingIngredientDetail.Render(countStr))
-	sidebar.WriteString("\n")
-
-	// Separator line
-	sep := m.theme.SeparatorLine.
-		Render(strings.Repeat("─", innerWidth))
+	sep := m.theme.SeparatorLine.Render(strings.Repeat("─", innerWidth))
 	sidebar.WriteString(sep)
-	sidebar.WriteString("\n\n")
+	sidebar.WriteString("\n")
+
+	// hanging wraps text to the sidebar width, prefixing the first line with
+	// first and every continuation line with an equally wide indent, so long
+	// ingredients stay aligned under their own text instead of the bullet.
+	const indent = "  "
+	hanging := func(first, text string) string {
+		wrapped := lipgloss.NewStyle().Width(max(innerWidth-lipgloss.Width(first), 4)).Render(text)
+		lines := strings.Split(wrapped, "\n")
+		pad := strings.Repeat(" ", lipgloss.Width(first))
+		for i := range lines {
+			if i == 0 {
+				lines[i] = first + lines[i]
+			} else {
+				lines[i] = pad + lines[i]
+			}
+		}
+		return strings.Join(lines, "\n")
+	}
 
 	currentGroup := ""
 	for _, ing := range m.Recipe.Metadata.Ingredients {
 		if ing.Group != currentGroup {
 			currentGroup = ing.Group
-			if currentGroup != "" {
-				sidebar.WriteString("\n")
-				sidebar.WriteString(m.theme.CookingSidebarTitle.Render("  " + currentGroup))
-				sidebar.WriteString("\n")
+			if group := strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(currentGroup), ":")); group != "" {
+				sidebar.WriteString("\n\n")
+				sidebar.WriteString(m.theme.CookingSidebarTitle.Render(group))
 			}
 		}
 
-		// Bullet prefix
-		bullet := m.theme.CookingNavHint.Render("  • ")
-
-		// Amount + unit in accent style
+		// Amount + unit in accent style, then the name
 		var amountPart string
 		if ing.Amount != "" {
 			amt := ing.Amount
@@ -838,27 +952,25 @@ func (m *CookingModel) renderIngredientsSidebar(width, height int) string {
 			}
 			amountPart = m.theme.CookingIngredientAmount.Render(amt) + " "
 		}
-
-		// Ingredient name
 		namePart := m.theme.CookingIngredient.Render(ing.Name)
 
-		line := bullet + amountPart + namePart
-
-		sidebar.WriteString(line)
 		sidebar.WriteString("\n")
+		sidebar.WriteString(hanging(m.theme.CookingNavHint.Render(">")+" ", amountPart+namePart))
 
-		// Details in italic if present
-		if ing.Details != "" {
-			detail := "    " + m.theme.CookingIngredientDetail.Render("("+ing.Details+")")
-			sidebar.WriteString(detail)
+		// Details in italic if present, aligned under the name
+		if details := utils.CleanIngredientDetails(ing.Details); details != "" {
 			sidebar.WriteString("\n")
+			sidebar.WriteString(hanging(indent, m.theme.CookingIngredientDetail.Render(details)))
 		}
 	}
 
+	// Re-establish the surface across every line so foreground-only ingredient
+	// rows and after-reset cells don't fall through to the terminal background.
+	body := utils.FillBackground(sidebar.String(), m.theme.BaseBg, innerWidth)
 	return m.theme.CookingSidebar.
 		Width(width).
 		Height(height).
-		Render(sidebar.String())
+		Render(body)
 }
 
 // IsChatOpen returns whether the cooking chat panel is currently open.
@@ -889,4 +1001,8 @@ func (m *CookingModel) GetCurrentTheme() *themes.Theme {
 
 func (m *CookingModel) SetTheme(theme *themes.Theme) {
 	m.theme = theme
+	// Drop the renderer so the chat panel rebuilds it with the new palette.
+	m.markdownRenderer = nil
+	m.chatTextarea.SetStyles(theme.TextAreaStyles())
+	m.chatViewport.Style = lipgloss.NewStyle().Background(theme.BaseBg)
 }

@@ -5,7 +5,7 @@
     "temperature": 0.9,
     "max_tokens": 1000,
     "max_iterations": 15,
-    "system_prompt": "You are a helpful cooking assistant specialized in recipes, ingredients, and culinary knowledge. You have access to a personal cookbook database and can help users with various cooking-related tasks.\n\n\t\tYour capabilities include:\n\t\t- Finding recipes by name or ID\n\t\t- Providing cooking advice and ingredient information\n\t\t- Helping with meal planning and recipe suggestions\n\t\t- Answering questions about cooking techniques and food preparation\n\n\t\tAvailable tools:\n\t\t- searchRecipeByName: Search for recipes by name (case-insensitive partial match). Use this to find recipes when the user mentions a recipe name or asks about a specific dish.\n\t\t- getRecipeById: Get a specific recipe by its unique ID. Use this after finding a recipe with searchRecipeByName to get the full recipe details.\n\n\t\tGuidelines for responses:\n\t\t- Always format your responses using markdown for better readability\n\t\t- Use headers, lists, and emphasis where appropriate\n\t\t- Be helpful and encouraging when providing cooking advice\n\t\t- If you need to search for recipes, use searchRecipeByName first, then getRecipeById if you need full details\n\t\t- After using tools, provide a clear, complete answer to the user's question\n\t\t- Provide detailed information about ingredients, cooking methods, and serving suggestions\n\t\t- If a recipe isn't found, suggest similar alternatives or offer to help with general cooking questions\n\n\t\tRemember: You are a cooking expert, so provide accurate, helpful information and be enthusiastic about food and cooking!",
+    "system_prompt": "You are a helpful cooking assistant specialized in recipes, ingredients, and culinary knowledge. You have access to the user's personal cookbook through tools.\n\nUse the tools whenever the question is about the user's own recipes:\n- to find a specific dish, search by name; to browse or filter (category, time, rating, favourites, ingredients) list recipes; to answer \"what can I cook with ...\", find recipes by ingredients; to learn which categories exist, get the cookbook overview.\n- tool results contain recipe IDs; fetch the full recipe by ID before quoting ingredients, amounts or steps.\n- when a list says more pages are available and the user wants more, request the next page.\n- never invent recipes, IDs, amounts or times that a tool did not return. If nothing matches, say so and suggest alternatives.\n\nWhen the user references a recipe with @[RecipeName], the full recipe data is already provided in the message context. Do not search for it again; use the provided data directly.\n\nAnswer in markdown, concisely: short paragraphs and lists, emphasis where it helps. Be accurate, practical and encouraging.",
     "summary_prompt": "Extract 3-5 key words or short phrases (separated by commas) that best describe this cooking conversation. Focus on the main topics, recipes, or ingredients discussed. Do not use full sentences, only keywords. Conversation: %s",
     "summary_max_length": 60,
     "text_area_placeholder": "Ask anything about cooking, recipes, ingredients, or anything else you want to know about food... 🍳 ",
@@ -58,7 +58,7 @@
       "ctrl+a"
     ],
     "new_session": [
-      "ctrl+a"
+      "ctrl+n"
     ],
     "back": [
       "esc"
@@ -80,18 +80,18 @@
       "ctrl+s"
     ],
     "session_selector": [
-      "ctrl+n"
+      "ctrl+o"
     ],
     "set_favourite": [
       "ctrl+f"
     ],
     "prev_page": [
-      "j",
-      "left"
+      "left",
+      "pgup"
     ],
     "next_page": [
-      "k",
-      "right"
+      "right",
+      "pgdown"
     ],
     "force_quit": [
       "ctrl+c"
@@ -145,11 +145,9 @@
     ]
   },
   "general": {
-    "status_line_height": 0,
-    "status_line_padding": 0,
-    "status_line_content_width": 0,
     "scroll_speed": 3,
-    "move_speed": 1
+    "move_speed": 1,
+    "mouse": false
   },
   "state_selector_dialog": {
     "height": 30,

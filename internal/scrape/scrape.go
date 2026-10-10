@@ -151,7 +151,7 @@ func LatestVersion() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("PyPI request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	var data struct {
 		Info struct {
 			Version string `json:"version"`

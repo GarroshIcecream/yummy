@@ -12,11 +12,13 @@ import (
 	common "github.com/GarroshIcecream/yummy/internal/models/common"
 	messages "github.com/GarroshIcecream/yummy/internal/models/msg"
 	themes "github.com/GarroshIcecream/yummy/internal/themes"
+	utils "github.com/GarroshIcecream/yummy/internal/utils"
 )
 
 type themeEntry struct {
-	Name     string
-	Selected bool
+	Name        string
+	Description string
+	Selected    bool
 }
 
 type ThemeSelectorDialogCmp struct {
@@ -29,22 +31,29 @@ type ThemeSelectorDialogCmp struct {
 	theme         *themes.Theme
 }
 
-func NewThemeSelectorDialog(availableThemes []string, currentThemeName string, theme *themes.Theme) (*ThemeSelectorDialogCmp, error) {
+func NewThemeSelectorDialog(availableThemes []themes.ThemeInfo, currentThemeName string, theme *themes.Theme) (*ThemeSelectorDialogCmp, error) {
 	cfg := config.GetGlobalConfig()
 	if cfg == nil {
 		return nil, fmt.Errorf("global config not set")
 	}
 
 	themeSelectorConfig := cfg.ThemeSelectorDialog
-	sort.Strings(availableThemes)
+	sort.Slice(availableThemes, func(i, j int) bool {
+		return availableThemes[i].Name < availableThemes[j].Name
+	})
 
 	items := make([]themeEntry, len(availableThemes))
-	for i, name := range availableThemes {
-		items[i] = themeEntry{Name: name, Selected: name == currentThemeName}
+	for i, availableTheme := range availableThemes {
+		items[i] = themeEntry{
+			Name:        availableTheme.Name,
+			Description: availableTheme.Description,
+			Selected:    availableTheme.Name == currentThemeName,
+		}
 	}
 
 	ti := textinput.New()
 	ti.Placeholder = "Search..."
+	ti.SetStyles(theme.DialogSearchStyles)
 	ti.Focus()
 	ti.CharLimit = 64
 	if w := themeSelectorConfig.Width - 8; w > 10 {
@@ -89,13 +98,13 @@ func (t *ThemeSelectorDialogCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if t.selectedIndex > 0 {
 				t.selectedIndex--
 			}
-			return t, nil
+			return t, t.previewCmd()
 
 		case "down", "ctrl+j":
 			if t.selectedIndex < len(t.filtered)-1 {
 				t.selectedIndex++
 			}
-			return t, nil
+			return t, t.previewCmd()
 		}
 	}
 
@@ -106,6 +115,7 @@ func (t *ThemeSelectorDialogCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	if t.searchInput.Value() != prevValue {
 		t.applyFilter()
+		cmds = append(cmds, t.previewCmd())
 	}
 
 	return t, tea.Batch(cmds...)
@@ -127,18 +137,12 @@ func (t *ThemeSelectorDialogCmp) applyFilter() {
 }
 
 func (t *ThemeSelectorDialogCmp) View() tea.View {
-	innerWidth := t.width - 6
-	if innerWidth < 20 {
-		innerWidth = 20
-	}
+	innerWidth := max(t.width-6, 20)
 
 	// Header
 	titleLeft := t.theme.ThemeSelectorTitle.Render("Select Theme")
 	escHint := t.theme.ThemeSelectorHelp.Render("esc")
-	pad := innerWidth - lipgloss.Width(titleLeft) - lipgloss.Width(escHint)
-	if pad < 1 {
-		pad = 1
-	}
+	pad := max(innerWidth-lipgloss.Width(titleLeft)-lipgloss.Width(escHint), 1)
 	header := titleLeft + strings.Repeat(" ", pad) + escHint
 
 	// Search
@@ -154,16 +158,29 @@ func (t *ThemeSelectorDialogCmp) View() tea.View {
 		if item.Selected {
 			marker = "* "
 		}
-		line := marker + item.Name
+		titleLine := marker + item.Name
+		description := item.Description
+		if description == "" {
+			description = "No description available"
+		}
+		descriptionLine := "   " + description
 
 		if i == t.selectedIndex {
-			row := t.theme.DialogSelectedRow.
+			titleRow := t.theme.DialogSelectedRow.
 				Width(innerWidth).
-				Render(line)
-			rows = append(rows, row)
+				Render(titleLine)
+			descRow := t.theme.SessionSelectorSelectedDesc.
+				Width(innerWidth).
+				Render(descriptionLine)
+			rows = append(rows, titleRow+"\n"+descRow)
 		} else {
-			rows = append(rows, t.theme.DialogUnselectedRow.
-				Render(line))
+			titleRow := t.theme.DialogUnselectedRow.
+				Width(innerWidth).
+				Render(titleLine)
+			descRow := t.theme.SessionSelectorUnselectedDesc.
+				Width(innerWidth).
+				Render(descriptionLine)
+			rows = append(rows, titleRow+"\n"+descRow)
 		}
 	}
 
@@ -173,7 +190,7 @@ func (t *ThemeSelectorDialogCmp) View() tea.View {
 
 	parts := []string{header, "", searchLine, sep}
 	parts = append(parts, rows...)
-	content := lipgloss.JoinVertical(lipgloss.Left, parts...)
+	content := utils.FillBackground(lipgloss.JoinVertical(lipgloss.Left, parts...), t.theme.SurfaceBg, innerWidth)
 
 	rendered := t.theme.ThemeSelectorDialog.
 		Width(t.width).
@@ -188,6 +205,18 @@ func (t *ThemeSelectorDialogCmp) SetSize(width, height int) {
 	if w := t.width - 8; w > 10 {
 		t.searchInput.SetWidth(w)
 	}
+}
+
+func (t *ThemeSelectorDialogCmp) SetTheme(theme *themes.Theme) {
+	t.theme = theme
+	t.searchInput.SetStyles(theme.DialogSearchStyles)
+}
+
+func (t *ThemeSelectorDialogCmp) previewCmd() tea.Cmd {
+	if len(t.filtered) == 0 || t.selectedIndex >= len(t.filtered) {
+		return nil
+	}
+	return messages.SendThemePreviewMsg(t.filtered[t.selectedIndex].Name)
 }
 
 func (t *ThemeSelectorDialogCmp) GetSize() (int, int) {

@@ -164,7 +164,7 @@ func ParseIngredientsWithLLM(ctx context.Context, rawIngredients []string, model
 				Amount:   strings.TrimSpace(parsed.Amount),
 				Unit:     normaliseUnit(strings.TrimSpace(parsed.Unit)),
 				Name:     strings.TrimSpace(parsed.Name),
-				Details:  strings.TrimSpace(parsed.Details),
+				Details:  CleanIngredientDetails(parsed.Details),
 				BaseName: strings.TrimSpace(parsed.BaseName),
 			}
 			results[i] = parseResult{index: origIdx, ing: ing}
@@ -350,4 +350,98 @@ func normaliseUnit(u string) string {
 	}
 	// Accept the LLM output as-is if it's not in our map.
 	return low
+}
+
+const categoryPrompt = `You are a recipe organiser. Suggest 1 to 3 short categories for this recipe (e.g. "Dessert", "Main Dish", "Breakfast", "Italian").
+
+Rules:
+1. Return ONLY a JSON object of the form {"categories": ["Dessert", "Italian"]}.
+2. Prefer categories from this existing list when they fit, using the exact spelling: %s
+3. Use Title Case and keep each category to one or two words.
+
+Recipe: %s
+Ingredients:
+%s`
+
+// SuggestCategories asks the LLM for 1-3 categories for a recipe the source
+// site did not categorise, preferring the cookbook's existing categories so
+// filters stay consistent.
+func SuggestCategories(ctx context.Context, recipeName string, ingredients []string, existing []string, modelName string) ([]string, error) {
+	llm, err := ollama.New(ollama.WithModel(modelName))
+	if err != nil {
+		return nil, fmt.Errorf("create ollama client: %w", err)
+	}
+
+	existingList := "none yet"
+	if len(existing) > 0 {
+		existingList = strings.Join(existing, ", ")
+	}
+	var ing strings.Builder
+	for _, i := range ingredients {
+		fmt.Fprintf(&ing, "  - %s\n", i)
+	}
+	prompt := fmt.Sprintf(categoryPrompt, existingList, recipeName, ing.String())
+
+	resp, err := llm.GenerateContent(ctx, []llms.MessageContent{
+		llms.TextParts(llms.ChatMessageTypeHuman, prompt),
+	},
+		llms.WithTemperature(0.0),
+		llms.WithMaxTokens(256),
+		llms.WithJSONMode(),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("ollama generate: %w", err)
+	}
+	if len(resp.Choices) == 0 || resp.Choices[0].Content == "" {
+		return nil, fmt.Errorf("empty response from LLM")
+	}
+
+	body := stripCodeFences(strings.TrimSpace(resp.Choices[0].Content))
+	var decoded any
+	if err := json.Unmarshal([]byte(body), &decoded); err != nil {
+		return nil, fmt.Errorf("json decode: %w (body: %s)", err, body)
+	}
+	cats := collectCategoryStrings(decoded)
+
+	var out []string
+	for _, c := range cats {
+		if c = strings.TrimSpace(c); c != "" && len(out) < 3 {
+			out = append(out, c)
+		}
+	}
+	slog.Info("LLM suggested categories", "categories", out, "model", modelName)
+	return out, nil
+}
+
+// collectCategoryStrings pulls category names out of whatever JSON shape the
+// model returned: {"categories": [...]}, a bare array, or (small models in JSON
+// mode) an object such as {"Dessert": "Sweet"} where keys and values are both
+// category names.
+func collectCategoryStrings(v any) []string {
+	var out []string
+	switch t := v.(type) {
+	case string:
+		out = append(out, t)
+	case []any:
+		for _, item := range t {
+			out = append(out, collectCategoryStrings(item)...)
+		}
+	case map[string]any:
+		for k, item := range t {
+			if !strings.Contains(strings.ToLower(k), "categor") {
+				out = append(out, k)
+			}
+			out = append(out, collectCategoryStrings(item)...)
+		}
+	}
+	seen := map[string]bool{}
+	var unique []string
+	for _, c := range out {
+		key := strings.ToLower(strings.TrimSpace(c))
+		if key != "" && !seen[key] {
+			seen[key] = true
+			unique = append(unique, strings.TrimSpace(c))
+		}
+	}
+	return unique
 }

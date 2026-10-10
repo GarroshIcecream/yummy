@@ -14,6 +14,7 @@ import (
 	common "github.com/GarroshIcecream/yummy/internal/models/common"
 	messages "github.com/GarroshIcecream/yummy/internal/models/msg"
 	themes "github.com/GarroshIcecream/yummy/internal/themes"
+	"github.com/GarroshIcecream/yummy/internal/tui/dialog"
 	"github.com/GarroshIcecream/yummy/internal/utils"
 	"github.com/charmbracelet/x/term"
 )
@@ -66,6 +67,7 @@ func NewListModel(cookbook *db.CookBook, theme *themes.Theme) (*ListModel, error
 	l.Filter = CustomFilter
 	l.AdditionalShortHelpKeys = keymaps.AdditionalShortHelpKeys
 	l.AdditionalFullHelpKeys = keymaps.AdditionalFullHelpKeys
+	l.Help.ShortSeparator = " | "
 
 	// Enable suggestions on the FilterInput
 	l.FilterInput.ShowSuggestions = true
@@ -99,6 +101,15 @@ func (m *ListModel) Update(msg tea.Msg) (common.TUIModel, tea.Cmd) {
 		cmds = append(cmds, m.RefreshRecipeList())
 		cmds = append(cmds, m.RecipeList.NewStatusMessage(msg.StatusMessage))
 
+	case messages.DeleteRecipeMsg:
+		if err := m.cookbook.DeleteRecipe(msg.RecipeID); err != nil {
+			slog.Error("Failed to delete recipe", "error", err)
+			return m, nil
+		}
+		cmds = append(cmds, m.RefreshRecipeList())
+		cmds = append(cmds, m.RecipeList.NewStatusMessage(m.config.ViewStatusMessageRecipeDeleted))
+		return m, tea.Sequence(cmds...)
+
 	case messages.SetFavouriteMsg:
 		newFavourite, err := m.cookbook.SetFavourite(msg.RecipeID)
 		if err != nil {
@@ -112,19 +123,17 @@ func (m *ListModel) Update(msg tea.Msg) (common.TUIModel, tea.Cmd) {
 		if m.RecipeList.FilterState() != list.Filtering {
 			switch {
 			case key.Matches(msg, m.keyMap.Add):
-				cmds = append(cmds,
-					messages.SendSessionStateMsg(common.SessionStateEdit),
-					messages.SendEditRecipeMsg(nil),
-				)
+				return m, messages.SendCommandPaletteActionMsg(dialog.ActionAddRecipe)
 			case key.Matches(msg, m.keyMap.Delete):
 				if i, ok := m.SelectedItemToRecipeWithDescription(); ok {
-					if err := m.cookbook.DeleteRecipe(i.RecipeID); err != nil {
-						slog.Error("Failed to delete recipe", "error", err)
-						return m, nil
-					}
-
-					cmds = append(cmds, m.RefreshRecipeList())
-					cmds = append(cmds, m.RecipeList.NewStatusMessage(m.config.ViewStatusMessageRecipeDeleted))
+					confirm := dialog.NewConfirmDialog(
+						"Delete recipe?",
+						fmt.Sprintf("%q will be removed from your cookbook. This can't be undone.", i.RecipeName),
+						"Delete",
+						messages.DeleteRecipeMsg{RecipeID: i.RecipeID},
+						m.theme,
+					)
+					return m, messages.SendOpenModalViewMsg(confirm, common.ModalTypeConfirm)
 				}
 			case key.Matches(msg, m.keyMap.Enter):
 				if i, ok := m.SelectedItemToRecipeWithDescription(); ok {
@@ -153,7 +162,18 @@ func (m *ListModel) Update(msg tea.Msg) (common.TUIModel, tea.Cmd) {
 }
 
 func (m *ListModel) View() string {
-	return m.theme.Doc.Render(m.RecipeList.View())
+	// The list sits on the base canvas. The bubbles list has foreground-only
+	// spans (the selected item's accent bar, title, help) that leave 1-cell
+	// bare gaps after their SGR resets, so run the content through
+	// FillBackground before framing — it re-establishes the canvas after every
+	// reset. The list is sized to width minus Doc's frame in SetSize, so the
+	// inner width lines up with Doc's padding.
+	inner := max(m.width-2, 1)
+	body := utils.FillBackground(m.RecipeList.View(), m.theme.BaseBg, inner)
+	return m.theme.Doc.
+		Width(m.width).
+		Height(m.height).
+		Render(body)
 }
 
 func (m *ListModel) SelectedItemToRecipeWithDescription() (utils.RecipeRaw, bool) {

@@ -8,21 +8,11 @@ func clampModalDimension(available, current, minimum, frame int) int {
 		return current
 	}
 
-	maxSize := available - frame
-	if maxSize < 1 {
-		maxSize = 1
-	}
+	maxSize := max(available-frame, 1)
 
-	size := current
-	if size > maxSize {
-		size = maxSize
-	}
+	size := min(current, maxSize)
 	if size < minimum {
-		if maxSize < minimum {
-			size = maxSize
-		} else {
-			size = minimum
-		}
+		size = min(maxSize, minimum)
 	}
 
 	return size

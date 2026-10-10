@@ -6,6 +6,8 @@ import (
 	"strings"
 
 	themes "github.com/GarroshIcecream/yummy/internal/themes"
+	"github.com/GarroshIcecream/yummy/internal/utils"
+	"github.com/charmbracelet/x/ansi"
 )
 
 // mentionState tracks the @-mention autocomplete popup.
@@ -19,6 +21,11 @@ type mentionState struct {
 // mentionRe matches @RecipeName references in submitted text. Recipe names are
 // wrapped in square brackets to allow spaces: @[Chicken Tikka Masala].
 var mentionRe = regexp.MustCompile(`@\[([^\]]+)\]`)
+
+// sgrRe matches ANSI SGR (color/style) escape sequences. Glamour interleaves
+// these with the rendered text — even in the middle of a @[mention] — so they
+// must be stripped before re-styling a matched mention.
+var sgrRe = regexp.MustCompile(`\x1b\[[0-9;]*m`)
 
 // updateMention inspects the current textarea value and decides whether to
 // show/hide the autocomplete popup. Returns true if the mention state changed.
@@ -113,22 +120,27 @@ func viewMention(ms *mentionState, theme *themes.Theme, width int) string {
 	}
 
 	popupWidth := min(width-4, 50)
-	selectedStyle := theme.ChatMentionPopupSelected.Width(popupWidth)
-	normalStyle := theme.ChatMentionPopupItem.Width(popupWidth)
+	// The border's Width includes the border itself; rows fill the inside.
+	inner := max(popupWidth-2, 8)
+	selectedStyle := theme.ChatMentionPopupSelected.Width(inner)
+	normalStyle := theme.ChatMentionPopupItem.Width(inner)
+	labelWidth := max(inner-selectedStyle.GetHorizontalPadding()-2, 4)
 
 	var rows []string
-	rows = append(rows, theme.ChatMentionPopupHeader.Render("Recipes"))
+	rows = append(rows, theme.ChatMentionPopupHeader.Width(inner).Render("Recipes"))
 
 	for i, s := range ms.suggestions {
-		label := s.Name
+		// Truncate rather than wrap so every suggestion stays one row.
+		label := ansi.Truncate(s.Name, labelWidth, "…")
 		if i == ms.cursor {
-			rows = append(rows, selectedStyle.Render("› "+label))
+			rows = append(rows, selectedStyle.Render("> "+label))
 		} else {
 			rows = append(rows, normalStyle.Render("  "+label))
 		}
 	}
 
-	return theme.ChatMentionPopupBorder.Width(popupWidth).Render(strings.Join(rows, "\n"))
+	body := utils.FillBackground(strings.Join(rows, "\n"), theme.SurfaceBg, inner)
+	return theme.ChatMentionPopupBorder.Width(popupWidth).Render(body)
 }
 
 // HighlightMentions finds all @[RecipeName] patterns in already-rendered
@@ -148,7 +160,23 @@ func HighlightMentions(renderedContent string, theme *themes.Theme) string {
 		start, end := loc[0], loc[1]
 		mention := renderedContent[start:end]
 		result.WriteString(renderedContent[lastEnd:start])
-		result.WriteString(style.Render(mention))
+
+		// Glamour may have injected SGR sequences inside the match (e.g.
+		// "@[\x1b[m...Baklava]"). Strip them, then display the mention as a clean
+		// "@Name" token — the "[...]" is internal markup, not meant to be shown,
+		// and rendering it (plus the chip's own padding) collided with the
+		// surrounding space and punctuation. Re-emit the color glamour had active
+		// afterwards so the trailing text keeps its original color rather than
+		// falling back to the terminal default after our style reset.
+		clean := sgrRe.ReplaceAllString(mention, "")
+		display := clean
+		if sub := mentionRe.FindStringSubmatch(clean); len(sub) == 2 {
+			display = "@" + sub[1]
+		}
+		result.WriteString(style.Render(display))
+		if active := sgrRe.FindAllString(mention, -1); len(active) > 0 {
+			result.WriteString(active[len(active)-1])
+		}
 		lastEnd = end
 	}
 	result.WriteString(renderedContent[lastEnd:])

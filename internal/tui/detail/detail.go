@@ -14,6 +14,7 @@ import (
 	messages "github.com/GarroshIcecream/yummy/internal/models/msg"
 	themes "github.com/GarroshIcecream/yummy/internal/themes"
 	dialog "github.com/GarroshIcecream/yummy/internal/tui/dialog"
+	"github.com/GarroshIcecream/yummy/internal/tui/markdown"
 	utils "github.com/GarroshIcecream/yummy/internal/utils"
 )
 
@@ -34,7 +35,6 @@ type DetailModel struct {
 	width          int
 	height         int
 	scrollPosition int
-	renderer       *glamour.TermRenderer
 }
 
 func NewDetailModel(cookbook *db.CookBook, theme *themes.Theme) (*DetailModel, error) {
@@ -45,26 +45,16 @@ func NewDetailModel(cookbook *db.CookBook, theme *themes.Theme) (*DetailModel, e
 
 	keymaps := cfg.Keymap.ToKeyMap().GetDetailKeyMap()
 	detailConfig := cfg.Detail
-	renderer, err := glamour.NewTermRenderer(
-		glamour.WithEnvironmentConfig(),
-		glamour.WithEmoji(),
-		glamour.WithWordWrap(detailConfig.ViewportWidth),
-	)
-	if err != nil {
-		slog.Error("Failed to create renderer", "error", err)
-		return nil, err
-	}
 
 	model := &DetailModel{
 		cookbook:       cookbook,
 		scrollPosition: 0,
 		Recipe:         nil,
-		width:          0,
+		width:          detailConfig.ViewportWidth,
 		height:         detailConfig.ViewportHeight,
 		keyMap:         keymaps,
 		modelState:     common.ModelStateLoaded,
 		theme:          theme,
-		renderer:       renderer,
 		config:         detailConfig,
 	}
 
@@ -86,7 +76,8 @@ func (m *DetailModel) Update(msg tea.Msg) (common.TUIModel, tea.Cmd) {
 		m.scrollPosition = 0
 		m.Recipe = msg.Recipe
 		m.content = msg.Content
-		m.renderedContent = msg.Markdown
+		m.renderedContent = ""
+		m.render()
 		m.modelState = common.ModelStateLoaded
 
 	case messages.RatingSelectedMsg:
@@ -96,7 +87,7 @@ func (m *DetailModel) Update(msg tea.Msg) (common.TUIModel, tea.Cmd) {
 			} else {
 				m.Recipe.Metadata.Rating = msg.Rating
 				m.content = m.Recipe.FormatRecipeMarkdown()
-				m.refreshContentKeepScroll()
+				m.render()
 			}
 		}
 
@@ -128,6 +119,14 @@ func (m *DetailModel) Update(msg tea.Msg) (common.TUIModel, tea.Cmd) {
 			m.ScrollUp(m.config.ScrollSpeed)
 		case key.Matches(msg, m.keyMap.CursorDown):
 			m.ScrollDown(m.config.ScrollSpeed)
+		case key.Matches(msg, m.keyMap.PageUp):
+			m.ScrollUp(m.GetViewportHeight())
+		case key.Matches(msg, m.keyMap.PageDown):
+			m.ScrollDown(m.GetViewportHeight())
+		case key.Matches(msg, m.keyMap.GoToStart):
+			m.scrollPosition = 0
+		case key.Matches(msg, m.keyMap.GoToEnd):
+			m.scrollPosition = m.maxScroll()
 		}
 
 	case tea.MouseWheelMsg:
@@ -144,7 +143,7 @@ func (m *DetailModel) Update(msg tea.Msg) (common.TUIModel, tea.Cmd) {
 
 func (m *DetailModel) View() string {
 	lines := strings.Split(m.renderedContent, "\n")
-	style := m.theme.DetailContent.Width(m.width)
+	style := m.theme.DetailContent.Width(m.width).Height(m.height)
 
 	if m.Recipe == nil {
 		emptyMessage := m.theme.Loading.Render(m.config.NoRecipeSelectedMessage)
@@ -177,14 +176,9 @@ func (m *DetailModel) FetchRecipeData(recipe_id uint) tea.Cmd {
 			return messages.LoadRecipeMsg{Recipe: nil, Markdown: "", Content: ""}
 		}
 
-		// Render markdown content immediately
-		content := recipe.FormatRecipeMarkdown()
-		markdown, err := m.renderer.Render(content)
-		if err != nil {
-			return messages.LoadRecipeMsg{Recipe: recipe, Markdown: "", Content: ""}
-		}
-
-		return messages.LoadRecipeMsg{Recipe: recipe, Markdown: markdown, Content: content}
+		// The markdown is rendered in Update (render), against the current
+		// width and theme, not here in the command goroutine.
+		return messages.LoadRecipeMsg{Recipe: recipe, Content: recipe.FormatRecipeMarkdown()}
 	}
 }
 
@@ -199,15 +193,11 @@ func (m *DetailModel) ScrollDown(amount int) {
 	if amount <= 0 {
 		return
 	}
-	contentHeight := m.GetContentHeight()
-	viewportHeight := m.GetViewportHeight()
+	m.scrollPosition = min(m.maxScroll(), m.scrollPosition+amount)
+}
 
-	if contentHeight <= viewportHeight {
-		return
-	}
-
-	maxScroll := contentHeight - viewportHeight
-	m.scrollPosition = min(maxScroll, m.scrollPosition+amount)
+func (m *DetailModel) maxScroll() int {
+	return max(0, m.GetContentHeight()-m.GetViewportHeight())
 }
 
 // getContentHeight returns the height of the content in lines
@@ -218,9 +208,10 @@ func (m *DetailModel) GetContentHeight() int {
 	return len(strings.Split(m.renderedContent, "\n"))
 }
 
+// GetViewportHeight returns the number of content lines visible at once. The
+// manager has already reserved the status line out of m.height.
 func (m *DetailModel) GetViewportHeight() int {
-	footerHeight := config.GetStatusLineConfig().Height
-	return max(1, m.height-footerHeight)
+	return max(1, m.height)
 }
 
 func (m *DetailModel) GetScrollPosition() int {
@@ -228,57 +219,41 @@ func (m *DetailModel) GetScrollPosition() int {
 }
 
 func (m *DetailModel) SetSize(width, height int) {
+	resized := width != m.width
 	m.width = width
 	m.height = height
 
-	// Re-render content when size changes to ensure proper word wrapping
-	if m.width > 0 && m.Recipe != nil {
-		m.refreshContent()
+	// Re-render on width changes so word wrapping matches the new width.
+	if resized {
+		m.render()
 	}
+	m.scrollPosition = min(m.scrollPosition, m.maxScroll())
 }
 
-// refreshContent re-renders the markdown content with current settings
-func (m *DetailModel) refreshContent() {
-	if m.Recipe == nil {
+// render renders the recipe markdown for the current width and theme,
+// keeping the scroll position (clamped to the new content height).
+func (m *DetailModel) render() {
+	if m.Recipe == nil || m.content == "" || m.width <= 0 {
 		return
 	}
 
-	renderer, err := glamour.NewTermRenderer(
-		glamour.WithEnvironmentConfig(),
-		glamour.WithWordWrap(m.width),
-		glamour.WithEmoji(),
-	)
+	// Wrap inside DetailContent's horizontal padding so no rendered line is
+	// wider than the content area (lipgloss would hard-wrap it otherwise).
+	wrap := max(m.width-m.theme.DetailContent.GetHorizontalFrameSize(), 20)
+	renderer, err := markdown.NewThemedRenderer(m.theme, wrap, glamour.WithEmoji())
 	if err != nil {
+		slog.Error("Failed to create markdown renderer", "error", err)
 		return
 	}
-
-	m.renderer = renderer
-	content, err := m.renderer.Render(m.content)
-	if err == nil {
-		m.renderedContent = content
-		m.scrollPosition = 0
-	}
-}
-
-func (m *DetailModel) refreshContentKeepScroll() {
-	if m.Recipe == nil {
-		return
-	}
-	savedScroll := m.scrollPosition
-	renderer, err := glamour.NewTermRenderer(
-		glamour.WithEnvironmentConfig(),
-		glamour.WithWordWrap(m.width),
-		glamour.WithEmoji(),
-	)
+	content, err := renderer.Render(m.content)
 	if err != nil {
+		slog.Error("Failed to render recipe markdown", "error", err)
 		return
 	}
-	m.renderer = renderer
-	content, err := m.renderer.Render(m.content)
-	if err == nil {
-		m.renderedContent = content
-		m.scrollPosition = savedScroll
-	}
+	// Normalise the trailing whitespace to exactly one blank line, so when
+	// scrolled to the end the last line doesn't sit flush on the status bar.
+	m.renderedContent = strings.TrimRight(content, "\n") + "\n"
+	m.scrollPosition = min(m.scrollPosition, m.maxScroll())
 }
 
 func (m *DetailModel) GetSessionState() common.SessionState {
@@ -299,4 +274,5 @@ func (m *DetailModel) GetCurrentTheme() *themes.Theme {
 
 func (m *DetailModel) SetTheme(theme *themes.Theme) {
 	m.theme = theme
+	m.render()
 }

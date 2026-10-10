@@ -51,9 +51,11 @@ type KeyMap struct {
 	ResetTimer           key.Binding
 	ChatScrollUp         key.Binding
 	ChatScrollDown       key.Binding
+	ToggleSidebar        key.Binding
 }
 
 type ManagerKeyMap struct {
+	Add            key.Binding
 	ForceQuit      key.Binding
 	Back           key.Binding
 	StateSelector  key.Binding
@@ -86,6 +88,10 @@ type ListKeyMap struct {
 type DetailKeyMap struct {
 	CursorUp    key.Binding
 	CursorDown  key.Binding
+	PageUp      key.Binding
+	PageDown    key.Binding
+	GoToStart   key.Binding
+	GoToEnd     key.Binding
 	Edit        key.Binding
 	SetRating   key.Binding
 	CookingMode key.Binding
@@ -129,6 +135,7 @@ type ChatKeyMap struct {
 	Back            key.Binding
 	Quit            key.Binding
 	Help            key.Binding
+	ToggleSidebar   key.Binding
 }
 
 type StateSelectorKeyMap struct {
@@ -219,6 +226,7 @@ func (k KeyMap) FullHelp() [][]key.Binding {
 
 func (k KeyMap) GetManagerKeyMap() ManagerKeyMap {
 	return ManagerKeyMap{
+		Add:            k.Add,
 		Back:           k.Back,
 		ForceQuit:      k.ForceQuit,
 		StateSelector:  k.StateSelector,
@@ -278,6 +286,10 @@ func (k KeyMap) GetDetailKeyMap() DetailKeyMap {
 	return DetailKeyMap{
 		CursorUp:    k.CursorUp,
 		CursorDown:  k.CursorDown,
+		PageUp:      k.PrevPage,
+		PageDown:    k.NextPage,
+		GoToStart:   k.GoToStart,
+		GoToEnd:     k.GoToEnd,
 		Edit:        k.Edit,
 		SetRating:   k.SetRating,
 		CookingMode: k.CookingMode,
@@ -327,6 +339,7 @@ func (k KeyMap) GetChatKeyMap() ChatKeyMap {
 		Back:            k.Back,
 		Quit:            k.Quit,
 		Help:            k.Help,
+		ToggleSidebar:   k.ToggleSidebar,
 	}
 }
 
@@ -591,6 +604,10 @@ func createKeyMap(keymapConfig KeymapConfig) KeyMap {
 		ChatScrollDown: key.NewBinding(
 			key.WithKeys(keymapConfig.ChatScrollDown...),
 			key.WithHelp(strings.Join(keymapConfig.ChatScrollDown, "/"), "scroll chat down"),
+		),
+		ToggleSidebar: key.NewBinding(
+			key.WithKeys(keymapConfig.ToggleSidebar...),
+			key.WithHelp(strings.Join(keymapConfig.ToggleSidebar, "/"), "toggle sidebar"),
 		),
 	}
 }

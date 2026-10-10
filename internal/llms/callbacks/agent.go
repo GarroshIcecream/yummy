@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync"
 
 	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/schema"
@@ -33,6 +34,23 @@ type AgentCallbackHandler interface {
 // StatusUpdateFunc is a callback function type for sending status updates to the UI
 type StatusUpdateFunc func(status string)
 
+// generationKey is the context key under which the active generation ID is
+// stored. langchaingo threads the generation's context into every callback,
+// so tagging it lets the handler drop events from cancelled generations that
+// are still draining.
+type generationKey struct{}
+
+// WithGeneration returns a context tagged with the given generation ID.
+func WithGeneration(ctx context.Context, gen uint64) context.Context {
+	return context.WithValue(ctx, generationKey{}, gen)
+}
+
+// generationFromContext extracts the generation ID from a context, if present.
+func generationFromContext(ctx context.Context) (uint64, bool) {
+	gen, ok := ctx.Value(generationKey{}).(uint64)
+	return gen, ok
+}
+
 // TokenUsage tracks token consumption
 type TokenUsage struct {
 	PromptTokens     int
@@ -43,9 +61,21 @@ type TokenUsage struct {
 // DefaultAgentCallbackHandler is the default implementation of AgentCallbackHandler
 // It logs all agent events and optionally sends status updates to the UI
 type DefaultAgentCallbackHandler struct {
+	// mu guards the mutable fields below: callbacks are swapped from the main
+	// (Bubble Tea) goroutine while Handle* methods run on the LLM goroutine.
+	// Callbacks are always invoked OUTSIDE the lock so a blocking send in a
+	// callback can never deadlock against a callback swap.
+	mu                sync.Mutex
 	onStatusFunc      StatusUpdateFunc
 	streamingCallback func(chunk string)
+	toolCallCallback  func(tool, input string)
 	tokenUsage        TokenUsage
+
+	// generation is the ID of the currently active generation. Events whose
+	// context carries a different generation ID (i.e. from a cancelled run
+	// that is still draining) are dropped so they can't contaminate the
+	// active generation's stream buffer or channels.
+	generation uint64
 
 	// streamBuffer accumulates raw streaming output so we can detect the
 	// "AI:" marker and only forward the actual answer to the UI.
@@ -61,25 +91,68 @@ func NewDefaultAgentCallbackHandler(statusFunc StatusUpdateFunc) *DefaultAgentCa
 	}
 }
 
+// SetGeneration marks the given generation ID as current; events tagged with
+// any other generation are dropped.
+func (h *DefaultAgentCallbackHandler) SetGeneration(gen uint64) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.generation = gen
+}
+
+// isStaleGeneration reports whether the context belongs to a generation other
+// than the current one. Untagged contexts are never considered stale.
+func (h *DefaultAgentCallbackHandler) isStaleGeneration(ctx context.Context) bool {
+	gen, ok := generationFromContext(ctx)
+	if !ok {
+		return false
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return gen != h.generation
+}
+
+// SetStatusFunc replaces the status update callback.
+func (h *DefaultAgentCallbackHandler) SetStatusFunc(fn StatusUpdateFunc) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.onStatusFunc = fn
+}
+
 // SetStreamingCallback sets the function called for each streaming chunk from the LLM.
 func (h *DefaultAgentCallbackHandler) SetStreamingCallback(cb func(chunk string)) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
 	h.streamingCallback = cb
+}
+
+// SetToolCallCallback sets the function called when the agent invokes a tool.
+func (h *DefaultAgentCallbackHandler) SetToolCallCallback(cb func(tool, input string)) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.toolCallCallback = cb
 }
 
 // GetTokenUsage returns the accumulated token usage
 func (h *DefaultAgentCallbackHandler) GetTokenUsage() TokenUsage {
+	h.mu.Lock()
+	defer h.mu.Unlock()
 	return h.tokenUsage
 }
 
 // ResetTokenUsage resets the token usage counter
 func (h *DefaultAgentCallbackHandler) ResetTokenUsage() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
 	h.tokenUsage = TokenUsage{}
 }
 
 // sendStatus sends a status update to the UI if the callback function is set
 func (h *DefaultAgentCallbackHandler) sendStatus(status string) {
-	if h.onStatusFunc != nil {
-		h.onStatusFunc(status)
+	h.mu.Lock()
+	fn := h.onStatusFunc
+	h.mu.Unlock()
+	if fn != nil {
+		fn(status)
 	}
 }
 
@@ -108,6 +181,10 @@ func (h *DefaultAgentCallbackHandler) HandleLLMGenerateContentStart(ctx context.
 func (h *DefaultAgentCallbackHandler) HandleLLMGenerateContentEnd(ctx context.Context, res *llms.ContentResponse) {
 	if res == nil {
 		slog.Debug("Agent Callback: LLM Generate Content End", "response", "nil")
+		return
+	}
+	// Don't let a draining cancelled run skew the next generation's counters.
+	if h.isStaleGeneration(ctx) {
 		return
 	}
 
@@ -148,9 +225,11 @@ func (h *DefaultAgentCallbackHandler) HandleLLMGenerateContentEnd(ctx context.Co
 	totalTokens = promptTokens + completionTokens
 
 	// Accumulate token usage
+	h.mu.Lock()
 	h.tokenUsage.PromptTokens += promptTokens
 	h.tokenUsage.CompletionTokens += completionTokens
 	h.tokenUsage.TotalTokens += totalTokens
+	h.mu.Unlock()
 
 	slog.Debug("Agent Callback: LLM Generate Content End",
 		"choices", len(res.Choices),
@@ -212,6 +291,9 @@ func (h *DefaultAgentCallbackHandler) HandleToolError(ctx context.Context, err e
 
 // HandleAgentAction handles agent actions (tool calls)
 func (h *DefaultAgentCallbackHandler) HandleAgentAction(ctx context.Context, action schema.AgentAction) {
+	if h.isStaleGeneration(ctx) {
+		return
+	}
 	slog.Debug("Agent Callback: Agent Action",
 		"tool_id", action.ToolID,
 		"tool", action.Tool,
@@ -220,6 +302,12 @@ func (h *DefaultAgentCallbackHandler) HandleAgentAction(ctx context.Context, act
 	)
 
 	h.sendStatus(fmt.Sprintf("🎯 Action: %s", action.Tool))
+	h.mu.Lock()
+	cb := h.toolCallCallback
+	h.mu.Unlock()
+	if cb != nil {
+		cb(action.Tool, action.ToolInput)
+	}
 }
 
 // HandleAgentFinish handles agent completion
@@ -247,6 +335,8 @@ func (h *DefaultAgentCallbackHandler) HandleRetrieverEnd(ctx context.Context, qu
 // ResetStreamBuffer resets the streaming filter state so the next generation
 // starts fresh. Call this before each new LLM request.
 func (h *DefaultAgentCallbackHandler) ResetStreamBuffer() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
 	h.streamBuffer = ""
 	h.streamingAnswer = false
 }
@@ -258,31 +348,38 @@ const _aiMarker = "AI:"
 // The conversational agent emits "Thought: … AI: <answer>" — we buffer until
 // we see the "AI:" marker and only forward the answer portion to the UI.
 func (h *DefaultAgentCallbackHandler) HandleStreamingFunc(ctx context.Context, chunk []byte) {
-	if len(chunk) == 0 {
+	if len(chunk) == 0 || h.isStaleGeneration(ctx) {
 		return
 	}
 
 	chunkStr := string(chunk)
 	slog.Debug("Agent Callback: Streaming Chunk", "size", len(chunk), "content", chunkStr)
 
-	if h.streamingAnswer {
+	// Mutate buffer state under the lock, but invoke the callback outside it
+	// so a blocking channel send can't deadlock against a callback swap.
+	h.mu.Lock()
+	cb := h.streamingCallback
+	var toSend string
+	switch {
+	case h.streamingAnswer:
 		// Already past the marker — forward everything directly.
-		if h.streamingCallback != nil {
-			h.streamingCallback(chunkStr)
+		toSend = chunkStr
+	default:
+		// Still buffering the thought process; accumulate and check for marker.
+		h.streamBuffer += chunkStr
+		if idx := strings.Index(h.streamBuffer, _aiMarker); idx >= 0 {
+			h.streamingAnswer = true
+			// Everything after "AI:" is the beginning of the real answer.
+			answer := h.streamBuffer[idx+len(_aiMarker):]
+			h.streamBuffer = "" // free memory
+			if len(strings.TrimSpace(answer)) > 0 {
+				toSend = strings.TrimLeft(answer, " ")
+			}
 		}
-		return
 	}
+	h.mu.Unlock()
 
-	// Still buffering the thought process; accumulate and check for marker.
-	h.streamBuffer += chunkStr
-
-	if idx := strings.Index(h.streamBuffer, _aiMarker); idx >= 0 {
-		h.streamingAnswer = true
-		// Everything after "AI:" is the beginning of the real answer.
-		answer := h.streamBuffer[idx+len(_aiMarker):]
-		h.streamBuffer = "" // free memory
-		if len(strings.TrimSpace(answer)) > 0 && h.streamingCallback != nil {
-			h.streamingCallback(strings.TrimLeft(answer, " "))
-		}
+	if toSend != "" && cb != nil {
+		cb(toSend)
 	}
 }

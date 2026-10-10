@@ -7,6 +7,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/huh/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/GarroshIcecream/yummy/internal/config"
 	db "github.com/GarroshIcecream/yummy/internal/db"
 	common "github.com/GarroshIcecream/yummy/internal/models/common"
@@ -129,14 +130,25 @@ func (m *EditModel) Update(msg tea.Msg) (common.TUIModel, tea.Cmd) {
 func (m *EditModel) View() string {
 	var content strings.Builder
 
-	title := "📝 Edit Recipe"
+	title := "Edit Recipe"
 	if m.isNew {
-		title = "📝 New Recipe"
+		title = "New Recipe"
+	} else if m.name != "" {
+		title += m.theme.Help.Render("  >  " + m.name)
 	}
-	content.WriteString(m.theme.DetailHeader.Render(title))
 	content.WriteString("\n")
+	content.WriteString(m.theme.DetailHeader.Render(title))
+	content.WriteString("\n\n")
 	content.WriteString(m.mainForm.View())
-	return content.String()
+
+	// MaxHeight keeps an oversized form from pushing the status line off
+	// screen; the form itself scrolls within formHeight.
+	return m.theme.DetailContent.
+		Width(m.width).
+		Height(m.height).
+		MaxHeight(m.height).
+		Align(lipgloss.Left, lipgloss.Top).
+		Render(content.String())
 }
 
 func (m *EditModel) FetchRecipe(recipeID uint) (*utils.RecipeRaw, error) {
@@ -360,8 +372,20 @@ func (m *EditModel) setupForms() {
 				Negative("No"),
 		),
 	).
-		WithTheme(huh.ThemeFunc(huh.ThemeCharm)).
-		WithWidth(width)
+		WithTheme(themes.HuhTheme(m.theme)).
+		WithWidth(width).
+		WithHeight(m.formHeight())
+}
+
+// formHeight is the height available to the form below the view's header
+// (blank line, title, blank line).
+func (m *EditModel) formHeight() int {
+	return max(8, m.height-3)
+}
+
+// IsNew reports whether the editor holds a new, not yet saved recipe.
+func (m *EditModel) IsNew() bool {
+	return m.isNew
 }
 
 func (m *EditModel) GetModelState() common.ModelState {
@@ -381,7 +405,7 @@ func (m *EditModel) SetSize(width, height int) {
 	m.height = height
 
 	if m.mainForm != nil {
-		m.mainForm = m.mainForm.WithWidth(max(20, width-4))
+		m.mainForm = m.mainForm.WithWidth(max(20, width-4)).WithHeight(m.formHeight())
 	}
 }
 
@@ -392,6 +416,6 @@ func (m *EditModel) GetCurrentTheme() *themes.Theme {
 func (m *EditModel) SetTheme(theme *themes.Theme) {
 	m.theme = theme
 	if m.mainForm != nil {
-		m.setupForms()
+		m.mainForm = m.mainForm.WithTheme(themes.HuhTheme(theme))
 	}
 }

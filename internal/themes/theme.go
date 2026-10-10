@@ -1,17 +1,30 @@
 package themes
 
 import (
+	"image/color"
 	"strings"
 
 	"charm.land/bubbles/v2/list"
+	"charm.land/bubbles/v2/textarea"
+	"charm.land/bubbles/v2/textinput"
 	"charm.land/lipgloss/v2"
 )
 
 // Theme represents a complete theme with all styling components
 type Theme struct {
-	Name string
+	Name        string
+	Description string
+
+	// Palette holds the semantic colors the theme's styles were derived from.
+	// Renderers that need raw colors (markdown, spinners) read them here.
+	Palette Palette
+
+	// BaseBg is the base background color for the theme, exposed so that
+	// components (viewport, glamour, etc.) can use it directly.
+	BaseBg color.Color
 
 	// Core styles
+	AppBackground lipgloss.Style
 	Title         lipgloss.Style
 	Info          lipgloss.Style
 	Error         lipgloss.Style
@@ -44,6 +57,8 @@ type Theme struct {
 	// Chat styles
 	ChatTitle        lipgloss.Style
 	Chat             lipgloss.Style
+	ChatPanelTitle   lipgloss.Style // brand/title text shown in the chat panel's top border
+	ChatPanelBorder  color.Color    // border color shared by the chat + input + sidebar panels
 	Sidebar          lipgloss.Style
 	SidebarHeader    lipgloss.Style
 	SidebarSection   lipgloss.Style
@@ -191,6 +206,23 @@ type Theme struct {
 	DialogSelectedRow   lipgloss.Style
 	DialogUnselectedRow lipgloss.Style
 
+	// Confirmation dialog: destructive title and buttons (focused / not)
+	DialogDangerTitle         lipgloss.Style
+	DialogDangerButton        lipgloss.Style
+	DialogDangerButtonBlurred lipgloss.Style
+	DialogButton              lipgloss.Style
+	DialogButtonFocused       lipgloss.Style
+
+	// Shared search-input styles for popover dialogs (command palette,
+	// model/session/theme/recipe selectors). Carries the dialog's elevated
+	// background so the input fills its full width uniformly.
+	DialogSearchStyles textinput.Styles
+
+	// SurfaceBg is the background color of elevated surfaces (popover dialogs).
+	// Exposed so views can fill header gaps and spacer lines uniformly via
+	// SurfaceFill instead of re-deriving the color.
+	SurfaceBg color.Color
+
 	// Session selector description rows
 	SessionSelectorSelectedDesc   lipgloss.Style
 	SessionSelectorUnselectedDesc lipgloss.Style
@@ -199,7 +231,12 @@ type Theme struct {
 	SidebarValue lipgloss.Style
 
 	// Chat empty state
-	ChatEmptyState lipgloss.Style
+	ChatEmptyState      lipgloss.Style
+	ChatEmptyStateTitle lipgloss.Style
+
+	// Tool call display styles
+	ToolCallLabel lipgloss.Style
+	ToolCallInput lipgloss.Style
 
 	// Chat mention (@[Recipe]) styles
 	ChatMention              lipgloss.Style // highlighted recipe mentions in messages
@@ -219,6 +256,60 @@ type Theme struct {
 	CookingIngredientHighlight lipgloss.Style
 	CookingNavArrow            lipgloss.Style
 	CookingHelpKey             lipgloss.Style
+}
+
+// SurfaceFill returns a style whose only attribute is the elevated-surface
+// background. Use it to paint header gaps, spacer lines, and any padding that
+// must blend with a popover dialog's surface instead of falling through to the
+// terminal background.
+func (t *Theme) SurfaceFill() lipgloss.Style {
+	return lipgloss.NewStyle().Background(t.SurfaceBg)
+}
+
+// TextAreaStyles assembles a textarea.Styles from the theme's shared Textarea*
+// fields so every multi-line input (chat composer, cooking-mode chat) renders
+// with the same fully-filled background. Focused and blurred states share the
+// styling; the cursor inherits the prompt's accent color.
+func (t *Theme) TextAreaStyles() textarea.Styles {
+	s := textarea.DefaultStyles(true)
+	for _, state := range []*textarea.StyleState{&s.Focused, &s.Blurred} {
+		state.Base = t.TextareaBase
+		state.Text = t.TextareaText
+		state.Placeholder = t.TextareaPlaceholder
+		state.Prompt = t.TextareaPrompt
+		state.CursorLine = t.TextareaCursorLine
+		state.EndOfBuffer = t.TextareaEndOfBuffer
+	}
+	if fg := t.TextareaPrompt.GetForeground(); isSet(fg) {
+		s.Cursor.Color = fg
+	}
+	return s
+}
+
+// isSet reports whether a style color getter returned a real color: unset
+// colors come back as lipgloss.NoColor, not nil.
+func isSet(c color.Color) bool {
+	if c == nil {
+		return false
+	}
+	_, none := c.(lipgloss.NoColor)
+	return !none
+}
+
+// ComposerPromptWidth is the display width of ComposerPrompt.
+const ComposerPromptWidth = 3
+
+// ComposerPrompt is the prompt for multi-line composers (chat, cooking chat):
+// " > " on the first row only, so an empty composer reads as one field. The
+// leading space is part of the prompt rather than textarea Base padding,
+// because the textarea applies Base padding to the prompt again when it
+// renders the placeholder, which shifted the prompt a column to the right
+// until the user started typing.
+func ComposerPrompt(info textarea.PromptInfo) string {
+	if info.LineNumber == 0 {
+		return " > "
+	}
+	return "   "
 }
 
 // Helper methods for main menu rendering

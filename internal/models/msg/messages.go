@@ -59,6 +59,17 @@ type StreamingChunkMsg struct {
 	GenerationID uint64
 }
 
+type ToolCallMsg struct {
+	Tool         string
+	Input        string
+	GenerationID uint64
+}
+
+// DeleteRecipeMsg is sent once the user confirms deleting a recipe.
+type DeleteRecipeMsg struct {
+	RecipeID uint
+}
+
 type SetFavouriteMsg struct {
 	RecipeID uint
 }
@@ -72,6 +83,10 @@ type ModelSelectedMsg struct {
 }
 
 type ThemeSelectedMsg struct {
+	ThemeName string
+}
+
+type ThemePreviewMsg struct {
 	ThemeName string
 }
 
@@ -185,6 +200,10 @@ func SendModelSelectedMsg(modelName string) tea.Cmd {
 
 func SendThemeSelectedMsg(themeName string) tea.Cmd {
 	return CmdHandler(ThemeSelectedMsg{ThemeName: themeName})
+}
+
+func SendThemePreviewMsg(themeName string) tea.Cmd {
+	return CmdHandler(ThemePreviewMsg{ThemeName: themeName})
 }
 
 func SendLoadSessionMsg(sessionID uint) tea.Cmd {

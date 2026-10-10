@@ -65,6 +65,12 @@ func (s *SessionLog) CreateSession() (uint, error) {
 
 // SaveSessionMessage saves a message to the database
 func (s *SessionLog) SaveSessionMessage(sessionID uint, message string, role llms.ChatMessageType, modelName string, inputTokens int, outputTokens int, totalTokens int) error {
+	return s.SaveSessionMessageWithToolCalls(sessionID, message, role, modelName, inputTokens, outputTokens, totalTokens, "")
+}
+
+// SaveSessionMessageWithToolCalls saves a message together with the
+// JSON-encoded tool calls that produced it.
+func (s *SessionLog) SaveSessionMessageWithToolCalls(sessionID uint, message string, role llms.ChatMessageType, modelName string, inputTokens int, outputTokens int, totalTokens int, toolCalls string) error {
 	// Convert ChatMessageType to string for database storage
 	roleStr := string(role)
 
@@ -76,6 +82,7 @@ func (s *SessionLog) SaveSessionMessage(sessionID uint, message string, role llm
 		InputTokens:  inputTokens,
 		OutputTokens: outputTokens,
 		TotalTokens:  totalTokens,
+		ToolCalls:    toolCalls,
 	}
 
 	if err := s.conn.Create(&sessionMessage).Error; err != nil {

@@ -12,6 +12,7 @@ import (
 	common "github.com/GarroshIcecream/yummy/internal/models/common"
 	messages "github.com/GarroshIcecream/yummy/internal/models/msg"
 	themes "github.com/GarroshIcecream/yummy/internal/themes"
+	utils "github.com/GarroshIcecream/yummy/internal/utils"
 )
 
 type modelEntry struct {
@@ -45,6 +46,7 @@ func NewModelSelectorDialog(installedModels []string, currentModelName string, t
 
 	ti := textinput.New()
 	ti.Placeholder = "Search..."
+	ti.SetStyles(theme.DialogSearchStyles)
 	ti.Focus()
 	ti.CharLimit = 64
 	if w := modelSelectorConfig.Width - 8; w > 10 {
@@ -127,18 +129,12 @@ func (m *ModelSelectorDialogCmp) applyFilter() {
 }
 
 func (m *ModelSelectorDialogCmp) View() tea.View {
-	innerWidth := m.width - 6
-	if innerWidth < 20 {
-		innerWidth = 20
-	}
+	innerWidth := max(m.width-6, 20)
 
 	// Header
 	titleLeft := m.theme.ModelSelectorTitle.Render("Select Model")
 	escHint := m.theme.ModelSelectorHelp.Render("esc")
-	pad := innerWidth - lipgloss.Width(titleLeft) - lipgloss.Width(escHint)
-	if pad < 1 {
-		pad = 1
-	}
+	pad := max(innerWidth-lipgloss.Width(titleLeft)-lipgloss.Width(escHint), 1)
 	header := titleLeft + strings.Repeat(" ", pad) + escHint
 
 	// Search
@@ -163,6 +159,7 @@ func (m *ModelSelectorDialogCmp) View() tea.View {
 			rows = append(rows, row)
 		} else {
 			rows = append(rows, m.theme.DialogUnselectedRow.
+				Width(innerWidth).
 				Render(line))
 		}
 	}
@@ -173,7 +170,7 @@ func (m *ModelSelectorDialogCmp) View() tea.View {
 
 	parts := []string{header, "", searchLine, sep}
 	parts = append(parts, rows...)
-	content := lipgloss.JoinVertical(lipgloss.Left, parts...)
+	content := utils.FillBackground(lipgloss.JoinVertical(lipgloss.Left, parts...), m.theme.SurfaceBg, innerWidth)
 
 	rendered := m.theme.ModelSelectorDialog.
 		Width(m.width).

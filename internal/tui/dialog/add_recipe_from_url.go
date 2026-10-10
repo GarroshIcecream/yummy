@@ -61,10 +61,14 @@ func NewAddRecipeFromURLDialog(cookbook *db.CookBook, theme *themes.Theme) (*Add
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 
-	// Resolve LLM model name: use dedicated model if set, otherwise fall back to chat default.
-	llmModel := dialogConfig.LLMIngredientModel
-	if llmModel == "" {
-		llmModel = cfg.Chat.DefaultModel
+	// Resolve LLM model name: use dedicated model if set, otherwise fall back
+	// to chat default. An empty model disables every AI step of the import.
+	llmModel := ""
+	if dialogConfig.AIParsing {
+		llmModel = dialogConfig.LLMIngredientModel
+		if llmModel == "" {
+			llmModel = cfg.Chat.DefaultModel
+		}
 	}
 
 	return &AddRecipeFromURLDialogCmp{
@@ -120,6 +124,14 @@ func (m *AddRecipeFromURLDialogCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.loading {
 			return m, nil
 		}
+		// tab: skip the import and write the recipe by hand instead.
+		if msg.String() == "tab" {
+			return m, tea.Sequence(
+				messages.SendCloseModalViewMsg(),
+				messages.SendSessionStateMsg(common.SessionStateEdit),
+				messages.SendEditRecipeMsg(nil),
+			)
+		}
 		if key.Matches(msg, addRecipeSubmitKey) {
 			// Second Enter when a duplicate was found — navigate to that recipe
 			if m.existingID != 0 {
@@ -169,23 +181,15 @@ func (m *AddRecipeFromURLDialogCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(cmds...)
 }
 
-func (m *AddRecipeFromURLDialogCmp) View() tea.View {
-	innerWidth := m.width - 6 // account for dialog border (2) + padding (4)
-	if innerWidth < 40 {
-		innerWidth = 40
-	}
+// Busy reports whether a recipe import is running.
+func (m *AddRecipeFromURLDialogCmp) Busy() (bool, string) {
+	return m.loading, "Importing recipe"
+}
 
-	// Thick block border for a floating-panel / card look
-	dialogBorder := lipgloss.Border{
-		Top:         "▀",
-		Bottom:      "▄",
-		Left:        "▌",
-		Right:       "▐",
-		TopLeft:     "▛",
-		TopRight:    "▜",
-		BottomLeft:  "▙",
-		BottomRight: "▟",
-	}
+func (m *AddRecipeFromURLDialogCmp) View() tea.View {
+	innerWidth := max(
+		// account for dialog border (2) + padding (4)
+		m.width-6, 40)
 
 	// All elements share the same width so nothing drifts.
 	row := func(s lipgloss.Style, align lipgloss.Position, text string) string {
@@ -193,13 +197,18 @@ func (m *AddRecipeFromURLDialogCmp) View() tea.View {
 	}
 
 	// Title — bold, centered
-	title := row(m.theme.AddRecipeFromURLTitle, lipgloss.Center, "Add Recipe from URL")
+	title := row(m.theme.AddRecipeFromURLTitle, lipgloss.Center, "Add Recipe")
 
 	// Separator
 	sep := m.theme.AddRecipeFromURLSeparator.Render(strings.Repeat("─", innerWidth))
 
 	// Label
-	label := row(m.theme.AddRecipeFromURLPrompt, lipgloss.Center, "Paste a recipe URL")
+	label := row(m.theme.AddRecipeFromURLPrompt, lipgloss.Center, "Paste a recipe URL to import it")
+	aiMode := "AI parsing on"
+	if m.llmIngredientModel == "" {
+		aiMode = "AI parsing off"
+	}
+	aiLine := row(m.theme.AddRecipeFromURLHelp, lipgloss.Center, aiMode+" | change it in ctrl+p")
 
 	// Input field — material-design inspired: bottom line only, no box
 	inputBorder := lipgloss.Border{Bottom: "━"}
@@ -230,12 +239,14 @@ func (m *AddRecipeFromURLDialogCmp) View() tea.View {
 
 	// Help — subtle keys, centered
 	enterHelp := m.keyMap.Enter.Help().Key
-	escHelp := m.keyMap.Quit.Help().Key
+	escHelp := "esc"
 	enterKey := m.theme.AddRecipeFromURLKeyHighlight.Render(enterHelp)
 	escKey := m.theme.AddRecipeFromURLKeyHighlight.Render(escHelp)
-	dot := m.theme.AddRecipeFromURLHelp.Render(" · ")
+	dot := m.theme.AddRecipeFromURLHelp.Render(" | ")
 	helpText := enterKey +
-		m.theme.AddRecipeFromURLHelp.Render(" submit") + dot +
+		m.theme.AddRecipeFromURLHelp.Render(" import") + dot +
+		m.theme.AddRecipeFromURLKeyHighlight.Render("tab") +
+		m.theme.AddRecipeFromURLHelp.Render(" write manually") + dot +
 		escKey + m.theme.AddRecipeFromURLHelp.Render(" cancel")
 	helpLine := lipgloss.NewStyle().Width(innerWidth).Align(lipgloss.Center).Render(helpText)
 
@@ -244,15 +255,16 @@ func (m *AddRecipeFromURLDialogCmp) View() tea.View {
 	if status != "" {
 		parts = append(parts, "", status)
 	}
-	parts = append(parts, "", helpLine)
+	parts = append(parts, "", aiLine, helpLine)
 
 	content := lipgloss.JoinVertical(lipgloss.Left, parts...)
+	// Fill the interior with the elevated surface so the dialog reads as a solid
+	// card, not a bordered box with a transparent interior showing the canvas
+	// behind it (the foreground-only rows leave bare cells otherwise).
+	content = utils.FillBackground(content, m.theme.SurfaceBg, innerWidth)
 
 	// No Height set — dialog shrinks to fit content
-	rendered := lipgloss.NewStyle().
-		Border(dialogBorder).
-		BorderForeground(m.theme.AddRecipeFromURLAccent.GetForeground()).
-		Padding(1, 2).
+	rendered := m.theme.AddRecipeFromURLDialog.
 		Width(m.width).
 		Render(content)
 
@@ -261,16 +273,14 @@ func (m *AddRecipeFromURLDialogCmp) View() tea.View {
 
 func (m *AddRecipeFromURLDialogCmp) SetSize(width, height int) {
 	if width > 0 {
-		m.width = clampModalWidth(width, m.width, 40)
-		if m.width > 70 {
-			m.width = 70
-		}
+		m.width = min(clampModalWidth(width, m.width, 40), 70)
 	}
 	m.height = clampModalHeight(height, m.height, 10)
 	// textinput.Width controls how many chars are visible before horizontal
 	// scrolling kicks in. Account for: dialog border (2) + dialog padding (4)
-	// + input padding (2) = 8 chars of overhead.
-	if w := m.width - 8; w > 20 {
+	// + input padding (2) + the "> " prompt (2) + the cursor cell (1) = 11.
+	// Any less and a long URL wraps onto a second line instead of scrolling.
+	if w := m.width - 11; w > 20 {
 		m.urlInput.SetWidth(w)
 	} else if m.urlInput.Width() <= 0 {
 		m.urlInput.SetWidth(48)
@@ -329,6 +339,7 @@ func scrapeURLCmd(url, pythonPath, llmModel string) tea.Cmd {
 func parseAndSaveCmd(s scrape.Scraper, url, llmModel string, cookbook *db.CookBook) tea.Cmd {
 	return func() tea.Msg {
 		recipeData := recipeRawFromScraper(s, url, llmModel)
+		suggestCategories(recipeData, s, llmModel, cookbook)
 
 		recipeID, err := cookbook.SaveScrapedRecipe(recipeData)
 		if err != nil {
@@ -465,6 +476,36 @@ func recipeRawFromScraper(s scrape.Scraper, sourceURL string, llmModel string) *
 		}
 	}
 	return r
+}
+
+// suggestCategories fills in categories when the site provides none: first
+// from the recipe's cuisine, then (with AI parsing on) from the LLM, which is
+// steered towards the cookbook's existing categories.
+func suggestCategories(r *utils.RecipeRaw, s scrape.Scraper, llmModel string, cookbook *db.CookBook) {
+	if len(r.Metadata.Categories) > 0 {
+		return
+	}
+	if cuisines, ok := s.Cuisine(); ok {
+		r.Metadata.Categories = append(r.Metadata.Categories, cuisines...)
+		return
+	}
+	if llmModel == "" {
+		return
+	}
+	existing, err := cookbook.GetAllCategories()
+	if err != nil {
+		slog.Error("Failed to load categories for suggestion", "error", err)
+	}
+	names := make([]string, 0, len(r.Metadata.Ingredients))
+	for _, ing := range r.Metadata.Ingredients {
+		names = append(names, ing.Name)
+	}
+	cats, err := utils.SuggestCategories(context.Background(), r.RecipeName, names, existing, llmModel)
+	if err != nil {
+		slog.Error("LLM category suggestion failed, recipe stays uncategorised", "error", err)
+		return
+	}
+	r.Metadata.Categories = cats
 }
 
 // parseIngredientList parses a list of raw ingredient strings. When useLLM is

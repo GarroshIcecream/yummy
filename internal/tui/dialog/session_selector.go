@@ -12,6 +12,7 @@ import (
 	common "github.com/GarroshIcecream/yummy/internal/models/common"
 	messages "github.com/GarroshIcecream/yummy/internal/models/msg"
 	themes "github.com/GarroshIcecream/yummy/internal/themes"
+	utils "github.com/GarroshIcecream/yummy/internal/utils"
 )
 
 const maxVisibleSessions = 8
@@ -60,6 +61,7 @@ func NewSessionSelectorDialog(sessionLog *db.SessionLog, theme *themes.Theme, cu
 
 	ti := textinput.New()
 	ti.Placeholder = "Search..."
+	ti.SetStyles(theme.DialogSearchStyles)
 	ti.Focus()
 	ti.CharLimit = 64
 	if w := sessionSelectorConfig.Width - 8; w > 10 {
@@ -158,18 +160,12 @@ func (m *SessionSelectorDialogCmp) applyFilter() {
 }
 
 func (m *SessionSelectorDialogCmp) View() tea.View {
-	innerWidth := m.width - 6
-	if innerWidth < 20 {
-		innerWidth = 20
-	}
+	innerWidth := max(m.width-6, 20)
 
 	// Header
 	titleLeft := m.theme.SessionSelectorTitle.Render("Sessions")
 	escHint := m.theme.SessionSelectorHelp.Render("esc")
-	pad := innerWidth - lipgloss.Width(titleLeft) - lipgloss.Width(escHint)
-	if pad < 1 {
-		pad = 1
-	}
+	pad := max(innerWidth-lipgloss.Width(titleLeft)-lipgloss.Width(escHint), 1)
 	header := titleLeft + strings.Repeat(" ", pad) + escHint
 
 	// Search
@@ -179,15 +175,9 @@ func (m *SessionSelectorDialogCmp) View() tea.View {
 	sep := m.theme.SessionSelectorHelp.Render(strings.Repeat("─", innerWidth))
 
 	// Visible window
-	end := m.scrollOffset + maxVisibleSessions
-	if end > len(m.filtered) {
-		end = len(m.filtered)
-	}
+	end := min(m.scrollOffset+maxVisibleSessions, len(m.filtered))
 
-	maxTitleLen := innerWidth - 4
-	if maxTitleLen < 10 {
-		maxTitleLen = 10
-	}
+	maxTitleLen := max(innerWidth-4, 10)
 
 	var rows []string
 
@@ -231,8 +221,12 @@ func (m *SessionSelectorDialogCmp) View() tea.View {
 			rows = append(rows, titleRow+"\n"+descRow)
 		} else {
 			titleRow := m.theme.DialogUnselectedRow.
+				Width(innerWidth).
+				MaxWidth(innerWidth).
 				Render(line)
 			descRow := m.theme.SessionSelectorUnselectedDesc.
+				Width(innerWidth).
+				MaxWidth(innerWidth).
 				Render(descLine)
 			rows = append(rows, titleRow+"\n"+descRow)
 		}
@@ -249,7 +243,7 @@ func (m *SessionSelectorDialogCmp) View() tea.View {
 
 	parts := []string{header, "", searchLine, sep}
 	parts = append(parts, rows...)
-	content := lipgloss.JoinVertical(lipgloss.Left, parts...)
+	content := utils.FillBackground(lipgloss.JoinVertical(lipgloss.Left, parts...), m.theme.SurfaceBg, innerWidth)
 
 	rendered := m.theme.SessionSelectorDialog.
 		Width(m.width).

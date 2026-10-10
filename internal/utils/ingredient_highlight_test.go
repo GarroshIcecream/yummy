@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -320,5 +321,39 @@ func TestHighlightIngredientsInMarkdown_StopWords(t *testing.T) {
 	result2 := HighlightIngredientsInMarkdown(input2, ingredients)
 	if !strings.Contains(result2, "**basil**") {
 		t.Errorf("expected 'basil' to be highlighted, got %q", result2)
+	}
+}
+
+func TestCleanIngredientDetails(t *testing.T) {
+	cases := map[string]string{
+		"(38g)":                 "38g",
+		"((13g))":               "13g",
+		"*optional":             "optional",
+		", at room temperature": "at room temperature",
+		"fine sea":              "fine sea",
+		"(7-oz) (200g)":         "(7-oz) (200g)", // two groups: leave alone
+		"":                      "",
+	}
+	for in, want := range cases {
+		if got := CleanIngredientDetails(in); got != want {
+			t.Errorf("CleanIngredientDetails(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestCollectCategoryStrings(t *testing.T) {
+	var v any
+	for in, want := range map[string]int{
+		`{"categories": ["Dessert", "Italian"]}`: 2,
+		`["Dessert"]`:                            1,
+		`{"Dessert": "Sweet"}`:                   2,
+		`{"categories": ["Dessert", "dessert"]}`: 1,
+	} {
+		if err := json.Unmarshal([]byte(in), &v); err != nil {
+			t.Fatal(err)
+		}
+		if got := collectCategoryStrings(v); len(got) != want {
+			t.Errorf("%s: got %v, want %d categories", in, got, want)
+		}
 	}
 }

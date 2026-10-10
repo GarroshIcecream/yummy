@@ -32,7 +32,8 @@ func (f *FlexibleString) UnmarshalJSON(data []byte) error {
 type RecipeScrapersJSON struct {
 	Author           string            `json:"author"`
 	CanonicalURL     string            `json:"canonical_url"`
-	Category         string            `json:"category"`
+	Category         FlexibleString    `json:"category"`
+	Cuisine          FlexibleString    `json:"cuisine"`
 	CookTime         *int              `json:"cook_time"`
 	Host             string            `json:"host"`
 	Image            string            `json:"image"`

@@ -70,13 +70,8 @@ func NewMainMenuModel(cookbook *db.CookBook, theme *themes.Theme) (*MainMenuMode
 			action:      dialog.ActionRecipeSelector,
 		},
 		{
-			title:       "Create Recipe",
-			description: "Write a recipe manually from scratch",
-			action:      dialog.ActionCreateRecipe,
-		},
-		{
 			title:       "Add Recipe",
-			description: "Import a recipe from any URL",
+			description: "Import one from a URL or write it yourself",
 			action:      dialog.ActionAddRecipe,
 		},
 		{
@@ -213,7 +208,7 @@ func (m *MainMenuModel) View() string {
 	content.WriteString(help)
 
 	if m.scraperVersionLoaded {
-		dot := helpDesc.Render(" · ")
+		dot := helpDesc.Render(" | ")
 		var versionLine string
 		if m.scraperVersion == "" {
 			versionLine = helpDesc.Render("recipe-scrapers") + dot + m.theme.Warning.Render("not installed")

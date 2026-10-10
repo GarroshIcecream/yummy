@@ -1,18 +1,78 @@
 package themes
 
 import (
+	"embed"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"os"
+	"sort"
 
 	"github.com/GarroshIcecream/yummy/internal/config"
 )
 
+//go:embed builtin/*.yaml
+var builtinThemeFS embed.FS
+
+// BuiltinThemes returns the default theme followed by the themes shipped with
+// the binary (internal/themes/builtin), sorted by name.
+func BuiltinThemes() []Theme {
+	themes := []Theme{NewDefaultTheme()}
+
+	entries, err := fs.ReadDir(builtinThemeFS, "builtin")
+	if err != nil {
+		slog.Error("Failed to read built-in themes", "error", err)
+		return themes
+	}
+	var loaded []Theme
+	for _, entry := range entries {
+		data, err := builtinThemeFS.ReadFile("builtin/" + entry.Name())
+		if err != nil {
+			slog.Error("Failed to read built-in theme", "name", entry.Name(), "error", err)
+			continue
+		}
+		theme, err := parseYAMLTheme(data)
+		if err != nil {
+			slog.Error("Failed to parse built-in theme", "name", entry.Name(), "error", err)
+			continue
+		}
+		loaded = append(loaded, *theme)
+	}
+	sort.Slice(loaded, func(i, j int) bool { return loaded[i].Name < loaded[j].Name })
+	return append(themes, loaded...)
+}
+
+// mergeThemes layers custom themes over the built-in ones: a custom theme with
+// the same name as a built-in replaces it in place, others are appended.
+func mergeThemes(builtin, custom []Theme) []Theme {
+	themes := append([]Theme(nil), builtin...)
+	for _, c := range custom {
+		replaced := false
+		for i := range themes {
+			if themes[i].Name == c.Name {
+				themes[i] = c
+				replaced = true
+				break
+			}
+		}
+		if !replaced {
+			themes = append(themes, c)
+		}
+	}
+	return themes
+}
+
 // ThemeManager handles theme operations
 type ThemeManager struct {
-	currentTheme *Theme
-	themes       []Theme
-	themesDir    string
+	currentThemeName string
+	themes           []Theme
+	themesDir        string
+}
+
+// ThemeInfo represents theme metadata for selection UIs.
+type ThemeInfo struct {
+	Name        string
+	Description string
 }
 
 // NewThemeManager creates a new theme manager with a specific themes directory
@@ -27,30 +87,26 @@ func NewThemeManager(themesDir string) (*ThemeManager, error) {
 		}
 	}
 
-	// Start with default theme
-	themes := []Theme{NewDefaultTheme()}
-
-	// Load custom themes from directory
+	// Built-in themes, overridden/extended by custom themes from the directory
 	customThemes, err := LoadThemesFromDirectory(themesDir)
 	if err != nil {
 		slog.Error("Failed to load custom themes", "error", err)
-	} else {
-		themes = append(themes, customThemes...)
 	}
+	themes := mergeThemes(BuiltinThemes(), customThemes)
 
 	// Find current theme
-	currentTheme := themes[0]
+	currentThemeName := themes[0].Name
 	for _, theme := range themes {
 		if theme.Name == config.Theme {
-			currentTheme = theme
+			currentThemeName = theme.Name
 			break
 		}
 	}
 
 	return &ThemeManager{
-		themes:       themes,
-		themesDir:    themesDir,
-		currentTheme: &currentTheme,
+		themes:           themes,
+		themesDir:        themesDir,
+		currentThemeName: currentThemeName,
 	}, nil
 }
 
@@ -61,9 +117,9 @@ func (tm *ThemeManager) RegisterTheme(theme Theme) {
 
 // SetTheme sets the current theme
 func (tm *ThemeManager) SetThemeByName(name string) error {
-	for _, theme := range tm.themes {
-		if theme.Name == name {
-			tm.currentTheme = &theme
+	for i := range tm.themes {
+		if tm.themes[i].Name == name {
+			tm.currentThemeName = name
 			return nil
 		}
 	}
@@ -72,7 +128,15 @@ func (tm *ThemeManager) SetThemeByName(name string) error {
 
 // GetCurrentTheme returns the current theme
 func (tm *ThemeManager) GetCurrentTheme() *Theme {
-	return tm.currentTheme
+	for i := range tm.themes {
+		if tm.themes[i].Name == tm.currentThemeName {
+			return &tm.themes[i]
+		}
+	}
+	if len(tm.themes) == 0 {
+		return nil
+	}
+	return &tm.themes[0]
 }
 
 // GetAvailableThemes returns a list of available theme names
@@ -80,6 +144,18 @@ func (tm *ThemeManager) GetAvailableThemes() []string {
 	themes := make([]string, 0, len(tm.themes))
 	for _, theme := range tm.themes {
 		themes = append(themes, theme.Name)
+	}
+	return themes
+}
+
+// GetAvailableThemeInfos returns available themes with metadata for selection UIs.
+func (tm *ThemeManager) GetAvailableThemeInfos() []ThemeInfo {
+	themes := make([]ThemeInfo, 0, len(tm.themes))
+	for _, theme := range tm.themes {
+		themes = append(themes, ThemeInfo{
+			Name:        theme.Name,
+			Description: theme.Description,
+		})
 	}
 	return themes
 }
@@ -95,10 +171,10 @@ func (tm *ThemeManager) ReloadThemes() error {
 		return fmt.Errorf("failed to reload themes: %v", err)
 	}
 
-	themes := make([]Theme, 0)
-	themes = append(themes, NewDefaultTheme())
-	themes = append(themes, customThemes...)
-	tm.themes = themes
+	tm.themes = mergeThemes(BuiltinThemes(), customThemes)
+	if err := tm.SetThemeByName(tm.currentThemeName); err != nil && len(tm.themes) > 0 {
+		tm.currentThemeName = tm.themes[0].Name
+	}
 
 	return nil
 }

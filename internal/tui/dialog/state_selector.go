@@ -12,6 +12,7 @@ import (
 	common "github.com/GarroshIcecream/yummy/internal/models/common"
 	messages "github.com/GarroshIcecream/yummy/internal/models/msg"
 	themes "github.com/GarroshIcecream/yummy/internal/themes"
+	utils "github.com/GarroshIcecream/yummy/internal/utils"
 )
 
 type StateSelectorDialogCmp struct {
@@ -122,14 +123,8 @@ func (s *StateSelectorDialogCmp) View() tea.View {
 	// Header: title left, esc hint right
 	titleLeft := s.theme.StateSelectorTitle.Render("Switch View")
 	escHint := s.theme.StateSelectorHelp.Render("esc")
-	innerWidth := s.width - 6
-	if innerWidth < 20 {
-		innerWidth = 20
-	}
-	pad := innerWidth - lipgloss.Width(titleLeft) - lipgloss.Width(escHint)
-	if pad < 1 {
-		pad = 1
-	}
+	innerWidth := max(s.width-6, 20)
+	pad := max(innerWidth-lipgloss.Width(titleLeft)-lipgloss.Width(escHint), 1)
 	header := titleLeft + strings.Repeat(" ", pad) + escHint
 
 	// Separator
@@ -148,13 +143,16 @@ func (s *StateSelectorDialogCmp) View() tea.View {
 				Render(line)
 			rows = append(rows, row)
 		} else {
-			rows = append(rows, s.theme.StateSelectorItem.Render(line))
+			row := s.theme.StateSelectorItem.
+				Width(innerWidth).
+				Render(line)
+			rows = append(rows, row)
 		}
 	}
 
 	parts := []string{header, sep}
 	parts = append(parts, rows...)
-	content := lipgloss.JoinVertical(lipgloss.Left, parts...)
+	content := utils.FillBackground(lipgloss.JoinVertical(lipgloss.Left, parts...), s.theme.SurfaceBg, innerWidth)
 
 	dialogBox := s.theme.StateSelectorDialog.Render(content)
 	return tea.NewView(dialogBox)

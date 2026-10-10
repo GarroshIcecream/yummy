@@ -1,233 +1,176 @@
 package themes
 
 import (
+	"image/color"
+
 	"charm.land/bubbles/v2/list"
 	"charm.land/bubbles/v2/textinput"
 	lipgloss "charm.land/lipgloss/v2"
 )
 
-// NewDefaultTheme creates a new default theme with all styles initialized
+// NewDefaultTheme creates the built-in default theme.
 func NewDefaultTheme() Theme {
+	return NewThemeFromPalette(
+		"default",
+		"Built-in default theme with bright accents on a dark surface",
+		DefaultPalette(),
+	)
+}
+
+// NewThemeFromPalette derives every style in the app from a palette. All
+// views share the same small vocabulary so the UI stays consistent under any
+// theme:
+//
+//   - everything sits on p.Base; the status bar and the selected main-menu
+//     item are raised onto p.Surface; popover dialogs float on p.Overlay;
+//   - every dialog has the same rounded p.Primary border, bold title, subtle
+//     help text and p.Selection-highlighted row;
+//   - text uses three levels (Text / Muted / Subtle), accents are Primary
+//     (focus, titles), Secondary (assistant, links) and Accent (amounts,
+//     stars, timers).
+func NewThemeFromPalette(name, description string, p Palette) Theme {
 	t := Theme{
-		Name: "default",
+		Name:        name,
+		Description: description,
+		Palette:     p,
 	}
 
+	base := p.Base
+	surface := p.Surface
+	overlay := p.Overlay
+	selection := p.Selection
+	border := p.Border
+	text := p.Text
+	muted := p.Muted
+	subtle := p.Subtle
+	primary := p.Primary
+	secondary := p.Secondary
+	accent := p.Accent
+
+	t.BaseBg = base
+	t.SurfaceBg = overlay
+
+	fg := func(c color.Color) lipgloss.Style { return lipgloss.NewStyle().Foreground(c) }
+
 	// Core styles
+	t.AppBackground = lipgloss.NewStyle().Background(base).Foreground(text)
+
 	t.Title = lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("#FFFFFF")).
-		Background(lipgloss.Color("#FF6B6B")).
+		Foreground(p.OnPrimary).
+		Background(primary).
 		Padding(0, 4)
 
 	b := lipgloss.RoundedBorder()
 	b.Left = "┤"
 	t.Info = lipgloss.NewStyle().
 		BorderStyle(b).
-		Foreground(lipgloss.Color("#87CEEB"))
+		BorderForeground(border).
+		Foreground(secondary)
 
-	t.Error = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#FF6B6B")).
-		Padding(0, 2)
-
-	t.Header = lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color("#98FB98")).
-		PaddingTop(1).
-		PaddingBottom(1)
-
-	t.Ingredient = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#DDA0DD")).
-		PaddingLeft(2)
+	t.Error = fg(p.Error).Padding(0, 2)
+	t.Header = fg(primary).Bold(true).PaddingTop(1).PaddingBottom(1)
+	t.Ingredient = fg(text).PaddingLeft(2)
 
 	t.Doc = lipgloss.NewStyle().
+		Foreground(text).
+		Background(base).
 		Padding(0, 1)
 
 	t.DetailContent = lipgloss.NewStyle().
+		Foreground(text).
+		Background(base).
 		Padding(0, 2)
 
-	t.DetailHeader = lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color("#4a9eff"))
+	t.DetailHeader = fg(primary).Bold(true)
+	t.DetailFooter = fg(subtle)
+	t.ScrollBar = fg(primary)
+	t.Loading = fg(muted).Italic(true)
+	t.Instruction = fg(accent).PaddingLeft(2)
 
-	t.DetailFooter = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#555555"))
+	// Inline status colors. Foreground only so they blend into whatever
+	// surface they are rendered on.
+	t.Warning = fg(p.Warning)
+	t.Success = fg(p.Success)
+	t.Help = fg(subtle)
 
-	t.ScrollBar = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#87CEEB"))
-
-	t.Loading = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#FFB6B6")).
-		Italic(true)
-
-	t.Instruction = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#F0E68C")).
-		PaddingLeft(2)
-
-	// Status line styles
-	statusBg := lipgloss.Color("#1a1a1a")
-
-	t.Warning = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#F0E68C")).
-		Background(statusBg).
-		Padding(0, 1)
-
-	t.Success = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#4ECDC4")).
-		Background(statusBg).
-		Padding(0, 1)
-
-	t.Help = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#626262")).
-		Background(statusBg).
-		Padding(0, 1)
-
-	t.StatusLine = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#626262")).
-		Background(statusBg).
-		Padding(0, 1)
-
-	t.StatusLineLeft = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#cccccc")).
-		Background(statusBg).
-		Padding(0, 1)
-
-	t.StatusLineRight = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#888888")).
-		Background(statusBg).
-		Padding(0, 1)
-
+	// Status line: one raised bar across the bottom of the screen.
+	t.StatusLine = fg(subtle).Background(surface).Padding(0, 1)
+	t.StatusLineLeft = fg(text).Background(surface).Padding(0, 1)
+	t.StatusLineRight = fg(muted).Background(surface).Padding(0, 1)
 	t.StatusLineMode = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#FFFFFF")).
-		Background(lipgloss.Color("#4a9eff")).
+		Foreground(p.OnPrimary).
+		Background(primary).
 		Bold(true).
 		Padding(0, 1)
-
-	t.StatusLineFile = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#cccccc")).
-		Background(statusBg).
-		Padding(0, 1)
-
-	t.StatusLineInfo = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#888888")).
-		Background(statusBg).
-		Padding(0, 1)
-
-	t.StatusLineSeparator = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#444444")).
-		Background(statusBg)
+	t.StatusLineFile = fg(text).Background(surface).Padding(0, 1)
+	t.StatusLineInfo = fg(muted).Background(surface).Padding(0, 1)
+	t.StatusLineSeparator = fg(border).Background(surface)
 
 	// List styles
-	accentBlue := lipgloss.Color("#4a9eff")
-	mutedGray := lipgloss.Color("#626262")
-	dimGray := lipgloss.Color("#3a3a3a")
-
 	filterStyles := textinput.DefaultStyles(true)
-	filterPrompt := lipgloss.NewStyle().Foreground(accentBlue).Bold(true).Padding(0, 0, 0, 2)
+	filterPrompt := fg(primary).Background(base).Bold(true)
 	filterStyles.Focused.Prompt = filterPrompt
 	filterStyles.Blurred.Prompt = filterPrompt
-	filterStyles.Cursor.Color = accentBlue
+	filterStyles.Cursor.Color = primary
+	filterStyles.Focused.Text = fg(text).Background(base)
+	filterStyles.Blurred.Text = fg(text).Background(base)
+	filterStyles.Focused.Placeholder = fg(subtle).Background(base)
+	filterStyles.Blurred.Placeholder = fg(subtle).Background(base)
+	filterStyles.Focused.Suggestion = fg(subtle).Background(base)
+	filterStyles.Blurred.Suggestion = fg(subtle).Background(base)
 
 	t.ListStyles = list.Styles{
-		TitleBar: lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#FFFFFF")).
-			Bold(true).
-			Padding(1, 2),
-		Title: lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#FFFFFF")).
-			Bold(true).
-			Padding(0, 1),
-		Spinner: lipgloss.NewStyle().
-			Foreground(accentBlue),
-		Filter: filterStyles,
+		TitleBar: lipgloss.NewStyle().Padding(1, 0, 1, 2),
+		Title:    fg(primary).Bold(true),
+		Spinner:  fg(primary),
+		Filter:   filterStyles,
 
-		DefaultFilterCharacterMatch: lipgloss.NewStyle().
-			Foreground(accentBlue).
-			Underline(true),
-		StatusBar: lipgloss.NewStyle().
-			Foreground(mutedGray).
-			Padding(0, 0, 1, 2),
-		StatusEmpty: lipgloss.NewStyle().
-			Foreground(mutedGray),
-		StatusBarActiveFilter: lipgloss.NewStyle().
-			Foreground(accentBlue),
-		StatusBarFilterCount: lipgloss.NewStyle().
-			Foreground(mutedGray),
-		NoItems: lipgloss.NewStyle().
-			Foreground(mutedGray).
-			Padding(0, 0, 0, 2),
-		PaginationStyle: lipgloss.NewStyle().
-			PaddingLeft(2),
-		HelpStyle: lipgloss.NewStyle().
-			Foreground(mutedGray).
-			Padding(1, 0, 0, 2),
-		ActivePaginationDot: lipgloss.NewStyle().
-			Foreground(accentBlue),
-		InactivePaginationDot: lipgloss.NewStyle().
-			Foreground(dimGray),
-		ArabicPagination: lipgloss.NewStyle().
-			Foreground(mutedGray),
-		DividerDot: lipgloss.NewStyle().
-			Foreground(dimGray),
+		DefaultFilterCharacterMatch: fg(primary).Underline(true),
+		StatusBar:                   fg(subtle).Padding(0, 0, 1, 2),
+		StatusEmpty:                 fg(subtle),
+		StatusBarActiveFilter:       fg(primary),
+		StatusBarFilterCount:        fg(subtle),
+		NoItems:                     fg(subtle).Padding(0, 0, 0, 2),
+		PaginationStyle:             lipgloss.NewStyle().PaddingLeft(2),
+		HelpStyle:                   fg(subtle).Padding(1, 0, 0, 2),
+		ActivePaginationDot:         fg(primary).SetString("■"),
+		InactivePaginationDot:       fg(border).SetString("□"),
+		ArabicPagination:            fg(subtle),
+		DividerDot:                  fg(border).SetString(" | "),
 	}
 
-	// Delegate styles for lists
-	normalTitle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#e0e0e0")).
-		Bold(true).
-		Padding(0, 0, 0, 1)
-
-	normalDesc := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#777777")).
-		Padding(0, 0, 0, 1)
-
-	selectedTitle := lipgloss.NewStyle().
-		Foreground(accentBlue).
-		Bold(true).
-		BorderStyle(lipgloss.ThickBorder()).
-		BorderLeft(true).
-		BorderTop(false).
-		BorderBottom(false).
-		BorderRight(false).
-		BorderLeftForeground(accentBlue).
-		PaddingLeft(1)
-
-	selectedDesc := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#888888")).
-		PaddingLeft(2)
-
-	dimmedTitle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#555555")).
-		Padding(0, 0, 0, 1)
-
-	dimmedDesc := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#444444")).
-		Padding(0, 0, 0, 1)
-
-	filterMatch := lipgloss.NewStyle().
-		Foreground(accentBlue).
-		Underline(true)
+	// Delegate styles for lists. Every row starts its text in the same column:
+	// unselected rows pad 2, the selected row draws a 1-cell accent bar plus 1
+	// cell of padding. The bubbles delegate truncates using the normal style's
+	// padding, so keeping the totals equal also keeps long descriptions from
+	// wrapping on the selected row.
+	accentBar := func(s lipgloss.Style) lipgloss.Style {
+		return s.
+			BorderStyle(lipgloss.ThickBorder()).
+			BorderLeft(true).
+			BorderTop(false).
+			BorderBottom(false).
+			BorderRight(false).
+			BorderLeftForeground(primary).
+			PaddingLeft(1)
+	}
 
 	t.DelegateStyles = list.DefaultItemStyles{
-		NormalTitle:   normalTitle,
-		NormalDesc:    normalDesc,
-		SelectedTitle: selectedTitle,
-		SelectedDesc:  selectedDesc,
-		DimmedTitle:   dimmedTitle,
-		DimmedDesc:    dimmedDesc,
-		FilterMatch:   filterMatch,
+		NormalTitle:   fg(text).Bold(true).PaddingLeft(2),
+		NormalDesc:    fg(muted).PaddingLeft(2),
+		SelectedTitle: accentBar(fg(primary).Bold(true)),
+		SelectedDesc:  accentBar(fg(muted)),
+		DimmedTitle:   fg(subtle).PaddingLeft(2),
+		DimmedDesc:    fg(border).PaddingLeft(2),
+		FilterMatch:   fg(primary).Underline(true),
 	}
 
 	// Chat styles
-	chatAccent := lipgloss.Color("#4a9eff")
-
-	t.ChatTitle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#FFFFFF")).
-		Bold(true).
-		Padding(0, 2)
-
-	t.Chat = lipgloss.NewStyle().
-		Padding(1, 2).
-		Foreground(lipgloss.Color("#e0e0e0"))
+	t.ChatTitle = fg(text).Bold(true).Padding(0, 2)
+	t.Chat = lipgloss.NewStyle().Padding(1, 2).Foreground(text).Background(base)
+	t.ChatPanelTitle = fg(text).Background(base).Bold(true)
+	t.ChatPanelBorder = border
 
 	t.Sidebar = lipgloss.NewStyle().
 		BorderStyle(lipgloss.NormalBorder()).
@@ -235,478 +178,258 @@ func NewDefaultTheme() Theme {
 		BorderRight(false).
 		BorderTop(false).
 		BorderBottom(false).
-		BorderLeftForeground(lipgloss.Color("#2a2a2a")).
+		BorderLeftForeground(border).
 		Padding(1, 2, 1, 2).
-		Foreground(lipgloss.Color("#b0b0b0"))
+		Foreground(muted).
+		Background(base)
 
-	t.SidebarHeader = lipgloss.NewStyle().
-		Foreground(chatAccent).
-		Bold(true).
-		MarginBottom(1)
+	t.SidebarHeader = fg(primary).Bold(true).MarginBottom(1)
+	t.SidebarSection = fg(primary).Bold(true).MarginTop(1)
+	t.SidebarContent = fg(subtle).Background(base)
+	t.SidebarSuccess = fg(secondary).Background(base)
+	t.SidebarError = fg(p.Error).Background(base)
+	t.SidebarValue = fg(text).Background(base)
 
-	t.SidebarSection = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#4a9eff")).
-		Bold(true).
-		MarginTop(1)
-
-	t.SidebarContent = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#626262"))
-
-	t.SidebarSuccess = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#4ECDC4"))
-
-	t.SidebarError = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#FF6B6B"))
-
-	t.UserMessage = lipgloss.NewStyle().
-		Foreground(chatAccent).
-		Bold(true)
-
-	t.UserContent = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#e0e0e0")).
-		Width(0)
-
-	t.AssistantMessage = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#4ECDC4")).
-		Bold(true)
-
-	t.AssistantContent = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#e0e0e0")).
-		Width(0)
-
-	t.User = lipgloss.NewStyle().
-		Foreground(chatAccent).
-		Bold(true).
-		Width(0)
-
-	t.Assistant = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#4ECDC4")).
-		Width(0)
-
-	t.Spinner = lipgloss.NewStyle().
-		Foreground(chatAccent)
+	t.UserMessage = fg(primary).Background(base).Bold(true)
+	t.UserContent = fg(text).Background(base)
+	t.AssistantMessage = fg(secondary).Background(base).Bold(true)
+	t.AssistantContent = fg(text).Background(base)
+	t.User = fg(primary).Background(base).Bold(true)
+	t.Assistant = fg(secondary).Background(base)
+	t.Spinner = fg(primary).Background(base)
 
 	// Main menu styles
-	menuAccent := lipgloss.Color("#4a9eff")
-	menuDim := lipgloss.Color("#555555")
+	t.MainMenuBorder = fg(border).Background(base)
+	t.MainMenuContainer = lipgloss.NewStyle().Background(base).Foreground(text)
+	t.MainMenuSeparator = fg(border).Background(base)
+	t.MainMenuWelcome = fg(subtle).Background(base)
+	t.MainMenuLogo = fg(primary).Background(base).Bold(true)
+	t.MainMenuSubtitle = fg(subtle).Background(base)
+	t.MainMenuTitleBorder = lipgloss.NewStyle().Align(lipgloss.Center)
+	t.MainMenuSelectedArrow = fg(primary).Bold(true)
 
-	t.MainMenuBorder = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#333333"))
-
-	t.MainMenuContainer = lipgloss.NewStyle()
-
-	t.MainMenuSeparator = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#333333"))
-
-	t.MainMenuWelcome = lipgloss.NewStyle().
-		Foreground(menuDim)
-
-	t.MainMenuLogo = lipgloss.NewStyle().
-		Foreground(menuAccent).
-		Bold(true)
-
-	t.MainMenuSubtitle = lipgloss.NewStyle().
-		Foreground(menuDim)
-
-	t.MainMenuTitleBorder = lipgloss.NewStyle().
-		Align(lipgloss.Center)
-
-	t.MainMenuSelectedArrow = lipgloss.NewStyle().
-		Foreground(menuAccent).
-		Bold(true)
-
+	// The selected item draws a 1-cell accent bar + 1 cell padding; unselected
+	// items pad 2 so every title starts in the same column.
 	t.MainMenuSelectedItem = lipgloss.NewStyle().
+		Background(surface).
 		BorderLeft(true).
 		BorderStyle(lipgloss.ThickBorder()).
-		BorderForeground(menuAccent).
+		BorderForeground(primary).
+		BorderBackground(base).
 		PaddingLeft(1)
+	t.MainMenuUnselectedItem = lipgloss.NewStyle().Background(base).PaddingLeft(2)
 
-	t.MainMenuUnselectedItem = lipgloss.NewStyle().
-		PaddingLeft(3)
+	t.MainMenuSelectedIcon = fg(primary).Background(surface).Bold(true)
+	t.MainMenuUnselectedIcon = fg(subtle).Background(base)
+	t.MainMenuSelectedTitle = fg(primary).Background(surface).Bold(true)
+	t.MainMenuUnselectedTitle = fg(text).Background(base)
+	t.MainMenuSelectedDesc = fg(muted).Background(surface)
+	t.MainMenuUnselectedDesc = fg(subtle).Background(base)
+	t.MainMenuHelpHeader = fg(subtle).Bold(true)
+	t.MainMenuHelpContent = fg(subtle).Background(base)
+	t.MainMenuHelpBorder = lipgloss.NewStyle().Background(base)
+	t.MainMenuHelpKey = fg(muted).Background(base).Bold(true)
+	t.MainMenuHelpDesc = fg(subtle).Background(base)
+	t.MainMenuSpinner = fg(primary).Background(base)
 
-	t.MainMenuSelectedIcon = lipgloss.NewStyle().
-		Foreground(menuAccent).
-		Bold(true)
-
-	t.MainMenuUnselectedIcon = lipgloss.NewStyle().
-		Foreground(menuDim)
-
-	t.MainMenuSelectedTitle = lipgloss.NewStyle().
-		Bold(true).
-		Foreground(menuAccent)
-
-	t.MainMenuUnselectedTitle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#999999"))
-
-	t.MainMenuSelectedDesc = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#cccccc"))
-
-	t.MainMenuUnselectedDesc = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#555555"))
-
-	t.MainMenuHelpHeader = lipgloss.NewStyle().
-		Foreground(menuDim).
-		Bold(true)
-
-	t.MainMenuHelpContent = lipgloss.NewStyle().
-		Foreground(menuDim)
-
-	t.MainMenuHelpBorder = lipgloss.NewStyle()
-
-	t.MainMenuHelpKey = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#e0e0e0"))
-
-	t.MainMenuHelpDesc = lipgloss.NewStyle().
-		Foreground(menuDim)
-
-	t.MainMenuSpinner = lipgloss.NewStyle().
-		Foreground(menuAccent)
-
-	// State selector styles
-	t.StateSelectorContainer = lipgloss.NewStyle().
+	// ── Popover dialogs ────────────────────────────────────────────────────
+	// One shared look: overlay surface, rounded primary border, bold title,
+	// subtle help, and a Selection-highlighted row.
+	container := lipgloss.NewStyle().
+		Background(base).
 		Align(lipgloss.Center).
 		AlignVertical(lipgloss.Center)
-
-	t.StateSelectorDialog = lipgloss.NewStyle().
+	dialogBox := lipgloss.NewStyle().
+		Background(overlay).
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("#4a9eff")).
+		BorderForeground(primary).
+		BorderBackground(base).
 		Padding(1, 2)
+	dialogTitle := fg(text).Background(overlay).Bold(true)
+	dialogHelp := fg(subtle).Background(overlay)
+	selectedRow := fg(primary).Background(selection).Bold(true)
+	unselectedRow := fg(text).Background(overlay)
 
-	t.StateSelectorTitle = lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color("#FFFFFF"))
+	t.DialogSelectedRow = selectedRow
+	t.DialogUnselectedRow = unselectedRow
 
-	t.StateSelectorHelp = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#626262"))
+	button := lipgloss.NewStyle().Padding(0, 2).Bold(true)
+	t.DialogDangerTitle = fg(p.Error).Background(overlay).Bold(true)
+	t.DialogDangerButton = button.Foreground(p.OnPrimary).Background(p.Error)
+	t.DialogDangerButtonBlurred = button.Foreground(p.Error).Background(selection)
+	t.DialogButton = button.Foreground(muted).Background(selection)
+	t.DialogButtonFocused = button.Foreground(p.OnPrimary).Background(primary)
 
-	t.StateSelectorItem = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#cccccc")).
-		Padding(0, 1)
+	t.StateSelectorContainer = container
+	t.StateSelectorDialog = dialogBox
+	t.StateSelectorTitle = dialogTitle
+	t.StateSelectorHelp = dialogHelp
+	t.StateSelectorItem = unselectedRow.Padding(0, 1)
+	t.StateSelectorSelectedItem = selectedRow.Padding(0, 1)
+	t.StateSelectorIndicator = fg(subtle).Background(overlay)
+	t.StateSelectorSelectedIndicator = fg(primary).Background(selection).Bold(true)
 
-	t.StateSelectorSelectedItem = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#ffffff")).
-		Background(lipgloss.Color("#4a9eff")).
-		Bold(true).
-		Padding(0, 1)
+	t.SessionSelectorContainer = container
+	t.SessionSelectorDialog = dialogBox
+	t.SessionSelectorTitle = dialogTitle
+	t.SessionSelectorPagination = lipgloss.NewStyle().PaddingLeft(2)
+	t.SessionSelectorHelp = dialogHelp
+	t.SessionSelectorSelectedDesc = fg(muted).Background(selection)
+	t.SessionSelectorUnselectedDesc = fg(subtle).Background(overlay)
 
-	t.StateSelectorIndicator = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#FFD700")).
-		Bold(true)
+	t.ModelSelectorContainer = container
+	t.ModelSelectorDialog = dialogBox
+	t.ModelSelectorTitle = dialogTitle
+	t.ModelSelectorPagination = lipgloss.NewStyle().PaddingLeft(2)
+	t.ModelSelectorHelp = dialogHelp
 
-	t.StateSelectorSelectedIndicator = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#FFFFFF")).
-		Bold(true)
+	t.ThemeSelectorContainer = container
+	t.ThemeSelectorDialog = dialogBox
+	t.ThemeSelectorTitle = dialogTitle
+	t.ThemeSelectorPagination = lipgloss.NewStyle().PaddingLeft(2)
+	t.ThemeSelectorHelp = dialogHelp
 
-	// Session selector styles
-	t.SessionSelectorContainer = lipgloss.NewStyle().
-		Align(lipgloss.Center).
-		AlignVertical(lipgloss.Center)
-
-	t.SessionSelectorDialog = lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("#04B575")).
-		Padding(1, 2)
-
-	t.SessionSelectorTitle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#FFFFFF")).
-		Bold(true)
-
-	t.SessionSelectorPagination = lipgloss.NewStyle().
-		MarginLeft(2)
-
-	t.SessionSelectorHelp = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#626262"))
-
-	// Model selector styles
-	t.ModelSelectorContainer = lipgloss.NewStyle().
-		Align(lipgloss.Center).
-		AlignVertical(lipgloss.Center)
-
-	t.ModelSelectorDialog = lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("#04B575")).
-		Padding(1, 2)
-
-	t.ModelSelectorTitle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#FFFFFF")).
-		Bold(true)
-
-	t.ModelSelectorPagination = lipgloss.NewStyle().
-		MarginLeft(2)
-
-	t.ModelSelectorHelp = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#626262"))
-
-	// Theme selector styles
-	t.ThemeSelectorContainer = lipgloss.NewStyle().
-		Align(lipgloss.Center).
-		AlignVertical(lipgloss.Center)
-
-	t.ThemeSelectorDialog = lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("#FF6B6B")).
-		Padding(1, 2)
-
-	t.ThemeSelectorTitle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#FFFFFF")).
-		Bold(true)
-
-	t.ThemeSelectorPagination = lipgloss.NewStyle().
-		MarginLeft(2)
-
-	t.ThemeSelectorHelp = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#626262"))
-
-	// Legacy delegate styles kept for YAML theme compatibility
-	themeSelectorSelectedTitle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#FF6B6B")).
-		Bold(true)
-	themeSelectorNormalTitle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#FFFFFF"))
-	t.ThemeSelectorDelegateStyles = list.DefaultItemStyles{
-		NormalTitle:   themeSelectorNormalTitle,
-		NormalDesc:    t.DelegateStyles.NormalDesc,
-		SelectedTitle: themeSelectorSelectedTitle,
-		SelectedDesc:  t.DelegateStyles.NormalDesc,
-		DimmedTitle:   t.DelegateStyles.DimmedTitle,
-		DimmedDesc:    t.DelegateStyles.DimmedDesc,
-		FilterMatch:   t.DelegateStyles.FilterMatch,
+	dialogDelegate := list.DefaultItemStyles{
+		NormalTitle:   unselectedRow,
+		NormalDesc:    fg(subtle).Background(overlay),
+		SelectedTitle: selectedRow,
+		SelectedDesc:  fg(muted).Background(selection),
+		DimmedTitle:   fg(subtle).Background(overlay),
+		DimmedDesc:    fg(border).Background(overlay),
+		FilterMatch:   fg(primary).Underline(true),
 	}
+	t.ThemeSelectorDelegateStyles = dialogDelegate
+	t.ModelSelectorDelegateStyles = dialogDelegate
 
-	// Add recipe from URL dialog styles
-	t.AddRecipeFromURLContainer = lipgloss.NewStyle().
-		Align(lipgloss.Center).
-		AlignVertical(lipgloss.Center)
-	t.AddRecipeFromURLDialog = lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("#5C7AEA")).
-		Padding(1, 3)
-	t.AddRecipeFromURLTitle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#FFFFFF")).
-		Bold(true)
-	t.AddRecipeFromURLSeparator = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#333333"))
-	t.AddRecipeFromURLHelp = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#666666"))
-	t.AddRecipeFromURLPrompt = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#999999"))
-	t.AddRecipeFromURLError = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#FF6B6B"))
-	t.AddRecipeFromURLSpinner = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#5C7AEA"))
-	t.AddRecipeFromURLAccent = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#5C7AEA")).
-		Bold(true)
-	t.AddRecipeFromURLInputBorder = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#5C7AEA"))
-	t.AddRecipeFromURLKeyHighlight = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#5C7AEA")).
-		Bold(true)
+	t.AddRecipeFromURLContainer = container
+	t.AddRecipeFromURLDialog = dialogBox
+	t.AddRecipeFromURLTitle = dialogTitle
+	t.AddRecipeFromURLSeparator = fg(border).Background(overlay)
+	t.AddRecipeFromURLHelp = dialogHelp
+	t.AddRecipeFromURLPrompt = fg(muted).Background(overlay)
+	t.AddRecipeFromURLError = fg(p.Error).Background(overlay)
+	t.AddRecipeFromURLSpinner = fg(primary).Background(overlay)
+	t.AddRecipeFromURLAccent = fg(primary).Background(overlay).Bold(true)
+	t.AddRecipeFromURLInputBorder = fg(primary).Background(overlay)
+	t.AddRecipeFromURLKeyHighlight = fg(muted).Background(overlay).Bold(true)
 
-	// Recipe selector styles
-	t.RecipeSelectorContainer = lipgloss.NewStyle().
-		Align(lipgloss.Center).
-		AlignVertical(lipgloss.Center)
-	t.RecipeSelectorDialog = lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("#4ECDC4")).
-		Padding(1, 2)
-	t.RecipeSelectorTitle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#FFFFFF")).
-		Bold(true)
-	t.RecipeSelectorHelp = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#626262"))
-	t.RecipeSelectorSelected = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#FFFFFF")).
-		Background(lipgloss.Color("#4a4a4a")).
-		Bold(true)
+	t.RecipeSelectorContainer = container
+	t.RecipeSelectorDialog = dialogBox
+	t.RecipeSelectorTitle = dialogTitle
+	t.RecipeSelectorHelp = dialogHelp
+	t.RecipeSelectorSelected = selectedRow
 
-	// Command palette styles
-	t.CommandPaletteContainer = lipgloss.NewStyle().
-		Align(lipgloss.Center).
-		AlignVertical(lipgloss.Center)
-	t.CommandPaletteDialog = lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("#B48EAD")).
-		Padding(1, 2)
-	t.CommandPaletteTitle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#FFFFFF")).
-		Bold(true)
-	t.CommandPaletteHelp = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#626262"))
-	t.CommandPaletteShortcut = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#626262"))
-	t.CommandPaletteSelected = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#FFFFFF")).
-		Background(lipgloss.Color("#B48EAD")).
-		Bold(true)
+	t.CommandPaletteContainer = container
+	t.CommandPaletteDialog = dialogBox
+	t.CommandPaletteTitle = dialogTitle
+	t.CommandPaletteHelp = dialogHelp
+	t.CommandPaletteShortcut = fg(subtle).Background(overlay)
+	t.CommandPaletteSelected = selectedRow
 
-	// Rating styles
-	t.RatingBar = lipgloss.NewStyle().
-		PaddingLeft(2).
-		Foreground(lipgloss.Color("#999999"))
-	t.RatingStarActive = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#FFD700")).
-		Bold(true)
-	t.RatingStarInactive = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#555555"))
-	t.RatingDialogContainer = lipgloss.NewStyle().
-		Align(lipgloss.Center)
-	t.RatingDialogBox = lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("#FFD700")).
-		Padding(0, 2)
-	t.RatingDialogTitle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#FFFFFF")).
-		Bold(true)
-	t.RatingDialogHelp = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#626262"))
+	// Rating
+	t.RatingBar = fg(muted).PaddingLeft(2)
+	t.RatingStarActive = fg(accent).Background(overlay).Bold(true)
+	t.RatingStarInactive = fg(subtle).Background(overlay)
+	t.RatingDialogContainer = lipgloss.NewStyle().Background(base).Align(lipgloss.Center)
+	t.RatingDialogBox = dialogBox.Padding(1, 3)
+	t.RatingDialogTitle = dialogTitle
+	t.RatingDialogHelp = dialogHelp
 
-	// Cooking mode styles
-	t.CookingStepCounter = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#4a9eff")).
-		Bold(true)
-	t.CookingInstruction = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#e0e0e0")).
-		Bold(true).
-		Padding(1, 4)
-	t.CookingNavHint = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#555555"))
+	// Shared search-input styles for popover dialogs. The textinput fills its
+	// Width() using the Text/Placeholder style's background, so setting the
+	// overlay background here makes the whole search line uniform.
+	searchStyles := textinput.DefaultStyles(true)
+	searchPrompt := fg(primary).Background(overlay).Bold(true)
+	searchStyles.Focused.Prompt = searchPrompt
+	searchStyles.Blurred.Prompt = searchPrompt
+	searchStyles.Focused.Text = fg(text).Background(overlay)
+	searchStyles.Blurred.Text = fg(text).Background(overlay)
+	searchStyles.Focused.Placeholder = fg(subtle).Background(overlay)
+	searchStyles.Blurred.Placeholder = fg(subtle).Background(overlay)
+	searchStyles.Focused.Suggestion = fg(subtle).Background(overlay)
+	searchStyles.Blurred.Suggestion = fg(subtle).Background(overlay)
+	searchStyles.Cursor.Color = primary
+	t.DialogSearchStyles = searchStyles
+
+	// Cooking mode
+	t.CookingStepCounter = fg(primary).Bold(true)
+	t.CookingInstruction = fg(text).Background(base).Bold(true).Padding(1, 4)
+	t.CookingNavHint = fg(subtle)
 	t.CookingSidebar = lipgloss.NewStyle().
-		BorderLeft(true).
+		Background(base).
+		BorderRight(true).
 		BorderStyle(lipgloss.NormalBorder()).
-		BorderForeground(lipgloss.Color("#333333")).
+		BorderForeground(border).
+		BorderBackground(base).
 		PaddingLeft(2).
 		PaddingRight(1)
-	t.CookingSidebarTitle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#4a9eff")).
-		Bold(true)
-	t.CookingIngredient = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#999999"))
-	t.CookingIngredientAmount = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#FFD700")).
-		Bold(true)
-	t.CookingIngredientDetail = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#777777")).
-		Italic(true)
+	t.CookingSidebarTitle = fg(primary).Bold(true)
+	t.CookingIngredient = fg(text)
+	t.CookingIngredientAmount = fg(accent).Bold(true)
+	t.CookingIngredientDetail = fg(subtle).Italic(true)
 
-	// Cooking chat styles
 	t.CookingChatPanel = lipgloss.NewStyle().
+		Background(base).
 		BorderLeft(true).
 		BorderStyle(lipgloss.NormalBorder()).
-		BorderForeground(lipgloss.Color("#333333")).
+		BorderForeground(border).
+		BorderBackground(base).
 		PaddingLeft(1).
 		PaddingRight(1)
-	t.CookingChatTitle = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#4a9eff")).
-		Bold(true)
+	t.CookingChatTitle = fg(primary).Bold(true)
 
-	// Cooking timer styles
-	t.CookingTimerActive = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#FF6B35")).
-		Bold(true)
-	t.CookingTimerDone = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#50C878")).
-		Bold(true)
-	t.CookingTimerLabel = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#FFD700")).
-		Bold(true)
-	t.CookingTimerMessage = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#999999")).
-		Italic(true)
-	t.CookingTimerBarFilled = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#FF6B35")).
-		Background(lipgloss.Color("#4a2010"))
-	t.CookingTimerBarEmpty = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#555555")).
-		Background(lipgloss.Color("#1a1a1a"))
-	t.CookingTimerBarCompleted = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#50C878")).
-		Background(lipgloss.Color("#1a3a25"))
+	t.CookingTimerActive = fg(p.Warning).Bold(true)
+	t.CookingTimerDone = fg(p.Success).Bold(true)
+	t.CookingTimerLabel = fg(accent).Bold(true)
+	t.CookingTimerMessage = fg(muted).Italic(true)
+	t.CookingTimerBarFilled = fg(p.Warning)
+	t.CookingTimerBarEmpty = fg(border)
+	t.CookingTimerBarCompleted = fg(p.Success)
 
-	// Shared textarea styles
-	t.TextareaCursorLine = lipgloss.NewStyle()
-	t.TextareaBase = lipgloss.NewStyle().PaddingLeft(1)
-	t.TextareaPlaceholder = lipgloss.NewStyle().Foreground(lipgloss.Color("#555555"))
-	t.TextareaText = lipgloss.NewStyle().Foreground(lipgloss.Color("#e0e0e0"))
-	t.TextareaPrompt = lipgloss.NewStyle().Foreground(lipgloss.Color("#4a9eff")).Bold(true)
-	t.TextareaEndOfBuffer = lipgloss.NewStyle().Foreground(lipgloss.Color("#1a1a1a"))
+	t.CookingChatUserLabel = fg(primary).Bold(true)
+	t.CookingChatAssistantLabel = fg(secondary).Bold(true)
+	t.CookingChatEmpty = fg(subtle).Italic(true)
+	t.CookingNoRecipe = fg(subtle)
+	t.CookingRecipeName = fg(text).Bold(true)
+	t.CookingProgressFilled = fg(primary)
+	t.CookingProgressUnfilled = fg(border)
+	t.CookingIngredientHighlight = fg(accent).Bold(true)
+	t.CookingNavArrow = fg(text)
+	t.CookingHelpKey = fg(muted).Bold(true)
 
-	// Shared separator styles
-	t.SeparatorLine = lipgloss.NewStyle().Foreground(lipgloss.Color("#333333"))
-	t.MessageSeparator = lipgloss.NewStyle().Foreground(lipgloss.Color("#2a2a2a"))
+	// Shared textarea styles. The chat page is one flat surface — the composer
+	// sits on the same canvas as the conversation, separated only by its panel
+	// border (popover dialogs keep their own overlay surface).
+	t.TextareaCursorLine = lipgloss.NewStyle().Background(base)
+	t.TextareaBase = lipgloss.NewStyle().Background(base)
+	t.TextareaPlaceholder = fg(subtle).Background(base)
+	t.TextareaText = fg(text).Background(base)
+	t.TextareaPrompt = fg(primary).Background(base).Bold(true)
+	t.TextareaEndOfBuffer = fg(base).Background(base)
 
-	// Shared dialog row styles
-	t.DialogSelectedRow = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#FFFFFF")).
-		Background(lipgloss.Color("#4a4a4a")).
-		Bold(true)
-	t.DialogUnselectedRow = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#cccccc"))
-
-	// Session selector description rows
-	t.SessionSelectorSelectedDesc = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#999999")).
-		Background(lipgloss.Color("#4a4a4a"))
-	t.SessionSelectorUnselectedDesc = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#666666"))
-
-	// Sidebar value style
-	t.SidebarValue = lipgloss.NewStyle().Foreground(lipgloss.Color("#e0e0e0"))
+	// Shared separators
+	t.SeparatorLine = fg(border).Background(base)
+	t.MessageSeparator = fg(border).Background(base)
 
 	// Chat empty state
-	t.ChatEmptyState = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#444444")).
-		Italic(true)
+	t.ChatEmptyState = fg(subtle).Background(base).Italic(true)
+	t.ChatEmptyStateTitle = fg(text).Background(base).Bold(true)
 
-	// Chat mention styles
-	t.ChatMention = lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color("#87CEEB"))
+	// Tool call display
+	t.ToolCallLabel = fg(accent).Background(base).Bold(true)
+	t.ToolCallInput = fg(muted).Background(base).Italic(true)
+
+	// Recipe mentions render as a tinted chip so @Recipe references stand out
+	// from body text.
+	t.ChatMention = fg(primary).Background(selection).Bold(true)
 	t.ChatMentionPopupBorder = lipgloss.NewStyle().
+		Background(overlay).
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("#555555"))
-	t.ChatMentionPopupHeader = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#666666")).
-		Italic(true).
-		PaddingLeft(1)
-	t.ChatMentionPopupItem = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#888888")).
-		PaddingLeft(1).
-		PaddingRight(1)
-	t.ChatMentionPopupSelected = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#4ECDC4")). // matches AssistantMessage
-		Bold(true).
-		PaddingLeft(1).
-		PaddingRight(1)
-
-	// Cooking-specific styles
-	t.CookingChatUserLabel = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#4a9eff")).
-		Bold(true)
-	t.CookingChatAssistantLabel = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#50C878")).
-		Bold(true)
-	t.CookingChatEmpty = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#555555")).
-		Italic(true)
-	t.CookingNoRecipe = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#555555"))
-	t.CookingRecipeName = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#e0e0e0")).
-		Bold(true)
-	t.CookingProgressFilled = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#4a9eff"))
-	t.CookingProgressUnfilled = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#333333"))
-	t.CookingIngredientHighlight = lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color("#FFD700")).
-		Background(lipgloss.Color("#3a3000"))
-	t.CookingNavArrow = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#e0e0e0"))
-	t.CookingHelpKey = lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#e0e0e0"))
+		BorderForeground(primary).
+		BorderBackground(base)
+	t.ChatMentionPopupHeader = fg(subtle).Background(overlay).Italic(true).PaddingLeft(1)
+	t.ChatMentionPopupItem = fg(muted).Background(overlay).PaddingLeft(1).PaddingRight(1)
+	t.ChatMentionPopupSelected = fg(primary).Background(selection).Bold(true).PaddingLeft(1).PaddingRight(1)
 
 	return t
 }

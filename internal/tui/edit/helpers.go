@@ -102,12 +102,12 @@ func ingredientToEditableLine(ingredient utils.Ingredient) string {
 	}
 
 	line := strings.Join(parts, " ")
-	if ingredient.Details != "" {
+	if details := utils.CleanIngredientDetails(ingredient.Details); details != "" {
 		line = strings.TrimSpace(line)
 		if line != "" {
-			line += fmt.Sprintf(" (%s)", ingredient.Details)
+			line += fmt.Sprintf(" (%s)", details)
 		} else {
-			line = ingredient.Details
+			line = details
 		}
 	}
 	return strings.TrimSpace(line)
@@ -123,8 +123,10 @@ func ingredientsToText(ingredients []utils.Ingredient) string {
 	for _, ingredient := range ingredients {
 		if ingredient.Group != currentGroup {
 			currentGroup = ingredient.Group
-			if currentGroup != "" {
-				lines = append(lines, currentGroup+":")
+			// Scraped group names often already end in ":" ("Syrup:"); emit
+			// exactly one so the heading round-trips instead of growing "::".
+			if group := strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(currentGroup), ":")); group != "" {
+				lines = append(lines, group+":")
 			}
 		}
 		lines = append(lines, ingredientToEditableLine(ingredient))

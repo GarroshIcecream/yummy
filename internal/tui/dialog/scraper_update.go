@@ -11,6 +11,7 @@ import (
 	messages "github.com/GarroshIcecream/yummy/internal/models/msg"
 	"github.com/GarroshIcecream/yummy/internal/scrape"
 	themes "github.com/GarroshIcecream/yummy/internal/themes"
+	"github.com/GarroshIcecream/yummy/internal/utils"
 )
 
 type scraperUpdatePhase int
@@ -148,21 +149,7 @@ func (m *ScraperUpdateDialogCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *ScraperUpdateDialogCmp) View() tea.View {
-	innerWidth := m.width - 6
-	if innerWidth < 40 {
-		innerWidth = 40
-	}
-
-	dialogBorder := lipgloss.Border{
-		Top:         "▀",
-		Bottom:      "▄",
-		Left:        "▌",
-		Right:       "▐",
-		TopLeft:     "▛",
-		TopRight:    "▜",
-		BottomLeft:  "▙",
-		BottomRight: "▟",
-	}
+	innerWidth := max(m.width-6, 40)
 
 	row := func(s lipgloss.Style, align lipgloss.Position, text string) string {
 		return s.Width(innerWidth).Align(align).Render(text)
@@ -198,7 +185,7 @@ func (m *ScraperUpdateDialogCmp) View() tea.View {
 			)
 			enterKey := m.theme.AddRecipeFromURLKeyHighlight.Render("enter")
 			escKey := m.theme.AddRecipeFromURLKeyHighlight.Render("esc")
-			dot := m.theme.AddRecipeFromURLHelp.Render(" · ")
+			dot := m.theme.AddRecipeFromURLHelp.Render(" | ")
 			help = lipgloss.NewStyle().Width(innerWidth).Align(lipgloss.Center).Render(
 				enterKey + m.theme.AddRecipeFromURLHelp.Render(" update") +
 					dot + escKey + m.theme.AddRecipeFromURLHelp.Render(" cancel"),
@@ -227,11 +214,11 @@ func (m *ScraperUpdateDialogCmp) View() tea.View {
 
 	parts := []string{title, sep, "", body, "", help}
 	content := lipgloss.JoinVertical(lipgloss.Left, parts...)
+	// Fill the interior with the elevated surface so the dialog is a solid card
+	// rather than a bordered box with a transparent interior.
+	content = utils.FillBackground(content, m.theme.SurfaceBg, innerWidth)
 
-	rendered := lipgloss.NewStyle().
-		Border(dialogBorder).
-		BorderForeground(m.theme.AddRecipeFromURLAccent.GetForeground()).
-		Padding(1, 2).
+	rendered := m.theme.AddRecipeFromURLDialog.
 		Width(m.width).
 		Render(content)
 
@@ -240,10 +227,7 @@ func (m *ScraperUpdateDialogCmp) View() tea.View {
 
 func (m *ScraperUpdateDialogCmp) SetSize(width, height int) {
 	if width > 0 {
-		m.width = clampModalWidth(width, m.width, 40)
-		if m.width > 70 {
-			m.width = 70
-		}
+		m.width = min(clampModalWidth(width, m.width, 40), 70)
 	}
 	m.height = clampModalHeight(height, m.height, 10)
 }
