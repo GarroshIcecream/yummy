@@ -11,10 +11,10 @@ import (
 	"charm.land/fang/v2"
 	"github.com/GarroshIcecream/yummy/internal/config"
 	db "github.com/GarroshIcecream/yummy/internal/db"
+	"github.com/GarroshIcecream/yummy/internal/llms"
 	log "github.com/GarroshIcecream/yummy/internal/log"
 	themes "github.com/GarroshIcecream/yummy/internal/themes"
 	tui "github.com/GarroshIcecream/yummy/internal/tui"
-	"github.com/GarroshIcecream/yummy/internal/tui/chat"
 	"github.com/GarroshIcecream/yummy/internal/version"
 	"github.com/spf13/cobra"
 )
@@ -130,13 +130,13 @@ func setupApp(cmd *cobra.Command) (*tui.Manager, error) {
 	}
 
 	chatConfig := config.GetChatConfig()
-	_, err = chat.GetOllamaServiceStatus(chatConfig.DefaultModel)
+	_, err = llms.GetOllamaServiceStatus(chatConfig.DefaultModel)
 	if err != nil {
 		slog.Error("Failed to get ollama service status", "error", err)
 		return nil, fmt.Errorf("failed to get ollama service status: %v", err)
 	}
 
-	tuiInstance, err := tui.New(cookbook, sessionLog, themeManager, ctx)
+	tuiInstance, err := tui.New(cookbook, sessionLog, themeManager, datadir, ctx)
 	if err != nil {
 		slog.Error("Failed to create tui instance", "error", err)
 		return nil, fmt.Errorf("failed to create TUI instance: %v", err)

@@ -12,6 +12,7 @@ import (
 	common "github.com/GarroshIcecream/yummy/internal/models/common"
 	messages "github.com/GarroshIcecream/yummy/internal/models/msg"
 	themes "github.com/GarroshIcecream/yummy/internal/themes"
+	utils "github.com/GarroshIcecream/yummy/internal/utils"
 )
 
 const maxVisibleRecipes = 8
@@ -52,6 +53,7 @@ func NewRecipeSelectorDialog(cookbook *db.CookBook, theme *themes.Theme) (*Recip
 
 	ti := textinput.New()
 	ti.Placeholder = "Search..."
+	ti.SetStyles(theme.DialogSearchStyles)
 	ti.Focus()
 	ti.CharLimit = 64
 	if w := recipeSelectorConfig.Width - 8; w > 10 {
@@ -145,18 +147,12 @@ func (r *RecipeSelectorDialogCmp) applyFilter() {
 }
 
 func (r *RecipeSelectorDialogCmp) View() tea.View {
-	innerWidth := r.width - 6
-	if innerWidth < 20 {
-		innerWidth = 20
-	}
+	innerWidth := max(r.width-6, 20)
 
 	// Header
 	titleLeft := r.theme.RecipeSelectorTitle.Render("Recipes")
 	escHint := r.theme.RecipeSelectorHelp.Render("esc")
-	pad := innerWidth - lipgloss.Width(titleLeft) - lipgloss.Width(escHint)
-	if pad < 1 {
-		pad = 1
-	}
+	pad := max(innerWidth-lipgloss.Width(titleLeft)-lipgloss.Width(escHint), 1)
 	header := titleLeft + strings.Repeat(" ", pad) + escHint
 
 	// Search
@@ -166,15 +162,9 @@ func (r *RecipeSelectorDialogCmp) View() tea.View {
 	sep := r.theme.RecipeSelectorHelp.Render(strings.Repeat("─", innerWidth))
 
 	// Visible window of items
-	maxNameLen := innerWidth - 4
-	if maxNameLen < 10 {
-		maxNameLen = 10
-	}
+	maxNameLen := max(innerWidth-4, 10)
 
-	end := r.scrollOffset + maxVisibleRecipes
-	if end > len(r.filtered) {
-		end = len(r.filtered)
-	}
+	end := min(r.scrollOffset+maxVisibleRecipes, len(r.filtered))
 	visible := r.filtered[r.scrollOffset:end]
 
 	var rows []string
@@ -201,6 +191,8 @@ func (r *RecipeSelectorDialogCmp) View() tea.View {
 			rows = append(rows, row)
 		} else {
 			rows = append(rows, r.theme.DialogUnselectedRow.
+				Width(innerWidth).
+				MaxWidth(innerWidth).
 				Render(line))
 		}
 	}
@@ -217,7 +209,7 @@ func (r *RecipeSelectorDialogCmp) View() tea.View {
 
 	parts := []string{header, "", searchLine, sep}
 	parts = append(parts, rows...)
-	content := lipgloss.JoinVertical(lipgloss.Left, parts...)
+	content := utils.FillBackground(lipgloss.JoinVertical(lipgloss.Left, parts...), r.theme.SurfaceBg, innerWidth)
 
 	rendered := r.theme.RecipeSelectorDialog.
 		Width(r.width).
@@ -227,8 +219,8 @@ func (r *RecipeSelectorDialogCmp) View() tea.View {
 }
 
 func (r *RecipeSelectorDialogCmp) SetSize(width, height int) {
-	r.width = width
-	r.height = height
+	r.width = clampModalWidth(width, r.width, 24)
+	r.height = clampModalHeight(height, r.height, 10)
 	if w := r.width - 8; w > 10 {
 		r.searchInput.SetWidth(w)
 	}

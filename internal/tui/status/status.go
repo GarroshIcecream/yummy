@@ -12,6 +12,7 @@ import (
 	"github.com/GarroshIcecream/yummy/internal/tui/detail"
 	yummy_list "github.com/GarroshIcecream/yummy/internal/tui/list"
 	"github.com/GarroshIcecream/yummy/internal/utils"
+	"github.com/charmbracelet/x/ansi"
 )
 
 type StatusLine struct {
@@ -66,6 +67,12 @@ func (s *StatusLine) Render(info StatusInfo) string {
 	leftWidth := lipgloss.Width(leftStyled)
 	rightWidth := lipgloss.Width(rightStyled)
 	spaceWidth := s.width - leftWidth - rightWidth - s.linePadding
+	if spaceWidth < 1 {
+		// Too long for the bar (long recipe names): truncate the left side so
+		// the bar never wraps onto a second line.
+		leftStyled = ansi.Truncate(leftStyled, max(leftWidth+spaceWidth-1, 0), "…")
+		spaceWidth = s.width - lipgloss.Width(leftStyled) - rightWidth - s.linePadding
+	}
 
 	emptySpace := ""
 	if spaceWidth > 0 {
@@ -97,7 +104,9 @@ func (s *StatusLine) renderLeftSide(info StatusInfo) string {
 		parts = append(parts, fileText)
 	}
 
-	return strings.Join(parts, " ")
+	// The joiner must carry the bar's background too, or the cell between the
+	// mode badge and the description falls through to the canvas color.
+	return strings.Join(parts, s.theme.StatusLineFile.UnsetPadding().Render(" "))
 }
 
 func (s *StatusLine) renderRightSide(info StatusInfo) string {
@@ -158,13 +167,17 @@ func CreateStatusInfo(currentModel common.TUIModel) StatusInfo {
 			} else {
 				info.Description = ""
 			}
-			// Add scroll position info
+			// Scroll position: visible line range and a vim-style position.
 			scrollPos := detailModel.GetScrollPosition()
 			totalLines := detailModel.GetContentHeight()
-			info.Position = fmt.Sprintf("Line %d", scrollPos+1)
+			visible := detailModel.GetViewportHeight()
+			last := min(scrollPos+visible, totalLines)
 			info.CurrentLine = scrollPos + 1
 			info.LineCount = totalLines
-			info.ModeInfo = fmt.Sprintf("%d lines", totalLines)
+			if totalLines > 0 {
+				info.Position = fmt.Sprintf("%d–%d of %d", min(scrollPos+1, totalLines), last, totalLines)
+				info.ModeInfo = scrollPercent(scrollPos, last, totalLines)
+			}
 		}
 
 	case common.SessionStateEdit:
@@ -177,7 +190,7 @@ func CreateStatusInfo(currentModel common.TUIModel) StatusInfo {
 		info.Mode = common.StatusModeChat
 		if chatModel, ok := currentModel.(*chat.ChatModel); ok {
 			modelName := chatModel.ExecutorService.GetCurrentModelName()
-			info.ModeInfo = "Chat Mode | " + modelName
+			info.ModeInfo = chatModel.ExecutorService.GetProviderName() + " | " + modelName
 
 			// Get session summary if available
 			summary, err := chatModel.ExecutorService.GetSessionSummary()
@@ -203,4 +216,19 @@ func CreateStatusInfo(currentModel common.TUIModel) StatusInfo {
 	}
 
 	return info
+}
+
+// scrollPercent describes a scroll position the way vim does: "All" when the
+// whole document fits, "Top"/"Bot" at either end, otherwise a percentage.
+func scrollPercent(first, last, total int) string {
+	switch {
+	case first == 0 && last >= total:
+		return "All"
+	case first == 0:
+		return "Top"
+	case last >= total:
+		return "Bot"
+	default:
+		return fmt.Sprintf("%d%%", first*100/max(total-(last-first), 1))
+	}
 }

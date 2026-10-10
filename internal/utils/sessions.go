@@ -24,14 +24,17 @@ func (s SessionItem) Title() string {
 	var sessionTitle string
 	created := s.CreatedAt.Format("Jan 2, 15:04")
 	messageCount := s.MessageCount
-	if messageCount == 0 {
-		sessionTitle = fmt.Sprintf("Session #%d - %s (No messages)", s.SessionID, created)
-	} else {
-		sessionTitle = fmt.Sprintf("Session #%d - %s (%d messages)", s.SessionID, created, messageCount)
+	switch messageCount {
+	case 0:
+		sessionTitle = fmt.Sprintf("Session #%d | %s | no messages", s.SessionID, created)
+	case 1:
+		sessionTitle = fmt.Sprintf("Session #%d | %s | 1 message", s.SessionID, created)
+	default:
+		sessionTitle = fmt.Sprintf("Session #%d | %s | %d messages", s.SessionID, created, messageCount)
 	}
 
 	if s.Selected {
-		sessionTitle = "🔥 " + sessionTitle
+		sessionTitle = "> " + sessionTitle
 	}
 
 	return sessionTitle

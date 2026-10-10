@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 )
 
@@ -186,6 +187,11 @@ type AddRecipeFromURLDialogConfig struct {
 	Width              int    `json:"width"`
 	PythonPath         string `json:"python_path"`          // optional; path to Python for recipe-scrapers (e.g. "python3" or venv path). Empty = auto-detect (python3 then python).
 	LLMIngredientModel string `json:"llm_ingredient_model"` // Ollama model for ingredient parsing (empty = use chat default)
+	// AIParsing uses the LLM when importing from a URL: structured ingredient
+	// parsing, ingredient group labels and categories for uncategorised
+	// recipes. Off = plain rule-based parsing only. Toggle from the command
+	// palette (ctrl+p).
+	AIParsing bool `json:"ai_parsing"`
 }
 
 func NewDefaultAddRecipeFromURLDialogConfig() AddRecipeFromURLDialogConfig {
@@ -194,6 +200,7 @@ func NewDefaultAddRecipeFromURLDialogConfig() AddRecipeFromURLDialogConfig {
 		Width:              60,
 		PythonPath:         "",
 		LLMIngredientModel: "",
+		AIParsing:          true,
 	}
 }
 
@@ -246,39 +253,17 @@ type ChatConfig struct {
 
 func NewDefaultChatConfig() ChatConfig {
 	return ChatConfig{
-		DefaultModel:  "gemma3:4b",
-		Temperature:   0.9,
-		MaxTokens:     1000,
-		MaxIterations: 15,
-		SystemPrompt: `You are a helpful cooking assistant specialized in recipes, ingredients, and culinary knowledge. You have access to a personal cookbook database and can help users with various cooking-related tasks.
-
-		Your capabilities include:
-		- Finding recipes by name or ID
-		- Providing cooking advice and ingredient information
-		- Helping with meal planning and recipe suggestions
-		- Answering questions about cooking techniques and food preparation
-
-		Available tools:
-		- searchRecipeByName: Search for recipes by name (case-insensitive partial match). Use this to find recipes when the user mentions a recipe name or asks about a specific dish.
-		- getRecipeById: Get a specific recipe by its unique ID. Use this after finding a recipe with searchRecipeByName to get the full recipe details.
-
-		Guidelines for responses:
-		- Always format your responses using markdown for better readability
-		- Use headers, lists, and emphasis where appropriate
-		- Be helpful and encouraging when providing cooking advice
-		- If you need to search for recipes, use searchRecipeByName first, then getRecipeById if you need full details
-		- After using tools, provide a clear, complete answer to the user's question
-		- Provide detailed information about ingredients, cooking methods, and serving suggestions
-		- If a recipe isn't found, suggest similar alternatives or offer to help with general cooking questions
-		- When the user references a recipe with @[RecipeName], the full recipe data is already provided in the message context. Do NOT call searchRecipeByName or getRecipeById for those recipes — use the provided data directly.
-
-		Remember: You are a cooking expert, so provide accurate, helpful information and be enthusiastic about food and cooking!`,
+		DefaultModel:             "gemma3:4b",
+		Temperature:              0.9,
+		MaxTokens:                1000,
+		MaxIterations:            15,
+		SystemPrompt:             DefaultSystemPrompt,
 		SummaryPrompt:            `Extract 3-5 key words or short phrases (separated by commas) that best describe this cooking conversation. Focus on the main topics, recipes, or ingredients discussed. Do not use full sentences, only keywords. Conversation: %s`,
 		SummaryMaxLength:         60,
 		TextAreaPlaceholder:      "Ask about cooking, recipes, ingredients...",
 		TextAreaMaxChar:          400,
-		UserName:                 "User",
-		AssistantName:            "Assistant",
+		UserName:                 "You",
+		AssistantName:            "Yummy",
 		AssistantAvatar:          "",
 		UserAvatar:               "",
 		AssistantThinkingMessage: "Thinking...",
@@ -395,6 +380,7 @@ type KeymapConfig struct {
 	ResetTimer           []string `json:"reset_timer"`
 	ChatScrollUp         []string `json:"chat_scroll_up"`
 	ChatScrollDown       []string `json:"chat_scroll_down"`
+	ToggleSidebar        []string `json:"toggle_sidebar"`
 }
 
 func NewDefaultKeyBindings() KeymapConfig {
@@ -404,20 +390,20 @@ func NewDefaultKeyBindings() KeymapConfig {
 		No:                   []string{"n"},
 		Back:                 []string{"esc"},
 		Add:                  []string{"ctrl+a"},
-		NewSession:           []string{"ctrl+a"},
+		NewSession:           []string{"ctrl+n"},
 		Delete:               []string{"ctrl+x"},
 		Edit:                 []string{"ctrl+e"},
 		StateSelector:        []string{"ctrl+s"},
-		SessionSelector:      []string{"ctrl+n"},
-		ModelSelector:        []string{"ctrl+l"},
+		SessionSelector:      []string{"ctrl+o"},
+		ModelSelector:        []string{"ctrl+m"},
 		ThemeSelector:        []string{"ctrl+t"},
 		SetFavourite:         []string{"ctrl+f"},
 		ForceQuit:            []string{"ctrl+c"},
 		Quit:                 []string{"q"},
 		CursorUp:             []string{"k", "up"},
-		NextPage:             []string{"k", "right"},
+		NextPage:             []string{"right", "pgdown"},
 		CursorDown:           []string{"j", "down"},
-		PrevPage:             []string{"j", "left"},
+		PrevPage:             []string{"left", "pgup"},
 		ShowFullHelp:         []string{"?"},
 		CloseFullHelp:        []string{"?"},
 		Help:                 []string{"h", "?"},
@@ -442,6 +428,7 @@ func NewDefaultKeyBindings() KeymapConfig {
 		ResetTimer:           []string{"r"},
 		ChatScrollUp:         []string{"ctrl+u"},
 		ChatScrollDown:       []string{"ctrl+d"},
+		ToggleSidebar:        []string{"ctrl+l"},
 	}
 }
 
@@ -451,20 +438,18 @@ func (k KeymapConfig) ToKeyMap() KeyMap {
 
 // GeneralConfig contains general application settings
 type GeneralConfig struct {
-	Height       int `json:"status_line_height"`
-	Padding      int `json:"status_line_padding"`
-	ContentWidth int `json:"status_line_content_width"`
-	ScrollSpeed  int `json:"scroll_speed"`
-	MoveSpeed    int `json:"move_speed"`
+	ScrollSpeed int `json:"scroll_speed"`
+	MoveSpeed   int `json:"move_speed"`
+	// Mouse enables mouse capture (wheel scrolling). It is off by default
+	// because a terminal app that captures the mouse disables the terminal's
+	// own text selection and link clicking.
+	Mouse bool `json:"mouse"`
 }
 
 func NewDefaultGeneralConfig() GeneralConfig {
 	return GeneralConfig{
-		Height:       0,
-		Padding:      0,
-		ContentWidth: 0,
-		ScrollSpeed:  3,
-		MoveSpeed:    1,
+		ScrollSpeed: 3,
+		MoveSpeed:   1,
 	}
 }
 
@@ -534,8 +519,68 @@ func LoadConfig(configDir string) (*Config, error) {
 		slog.Error("Failed to parse config file", "error", err)
 		return nil, err
 	}
+	config.migrate()
 
 	return config, nil
+}
+
+// DefaultSystemPrompt is the assistant's default system prompt. The tools are
+// described to the model by the agent itself, so they are deliberately not
+// listed here (a hard-coded list went stale as tools were added).
+const DefaultSystemPrompt = `You are a helpful cooking assistant specialized in recipes, ingredients, and culinary knowledge. You have access to the user's personal cookbook through tools.
+
+Use the tools whenever the question is about the user's own recipes:
+- to find a specific dish, search by name; to browse or filter (category, time, rating, favourites, ingredients) list recipes; to answer "what can I cook with ...", find recipes by ingredients; to learn which categories exist, get the cookbook overview.
+- tool results contain recipe IDs; fetch the full recipe by ID before quoting ingredients, amounts or steps.
+- when a list says more pages are available and the user wants more, request the next page.
+- never invent recipes, IDs, amounts or times that a tool did not return. If nothing matches, say so and suggest alternatives.
+
+When the user references a recipe with @[RecipeName], the full recipe data is already provided in the message context. Do not search for it again; use the provided data directly.
+
+Answer in markdown, concisely: short paragraphs and lists, emphasis where it helps. Be accurate, practical and encouraging.`
+
+// migrate replaces values saved by older versions that are known to be broken.
+func (c *Config) migrate() {
+	defaults := NewDefaultKeyBindings()
+	// Older defaults bound next/prev page to k/j, which collide with cursor
+	// up/down (k and j) in every list and made cooking mode step backwards on j.
+	if equalStrings(c.Keymap.NextPage, []string{"k", "right"}) {
+		c.Keymap.NextPage = defaults.NextPage
+	}
+	if equalStrings(c.Keymap.PrevPage, []string{"j", "left"}) {
+		c.Keymap.PrevPage = defaults.PrevPage
+	}
+	// The old default system prompt hard-coded a list of only two tools, which
+	// kept the model from using the newer ones. Replace it when unmodified.
+	if strings.Contains(c.Chat.SystemPrompt, "- getRecipeById: Get a specific recipe by its unique ID. Use this after finding a recipe with searchRecipeByName") {
+		c.Chat.SystemPrompt = DefaultSystemPrompt
+	}
+
+	// Chat keys were remapped: ^n new chat, ^o sessions, ^m model, ^l sidebar.
+	// Only migrate configs still holding the complete old default set, so a
+	// user's own customisation is never overwritten.
+	if equalStrings(c.Keymap.NewSession, []string{"ctrl+a"}) &&
+		equalStrings(c.Keymap.SessionSelector, []string{"ctrl+n"}) &&
+		equalStrings(c.Keymap.ModelSelector, []string{"ctrl+l"}) {
+		c.Keymap.NewSession = defaults.NewSession
+		c.Keymap.SessionSelector = defaults.SessionSelector
+		c.Keymap.ModelSelector = defaults.ModelSelector
+		if len(c.Keymap.ToggleSidebar) == 0 || equalStrings(c.Keymap.ToggleSidebar, []string{"ctrl+b"}) {
+			c.Keymap.ToggleSidebar = defaults.ToggleSidebar
+		}
+	}
+}
+
+func equalStrings(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
 
 func (c *Config) Save(configDir string) error {

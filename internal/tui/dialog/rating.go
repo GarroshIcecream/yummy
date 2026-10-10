@@ -7,6 +7,7 @@ import (
 	"charm.land/lipgloss/v2"
 	messages "github.com/GarroshIcecream/yummy/internal/models/msg"
 	themes "github.com/GarroshIcecream/yummy/internal/themes"
+	"github.com/GarroshIcecream/yummy/internal/utils"
 )
 
 // RatingDialogCmp is a small top-anchored modal for setting a recipe rating.
@@ -64,22 +65,11 @@ func (r *RatingDialogCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (r *RatingDialogCmp) View() tea.View {
-	// Thick block border matching add-recipe-from-URL style
-	dialogBorder := lipgloss.Border{
-		Top:         "▀",
-		Bottom:      "▄",
-		Left:        "▌",
-		Right:       "▐",
-		TopLeft:     "▛",
-		TopRight:    "▜",
-		BottomLeft:  "▙",
-		BottomRight: "▟",
-	}
 
-	// Build the single-line content: title · stars · hints
+	// Build the single-line content: title | stars | hints
 	var b strings.Builder
 
-	b.WriteString(r.theme.RatingDialogTitle.Render("Rate"))
+	b.WriteString(r.theme.RatingDialogTitle.Render("Rate recipe"))
 	b.WriteString("  ")
 
 	for i := int8(1); i <= 5; i++ {
@@ -93,7 +83,7 @@ func (r *RatingDialogCmp) View() tea.View {
 		}
 	}
 
-	dot := r.theme.RatingDialogHelp.Render(" · ")
+	dot := r.theme.RatingDialogHelp.Render(" | ")
 	b.WriteString("  ")
 	b.WriteString(r.theme.RatingDialogHelp.Render("←→"))
 	b.WriteString(dot)
@@ -101,11 +91,11 @@ func (r *RatingDialogCmp) View() tea.View {
 	b.WriteString(dot)
 	b.WriteString(r.theme.RatingDialogHelp.Render("esc"))
 
-	rendered := lipgloss.NewStyle().
-		Border(dialogBorder).
-		BorderForeground(r.theme.RatingStarActive.GetForeground()).
-		Padding(0, 2).
-		Render(b.String())
+	// Fill the interior with the elevated surface so the segments (title, stars,
+	// hints separated by foreground-only spaces) sit on a solid card instead of
+	// leaving bare cells that show the canvas behind.
+	line := utils.FillBackground(b.String(), r.theme.SurfaceBg, lipgloss.Width(b.String()))
+	rendered := r.theme.RatingDialogBox.Render(line)
 
 	return tea.NewView(r.theme.RatingDialogContainer.Render(rendered))
 }

@@ -11,15 +11,19 @@ import (
 	common "github.com/GarroshIcecream/yummy/internal/models/common"
 	messages "github.com/GarroshIcecream/yummy/internal/models/msg"
 	themes "github.com/GarroshIcecream/yummy/internal/themes"
+	utils "github.com/GarroshIcecream/yummy/internal/utils"
 )
 
 // Action constants for command palette commands.
 const (
+	ActionCreateRecipe   = "create_recipe"
 	ActionThemeSelector  = "theme_selector"
 	ActionModelSelector  = "model_selector"
 	ActionStateSelector  = "state_selector"
 	ActionAddRecipe      = "add_recipe"
 	ActionRecipeSelector = "recipe_selector"
+	ActionScraperUpdate  = "scraper_update"
+	ActionToggleAI       = "toggle_ai_parsing"
 )
 
 // CommandItem represents a single command in the palette.
@@ -52,12 +56,15 @@ func NewCommandPaletteDialog(theme *themes.Theme) (*CommandPaletteDialogCmp, err
 		{Name: "Switch View", Shortcut: strings.Join(km.StateSelector, " / "), Action: ActionStateSelector},
 		{Name: "Change Theme", Shortcut: strings.Join(km.ThemeSelector, " / "), Action: ActionThemeSelector},
 		{Name: "Change Model", Shortcut: strings.Join(km.ModelSelector, " / "), Action: ActionModelSelector},
-		{Name: "Add Recipe from URL", Shortcut: strings.Join(km.Add, " / "), Action: ActionAddRecipe},
+		{Name: "Add Recipe", Shortcut: strings.Join(km.Add, " / "), Action: ActionAddRecipe},
 		{Name: "Find Recipe", Shortcut: strings.Join(km.RecipeSelector, " / "), Action: ActionRecipeSelector},
+		{Name: "Check recipe-scrapers Update", Action: ActionScraperUpdate},
+		{Name: aiParsingLabel(cfg.AddRecipeFromURLDialog.AIParsing), Action: ActionToggleAI},
 	}
 
 	ti := textinput.New()
 	ti.Placeholder = "Search..."
+	ti.SetStyles(theme.DialogSearchStyles)
 	ti.Focus()
 	ti.CharLimit = 64
 	if w := dialogConfig.Width - 8; w > 10 {
@@ -74,6 +81,14 @@ func NewCommandPaletteDialog(theme *themes.Theme) (*CommandPaletteDialogCmp, err
 		height:      dialogConfig.Height,
 		theme:       theme,
 	}, nil
+}
+
+// aiParsingLabel names the toggle by the action it performs.
+func aiParsingLabel(enabled bool) string {
+	if enabled {
+		return "Turn Off AI Recipe Parsing"
+	}
+	return "Turn On AI Recipe Parsing"
 }
 
 func (c *CommandPaletteDialogCmp) Init() tea.Cmd {
@@ -144,18 +159,14 @@ func (c *CommandPaletteDialogCmp) applyFilter() {
 }
 
 func (c *CommandPaletteDialogCmp) View() tea.View {
-	innerWidth := c.width - 6 // border (2) + padding (4)
-	if innerWidth < 30 {
-		innerWidth = 30
-	}
+	innerWidth := max(
+		// border (2) + padding (4)
+		c.width-6, 30)
 
 	// Header: "Commands" left, "esc" right
 	titleLeft := c.theme.CommandPaletteTitle.Render("Commands")
 	escHint := c.theme.CommandPaletteHelp.Render("esc")
-	titlePad := innerWidth - lipgloss.Width(titleLeft) - lipgloss.Width(escHint)
-	if titlePad < 1 {
-		titlePad = 1
-	}
+	titlePad := max(innerWidth-lipgloss.Width(titleLeft)-lipgloss.Width(escHint), 1)
 	header := titleLeft + strings.Repeat(" ", titlePad) + escHint
 
 	// Search input
@@ -172,10 +183,7 @@ func (c *CommandPaletteDialogCmp) View() tea.View {
 
 		nameWidth := lipgloss.Width(name)
 		shortcutWidth := lipgloss.Width(shortcut)
-		gap := innerWidth - nameWidth - shortcutWidth
-		if gap < 2 {
-			gap = 2
-		}
+		gap := max(innerWidth-nameWidth-shortcutWidth, 2)
 
 		line := name + strings.Repeat(" ", gap) + shortcut
 
@@ -185,10 +193,9 @@ func (c *CommandPaletteDialogCmp) View() tea.View {
 				Render(line)
 			rows = append(rows, row)
 		} else {
-			nameRendered := c.theme.DialogUnselectedRow.
-				Render(name)
-			shortcutRendered := c.theme.CommandPaletteShortcut.Render(shortcut)
-			row := nameRendered + strings.Repeat(" ", gap) + shortcutRendered
+			row := c.theme.DialogUnselectedRow.
+				Width(innerWidth).
+				Render(line)
 			rows = append(rows, row)
 		}
 	}
@@ -201,7 +208,7 @@ func (c *CommandPaletteDialogCmp) View() tea.View {
 	parts := []string{header, "", searchLine, sep}
 	parts = append(parts, rows...)
 
-	content := lipgloss.JoinVertical(lipgloss.Left, parts...)
+	content := utils.FillBackground(lipgloss.JoinVertical(lipgloss.Left, parts...), c.theme.SurfaceBg, innerWidth)
 
 	rendered := c.theme.CommandPaletteDialog.
 		Width(c.width).
@@ -211,8 +218,8 @@ func (c *CommandPaletteDialogCmp) View() tea.View {
 }
 
 func (c *CommandPaletteDialogCmp) SetSize(width, height int) {
-	c.width = width
-	c.height = height
+	c.width = clampModalWidth(width, c.width, 24)
+	c.height = clampModalHeight(height, c.height, 8)
 	if w := c.width - 8; w > 10 {
 		c.searchInput.SetWidth(w)
 	}

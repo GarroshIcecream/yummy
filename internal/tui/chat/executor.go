@@ -1,109 +1,73 @@
 package chat
 
 import (
-	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
-	"slices"
 	"strings"
+	"sync"
 
 	"github.com/GarroshIcecream/yummy/internal/config"
 	db "github.com/GarroshIcecream/yummy/internal/db"
-	"github.com/GarroshIcecream/yummy/internal/tui/chat/callbacks"
-	tools "github.com/GarroshIcecream/yummy/internal/tui/chat/tools"
+	"github.com/GarroshIcecream/yummy/internal/llms"
 	"github.com/tmc/langchaingo/agents"
 	"github.com/tmc/langchaingo/chains"
-	"github.com/tmc/langchaingo/llms"
-	"github.com/tmc/langchaingo/llms/ollama"
+	langllms "github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/memory"
 )
 
 // ExecutorService provides agent-based LLM interactions using langchaingo executor
 type ExecutorService struct {
-	executor        *agents.Executor
-	llm             *ollama.LLM
-	toolManager     *tools.ToolManager
-	cookbook        *db.CookBook
-	sessionLog      *db.SessionLog
-	ollamaStatus    *OllamaServiceStatus
-	modelName       string
-	ctx             context.Context
-	cancelCtx       context.CancelFunc
-	sessionStats    db.SessionStats
-	systemPrompt    string
-	maxIterations   int
-	callbackHandler *callbacks.DefaultAgentCallbackHandler
-	streamCh        chan string
+	ai           *llms.LLMService
+	executor     *agents.Executor
+	sessionLog   *db.SessionLog
+	cookbook     *db.CookBook
+	sessionStats db.SessionStats
+	systemPrompt string
+
+	// mu guards memSnapshot and the executor field above: the executor is
+	// reassigned on the main goroutine (SetModelByName) while the generation
+	// goroutine reads it.
+	//
+	// memSnapshot holds a frozen copy of conversation messages taken before
+	// generation starts. While non-nil, GetMemoryConversation returns this
+	// snapshot instead of reading from the (concurrently mutated) memory.
+	mu          sync.Mutex
+	memSnapshot []langllms.ChatMessage
+
+	// toolCalls holds, per assistant message (by its position among the
+	// conversation's assistant messages), the tool calls that produced it, so
+	// the thread keeps showing them after the conversation moves on. Guarded
+	// by mu; persisted in SessionMessage.ToolCalls and restored by LoadSession.
+	toolCalls map[int][]llms.ToolCallEvent
+}
+
+// getExecutor returns the current agent executor under the lock so that reads
+// from the generation goroutine don't race with SetModelByName reassigning it.
+func (e *ExecutorService) getExecutor() *agents.Executor {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.executor
 }
 
 // NewExecutorService creates a new executor service instance
-func NewExecutorService(cookbook *db.CookBook, sessionLog *db.SessionLog) (*ExecutorService, error) {
-	ctx, cancel := context.WithCancel(context.Background())
+func NewExecutorService(ai *llms.LLMService, cookbook *db.CookBook, sessionLog *db.SessionLog) (*ExecutorService, error) {
 	chatConfig := config.GetChatConfig()
-
-	// Get Ollama service status
-	ollamaStatus, err := GetOllamaServiceStatus(chatConfig.DefaultModel)
-	if err != nil {
-		slog.Error("Failed to get ollama service status", "error", err)
-		cancel()
-		return nil, err
-	}
-
-	// Create tool manager with cookbook access
-	toolManager := tools.NewToolManager(cookbook)
-
-	// Initialize the LLM
-	llm, err := ollama.New(
-		ollama.WithModel(chatConfig.DefaultModel),
-	)
-	if err != nil {
-		slog.Error("Failed to create LLM", "error", err)
-		cancel()
-		return nil, err
-	}
 
 	mem := memory.NewConversationBuffer(
 		memory.WithInputKey("input"),
 		memory.WithOutputKey("output"),
 	)
 
-	// Create a buffered channel for streaming chunks from the LLM callback to the TUI
-	streamCh := make(chan string, 64)
+	executor := ai.NewAgent(mem)
 
-	// Create the executor
-	tools := toolManager.GetTools()
-	callbackHandler := callbacks.NewDefaultAgentCallbackHandler(
-		func(status string) {
-			slog.Debug("Agent Callback: Status", "status", status)
-		},
-	)
-	callbackHandler.SetStreamingCallback(func(chunk string) {
-		streamCh <- chunk
-	})
-	executor := agents.NewExecutor(
-		agents.NewConversationalAgent(llm, tools, agents.WithCallbacksHandler(callbackHandler)),
-		agents.WithMaxIterations(chatConfig.MaxIterations),
-		agents.WithMemory(mem),
-		agents.WithReturnIntermediateSteps(),
-		agents.WithCallbacksHandler(callbackHandler),
-	)
-
-	emptySessionStats := db.SessionStats{}
 	service := &ExecutorService{
-		executor:        executor,
-		llm:             llm,
-		modelName:       chatConfig.DefaultModel,
-		cookbook:        cookbook,
-		sessionLog:      sessionLog,
-		ctx:             ctx,
-		cancelCtx:       cancel,
-		toolManager:     toolManager,
-		ollamaStatus:    ollamaStatus,
-		sessionStats:    emptySessionStats,
-		systemPrompt:    chatConfig.SystemPrompt,
-		maxIterations:   chatConfig.MaxIterations,
-		callbackHandler: callbackHandler,
-		streamCh:        streamCh,
+		ai:           ai,
+		executor:     executor,
+		cookbook:     cookbook,
+		sessionLog:   sessionLog,
+		sessionStats: db.SessionStats{},
+		systemPrompt: chatConfig.SystemPrompt,
 	}
 
 	return service, nil
@@ -115,39 +79,31 @@ func (e *ExecutorService) GetSystemPrompt() string {
 
 // GetStreamCh returns the read-only channel that emits streaming chunks from the LLM.
 func (e *ExecutorService) GetStreamCh() <-chan string {
-	return e.streamCh
+	return e.ai.GetStreamCh()
+}
+
+func (e *ExecutorService) GetToolCallCh() <-chan llms.ToolCallEvent {
+	return e.ai.GetToolCallCh()
+}
+
+// GetDoneCh returns a channel closed when the stream/tool-call channels are
+// replaced, signalling listeners on the old channels to exit.
+func (e *ExecutorService) GetDoneCh() <-chan struct{} {
+	return e.ai.GetDoneCh()
 }
 
 // CancelStreaming cancels the in-flight LLM generation (if any), drains and
 // replaces the stream channel, and creates a fresh cancellable context so the
 // next generation can proceed.
 func (e *ExecutorService) CancelStreaming() {
-	// Cancel the running context to abort chains.Run
-	e.cancelCtx()
-
-	// Drain any leftover chunks so the listener goroutine unblocks
-	old := e.streamCh
-	go func() {
-		for range old {
-		}
-	}()
-	close(old)
-
-	// Create a fresh channel and context for the next request
-	e.streamCh = make(chan string, 64)
-	e.ctx, e.cancelCtx = context.WithCancel(context.Background())
-
-	// Re-point the callback handler at the new channel
-	e.callbackHandler.SetStreamingCallback(func(chunk string) {
-		e.streamCh <- chunk
-	})
+	e.ai.CancelStreaming()
 }
 
 func (e *ExecutorService) GetMemory() *memory.ConversationBuffer {
-	return e.executor.GetMemory().(*memory.ConversationBuffer)
+	return e.getExecutor().GetMemory().(*memory.ConversationBuffer)
 }
 
-func (e *ExecutorService) SaveMessage(message string, role llms.ChatMessageType) error {
+func (e *ExecutorService) SaveMessage(message string, role langllms.ChatMessageType) error {
 	err := e.sessionLog.SaveSessionMessage(
 		e.sessionStats.SessionID,
 		message,
@@ -185,15 +141,29 @@ func (e *ExecutorService) PrepareForGeneration(message string) error {
 	}
 
 	// Save the user message so it appears in the conversation immediately
-	err := e.SaveMessage(message, llms.ChatMessageTypeHuman)
+	err := e.SaveMessage(message, langllms.ChatMessageTypeHuman)
 	if err != nil {
 		slog.Error("Failed to register message", "error", err)
 		return err
 	}
 
-	// Reset callback state before running the chain
-	e.callbackHandler.ResetTokenUsage()
-	e.callbackHandler.ResetStreamBuffer()
+	e.ai.ResetCallbackState()
+	e.ai.TakeToolCalls() // drop anything left over from a previous run
+
+	// Snapshot the current conversation so that renders during generation
+	// read a stable copy instead of the concurrently-mutated memory.
+	ctx := e.ai.GetContext()
+	msgs, err := e.GetMemory().ChatHistory.Messages(ctx)
+	if err != nil {
+		slog.Error("Failed to snapshot memory", "error", err)
+		// Non-fatal — we'll just read live memory (racy but won't crash).
+	} else {
+		snap := make([]langllms.ChatMessage, len(msgs))
+		copy(snap, msgs)
+		e.mu.Lock()
+		e.memSnapshot = snap
+		e.mu.Unlock()
+	}
 
 	return nil
 }
@@ -206,9 +176,15 @@ func (e *ExecutorService) PrepareForGeneration(message string) error {
 // conversation buffer after generation so that the UI shows the compact text
 // (e.g. with @[Recipe] intact) rather than the expanded prompt.
 func (e *ExecutorService) GenerateResponse(promptMessage, displayMessage string) (string, error) {
-	slog.Debug("Generating response with executor", "model", e.modelName, "input", promptMessage)
+	slog.Debug("Generating response with executor", "model", e.ai.GetModelName(), "input", promptMessage)
 
-	result, err := chains.Run(e.ctx, e.executor, promptMessage)
+	result, err := chains.Run(e.ai.GetContext(), e.getExecutor(), promptMessage)
+
+	// Generation done — clear the snapshot so renders read live memory again.
+	e.mu.Lock()
+	e.memSnapshot = nil
+	e.mu.Unlock()
+
 	if err != nil {
 		slog.Error("Executor execution error", "error", err)
 		return "", err
@@ -220,15 +196,34 @@ func (e *ExecutorService) GenerateResponse(promptMessage, displayMessage string)
 		e.replaceLastHumanMessage(displayMessage)
 	}
 
-	// Get token usage after execution
-	usage := e.callbackHandler.GetTokenUsage()
+	usage := e.ai.GetTokenUsage()
 	slog.Debug("Generated response",
 		"result", result,
 		"prompt_tokens", usage.PromptTokens,
 		"completion_tokens", usage.CompletionTokens,
 		"total_tokens", usage.TotalTokens)
 
-	err = e.SaveMessage(result, llms.ChatMessageTypeAI)
+	calls := e.ai.TakeToolCalls()
+	var encoded string
+	if len(calls) > 0 {
+		if b, err := json.Marshal(calls); err == nil {
+			encoded = string(b)
+		}
+		// The executor has already appended this answer to memory, so it is the
+		// last assistant message. Count before locking: GetMemory takes e.mu.
+		index := e.aiMessageCount() - 1
+		e.mu.Lock()
+		if e.toolCalls == nil {
+			e.toolCalls = map[int][]llms.ToolCallEvent{}
+		}
+		e.toolCalls[index] = calls
+		e.mu.Unlock()
+	}
+
+	err = e.sessionLog.SaveSessionMessageWithToolCalls(
+		e.sessionStats.SessionID, result, langllms.ChatMessageTypeAI,
+		e.GetCurrentModelName(), usage.PromptTokens, usage.CompletionTokens, usage.TotalTokens, encoded,
+	)
 	if err != nil {
 		slog.Error("Failed to register message", "error", err)
 		return "", err
@@ -245,7 +240,8 @@ func (e *ExecutorService) GenerateResponse(promptMessage, displayMessage string)
 // augmented LLM prompt (which includes full recipe data) with the compact
 // display text (which keeps @[RecipeName] intact).
 func (e *ExecutorService) replaceLastHumanMessage(displayText string) {
-	msgs, err := e.GetMemory().ChatHistory.Messages(e.ctx)
+	ctx := e.ai.GetContext()
+	msgs, err := e.GetMemory().ChatHistory.Messages(ctx)
 	if err != nil {
 		slog.Error("Failed to read memory for mention cleanup", "error", err)
 		return
@@ -253,8 +249,8 @@ func (e *ExecutorService) replaceLastHumanMessage(displayText string) {
 
 	// Find the last human message and replace it.
 	for i := len(msgs) - 1; i >= 0; i-- {
-		if msgs[i].GetType() == llms.ChatMessageTypeHuman {
-			msgs[i] = llms.HumanChatMessage{Content: displayText}
+		if msgs[i].GetType() == langllms.ChatMessageTypeHuman {
+			msgs[i] = langllms.HumanChatMessage{Content: displayText}
 			break
 		}
 	}
@@ -265,8 +261,15 @@ func (e *ExecutorService) replaceLastHumanMessage(displayText string) {
 	}
 }
 
-func (e *ExecutorService) GetMemoryConversation() ([]llms.ChatMessage, error) {
-	messages, err := e.GetMemory().ChatHistory.Messages(e.ctx)
+func (e *ExecutorService) GetMemoryConversation() ([]langllms.ChatMessage, error) {
+	e.mu.Lock()
+	snap := e.memSnapshot
+	e.mu.Unlock()
+	if snap != nil {
+		return snap, nil
+	}
+	ctx := e.ai.GetContext()
+	messages, err := e.GetMemory().ChatHistory.Messages(ctx)
 	if err != nil {
 		slog.Error("Failed to get conversation", "error", err)
 		return nil, err
@@ -274,19 +277,66 @@ func (e *ExecutorService) GetMemoryConversation() ([]llms.ChatMessage, error) {
 	return messages, nil
 }
 
+// ToolCallsFor returns the tool calls behind the n-th assistant message
+// (0-based, counting only assistant messages) of the current conversation.
+func (e *ExecutorService) ToolCallsFor(n int) []llms.ToolCallEvent {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return e.toolCalls[n]
+}
+
+// aiMessageCount counts assistant messages in live memory. It must not be
+// called with e.mu held (GetMemory takes it).
+func (e *ExecutorService) aiMessageCount() int {
+	msgs, err := e.GetMemory().ChatHistory.Messages(e.ai.GetContext())
+	if err != nil {
+		return 0
+	}
+	n := 0
+	for _, m := range msgs {
+		if m.GetType() == langllms.ChatMessageTypeAI {
+			n++
+		}
+	}
+	return n
+}
+
+// VisibleMessageCount returns the number of user and assistant messages in the
+// current conversation (system and tool messages excluded).
+func (e *ExecutorService) VisibleMessageCount() int {
+	msgs, err := e.GetMemoryConversation()
+	if err != nil {
+		return 0
+	}
+	n := 0
+	for _, m := range msgs {
+		switch m.GetType() {
+		case langllms.ChatMessageTypeHuman, langllms.ChatMessageTypeAI:
+			n++
+		}
+	}
+	return n
+}
+
+// GetProviderName returns the display name of the LLM provider.
+func (e *ExecutorService) GetProviderName() string {
+	return "Ollama"
+}
+
 // GetSessionID returns the current session ID
 func (e *ExecutorService) GetSessionID() uint {
 	return e.sessionStats.SessionID
 }
 
-func (e *ExecutorService) SetMemory(conversation []llms.ChatMessage) error {
+func (e *ExecutorService) SetMemory(conversation []langllms.ChatMessage) error {
+	ctx := e.ai.GetContext()
 	err := e.ClearMemory()
 	if err != nil {
 		slog.Error("Failed to clear memory", "error", err)
 		return err
 	}
 	for _, message := range conversation {
-		err := e.GetMemory().ChatHistory.AddMessage(e.ctx, message)
+		err := e.GetMemory().ChatHistory.AddMessage(ctx, message)
 		if err != nil {
 			slog.Error("Failed to add message to memory", "error", err)
 			return err
@@ -296,7 +346,8 @@ func (e *ExecutorService) SetMemory(conversation []llms.ChatMessage) error {
 }
 
 func (e *ExecutorService) ClearMemory() error {
-	err := e.GetMemory().Clear(e.ctx)
+	ctx := e.ai.GetContext()
+	err := e.GetMemory().Clear(ctx)
 	if err != nil {
 		slog.Error("Failed to clear memory", "error", err)
 		return err
@@ -312,6 +363,7 @@ func (e *ExecutorService) ResetSession() error {
 	}
 
 	e.sessionStats = db.SessionStats{}
+	e.setToolCalls(nil)
 	return nil
 }
 
@@ -338,7 +390,14 @@ func (e *ExecutorService) NewSession() error {
 	// it would return SessionID=0 for a brand-new session that only has the
 	// system prompt.
 	e.sessionStats = db.SessionStats{SessionID: sessionID}
+	e.setToolCalls(nil)
 	return nil
+}
+
+func (e *ExecutorService) setToolCalls(calls map[int][]llms.ToolCallEvent) {
+	e.mu.Lock()
+	e.toolCalls = calls
+	e.mu.Unlock()
 }
 
 // LoadSession loads a session into the executor service
@@ -349,16 +408,27 @@ func (e *ExecutorService) LoadSession(sessionID uint) error {
 		return err
 	}
 
-	chatMessages := make([]llms.ChatMessage, len(sessionMessages))
+	chatMessages := make([]langllms.ChatMessage, len(sessionMessages))
+	toolCalls := map[int][]llms.ToolCallEvent{}
+	aiIndex := 0
 	for i, msg := range sessionMessages {
-		if msg.Role == string(llms.ChatMessageTypeSystem) {
-			chatMessages[i] = llms.SystemChatMessage{Content: msg.Message}
-		} else if msg.Role == string(llms.ChatMessageTypeHuman) {
-			chatMessages[i] = llms.HumanChatMessage{Content: msg.Message}
-		} else if msg.Role == string(llms.ChatMessageTypeAI) {
-			chatMessages[i] = llms.AIChatMessage{Content: msg.Message}
-		} else if msg.Role == string(llms.ChatMessageTypeTool) {
-			chatMessages[i] = llms.ToolChatMessage{Content: msg.Message}
+		if msg.Role == string(langllms.ChatMessageTypeAI) {
+			if msg.ToolCalls != "" {
+				var calls []llms.ToolCallEvent
+				if err := json.Unmarshal([]byte(msg.ToolCalls), &calls); err == nil {
+					toolCalls[aiIndex] = calls
+				}
+			}
+			aiIndex++
+		}
+		if msg.Role == string(langllms.ChatMessageTypeSystem) {
+			chatMessages[i] = langllms.SystemChatMessage{Content: msg.Message}
+		} else if msg.Role == string(langllms.ChatMessageTypeHuman) {
+			chatMessages[i] = langllms.HumanChatMessage{Content: msg.Message}
+		} else if msg.Role == string(langllms.ChatMessageTypeAI) {
+			chatMessages[i] = langllms.AIChatMessage{Content: msg.Message}
+		} else if msg.Role == string(langllms.ChatMessageTypeTool) {
+			chatMessages[i] = langllms.ToolChatMessage{Content: msg.Message}
 		}
 	}
 
@@ -370,7 +440,7 @@ func (e *ExecutorService) LoadSession(sessionID uint) error {
 	}
 
 	// Set the model for the session
-	err = e.SetModelByName(sessionMessages[0].ModelName, e.ollamaStatus)
+	err = e.SetModelByName(sessionMessages[0].ModelName)
 	if err != nil {
 		slog.Error("Failed to set model", "error", err)
 		return err
@@ -384,17 +454,18 @@ func (e *ExecutorService) LoadSession(sessionID uint) error {
 	}
 
 	e.sessionStats = newSessionStats
+	e.setToolCalls(toolCalls)
 	return nil
 }
 
 // GetCurrentModelName returns the name of the current model
 func (e *ExecutorService) GetCurrentModelName() string {
-	return e.modelName
+	return e.ai.GetModelName()
 }
 
 // GetInstalledModels returns the list of Ollama models available locally.
 func (e *ExecutorService) GetInstalledModels() []string {
-	return e.ollamaStatus.InstalledModels
+	return e.ai.GetInstalledModels()
 }
 
 func (e *ExecutorService) GetSessionLog() *db.SessionLog {
@@ -412,66 +483,48 @@ func (e *ExecutorService) GetSessionSummary() (string, error) {
 
 // HasSystemPrompt checks if a system prompt is present in the conversation
 func (e *ExecutorService) HasSystemPrompt() bool {
-	messages, err := e.GetMemory().ChatHistory.Messages(e.ctx)
+	ctx := e.ai.GetContext()
+	messages, err := e.GetMemory().ChatHistory.Messages(ctx)
 	if err != nil {
 		return false
 	}
 
 	for _, message := range messages {
-		if message.GetType() == llms.ChatMessageTypeSystem {
+		if message.GetType() == langllms.ChatMessageTypeSystem {
 			return true
 		}
 	}
 	return false
 }
 
-// SetModelByName sets the model for the executor service
-func (e *ExecutorService) SetModelByName(modelName string, ollamaStatus *OllamaServiceStatus) error {
-	if !slices.Contains(ollamaStatus.InstalledModels, modelName) {
-		slog.Error("Model not installed", "model", modelName)
-		return fmt.Errorf("model %s is not installed", modelName)
-	}
-
-	e.modelName = modelName
-	llm, err := ollama.New(
-		ollama.WithModel(modelName),
-	)
+// SetModelByName sets the model for the executor service and recreates the agent.
+func (e *ExecutorService) SetModelByName(modelName string) error {
+	err := e.ai.SetModelByName(modelName)
 	if err != nil {
-		slog.Error("Failed to create LLM", "error", err)
 		return err
 	}
 
-	// Recreate the agent and executor with the new model
-	e.llm = llm
+	// Recreate the agent executor with the new model (memory already has system prompt)
 	mem := e.GetMemory()
-	newHandler := callbacks.NewDefaultAgentCallbackHandler(func(status string) {
-		slog.Debug("Agent Callback: Status", "status", status)
-	})
-	newHandler.SetStreamingCallback(func(chunk string) {
-		e.streamCh <- chunk
-	})
-	e.callbackHandler = newHandler
-	e.executor = agents.NewExecutor(
-		agents.NewConversationalAgent(llm, e.toolManager.GetTools(), agents.WithCallbacksHandler(newHandler)),
-		agents.WithMaxIterations(e.maxIterations),
-		agents.WithMemory(mem),
-		agents.WithReturnIntermediateSteps(),
-		agents.WithCallbacksHandler(newHandler),
-	)
+	executor := e.ai.NewAgent(mem)
+	e.mu.Lock()
+	e.executor = executor
+	e.mu.Unlock()
 
 	return nil
 }
 
 // AppendSystemPrompt appends the system prompt to the memory and saves it to the database
 func (e *ExecutorService) AppendSystemPrompt(systemPrompt string, sessionID uint) error {
-	systemMessage := llms.SystemChatMessage{Content: systemPrompt}
-	err := e.GetMemory().ChatHistory.AddMessage(e.ctx, systemMessage)
+	ctx := e.ai.GetContext()
+	systemMessage := langllms.SystemChatMessage{Content: systemPrompt}
+	err := e.GetMemory().ChatHistory.AddMessage(ctx, systemMessage)
 	if err != nil {
 		slog.Error("Failed to add system prompt to memory", "error", err)
 		return err
 	}
 
-	err = e.sessionLog.SaveSessionMessage(sessionID, systemPrompt, llms.ChatMessageTypeSystem, e.modelName, 0, 0, 0)
+	err = e.sessionLog.SaveSessionMessage(sessionID, systemPrompt, langllms.ChatMessageTypeSystem, e.ai.GetModelName(), 0, 0, 0)
 	if err != nil {
 		slog.Error("Failed to save system prompt to database", "error", err)
 		return err
@@ -500,11 +553,11 @@ func (e *ExecutorService) GenerateAndUpdateSessionSummary() {
 		role := msg.GetType()
 
 		switch role {
-		case llms.ChatMessageTypeSystem:
+		case langllms.ChatMessageTypeSystem:
 			continue
-		case llms.ChatMessageTypeHuman:
+		case langllms.ChatMessageTypeHuman:
 			conversationText.WriteString("User: " + msg.GetContent() + "\n")
-		case llms.ChatMessageTypeAI:
+		case langllms.ChatMessageTypeAI:
 			conversationText.WriteString("Assistant: " + msg.GetContent() + "\n")
 		}
 	}
@@ -514,11 +567,11 @@ func (e *ExecutorService) GenerateAndUpdateSessionSummary() {
 	summaryPrompt := fmt.Sprintf(chatConfig.SummaryPrompt, conversationText.String())
 
 	// Generate summary using the LLM
-	msgContent := []llms.MessageContent{
-		llms.TextParts(llms.ChatMessageTypeHuman, summaryPrompt),
+	msgContent := []langllms.MessageContent{
+		langllms.TextParts(langllms.ChatMessageTypeHuman, summaryPrompt),
 	}
 
-	summaryResponse, err := e.llm.GenerateContent(e.ctx, msgContent, llms.WithMaxLength(chatConfig.SummaryMaxLength))
+	summaryResponse, err := e.ai.GenerateContent(msgContent, langllms.WithMaxLength(chatConfig.SummaryMaxLength))
 	if err != nil {
 		slog.Error("Failed to generate session summary", "error", err)
 		return
@@ -581,6 +634,16 @@ func (e *ExecutorService) GetFullRecipe(recipeID uint) (string, error) {
 		return "", fmt.Errorf("recipe not found: %w", err)
 	}
 	return recipe.FormatRecipeMarkdown(), nil
+}
+
+// GetOllamaStatus returns the Ollama service status.
+func (e *ExecutorService) GetOllamaStatus() *llms.OllamaServiceStatus {
+	return e.ai.GetOllamaStatus()
+}
+
+// GetAI returns the underlying LLMService.
+func (e *ExecutorService) GetAI() *llms.LLMService {
+	return e.ai
 }
 
 // RecipeSuggestion holds a recipe name and ID for autocomplete.

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"charm.land/bubbles/v2/key"
 	list "charm.land/bubbles/v2/list"
@@ -11,6 +12,7 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/GarroshIcecream/yummy/internal/config"
 	db "github.com/GarroshIcecream/yummy/internal/db"
+	"github.com/GarroshIcecream/yummy/internal/llms"
 	common "github.com/GarroshIcecream/yummy/internal/models/common"
 	messages "github.com/GarroshIcecream/yummy/internal/models/msg"
 	themes "github.com/GarroshIcecream/yummy/internal/themes"
@@ -22,6 +24,7 @@ import (
 	main_menu "github.com/GarroshIcecream/yummy/internal/tui/main_menu"
 	overlay "github.com/GarroshIcecream/yummy/internal/tui/overlay"
 	status "github.com/GarroshIcecream/yummy/internal/tui/status"
+	"github.com/GarroshIcecream/yummy/internal/utils"
 )
 
 type Manager struct {
@@ -30,7 +33,10 @@ type Manager struct {
 	PreviousSessionState common.SessionState
 	ThemeManager         *themes.ThemeManager
 	models               map[common.SessionState]common.TUIModel
-	config               *config.GeneralConfig
+	config               *config.StatusLineConfig
+	configDir            string
+	themePreviewOriginal string
+	themePreviewActive   bool
 
 	// Database and configuration
 	Cookbook   *db.CookBook
@@ -44,9 +50,11 @@ type Manager struct {
 	CurrentModalType common.ModalType
 	overlayModel     *overlay.Model
 	modalModel       tea.Model
+	width            int
+	height           int
 }
 
-func New(cookbook *db.CookBook, sessionLog *db.SessionLog, themeManager *themes.ThemeManager, ctx context.Context) (*Manager, error) {
+func New(cookbook *db.CookBook, sessionLog *db.SessionLog, themeManager *themes.ThemeManager, configDir string, ctx context.Context) (*Manager, error) {
 	cfg := config.GetGlobalConfig()
 	if cfg == nil {
 		return nil, fmt.Errorf("global config not set")
@@ -60,7 +68,14 @@ func New(cookbook *db.CookBook, sessionLog *db.SessionLog, themeManager *themes.
 		return nil, err
 	}
 
-	executorService, err := chat.NewExecutorService(cookbook, sessionLog)
+	// Create shared LLM service (with tools)
+	llmService, err := llms.NewLLMService(cookbook)
+	if err != nil {
+		slog.Error("Failed to create LLM service", "error", err)
+		return nil, err
+	}
+
+	executorService, err := chat.NewExecutorService(llmService, cookbook, sessionLog)
 	if err != nil {
 		slog.Error("Failed to create executor service", "error", err)
 		return nil, err
@@ -90,7 +105,7 @@ func New(cookbook *db.CookBook, sessionLog *db.SessionLog, themeManager *themes.
 		return nil, err
 	}
 
-	cookingModel, err := detail.NewCookingModel(currentTheme)
+	cookingModel, err := detail.NewCookingModel(currentTheme, llmService)
 	if err != nil {
 		slog.Error("Failed to create cooking mode", "error", err)
 		return nil, err
@@ -109,7 +124,7 @@ func New(cookbook *db.CookBook, sessionLog *db.SessionLog, themeManager *themes.
 	// Create status line
 	statusLine := status.NewStatusLine(currentTheme)
 
-	generalConfig := config.GetGeneralConfig()
+	statusLineConfig := config.GetStatusLineConfig()
 	manager := &Manager{
 		ThemeManager:         themeManager,
 		CurrentSessionState:  common.SessionStateMainMenu,
@@ -119,7 +134,8 @@ func New(cookbook *db.CookBook, sessionLog *db.SessionLog, themeManager *themes.
 		statusLine:           statusLine,
 		Ctx:                  ctx,
 		ModalView:            false,
-		config:               generalConfig,
+		config:               statusLineConfig,
+		configDir:            configDir,
 		keyMap:               keymaps,
 	}
 
@@ -161,6 +177,14 @@ func (m *Manager) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.ModalView = false
 		}
 
+		// Entering the chat view needs an explicit render: the chat viewport's
+		// content is populated only by RenderConversationAsMarkdownMsg, so
+		// without this the empty-state welcome (and any existing history) never
+		// paints and the panel shows as a blank void.
+		if msg.SessionState == common.SessionStateChat && previousState != common.SessionStateChat {
+			cmds = append(cmds, messages.SendRenderConversationAsMarkdownMsg())
+		}
+
 		// When entering detail view from another state with no recipe selected, open the recipe selector
 		if msg.SessionState == common.SessionStateDetail && previousState != common.SessionStateDetail {
 			if detailModel, ok := m.models[common.SessionStateDetail].(*detail.DetailModel); ok {
@@ -176,10 +200,24 @@ func (m *Manager) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case messages.CloseModalViewMsg:
+		m.restoreThemePreview()
 		m.ModalView = false
 		m.overlayModel = nil
 		m.modalModel = nil
 		return m, nil
+
+	case messages.RecipeScrapersVersionMsg:
+		if menuModel, ok := m.models[common.SessionStateMainMenu]; ok {
+			updated, cmd := menuModel.Update(msg)
+			m.models[common.SessionStateMainMenu] = updated
+			cmds = append(cmds, cmd)
+		}
+		return m, tea.Batch(cmds...)
+
+	case messages.SaveMsg:
+		if listModel, ok := m.models[common.SessionStateList].(*yummy_list.ListModel); ok {
+			cmds = append(cmds, listModel.RefreshRecipeList())
+		}
 
 	case messages.CommandPaletteActionMsg:
 		theme := m.ThemeManager.GetCurrentTheme()
@@ -193,7 +231,7 @@ func (m *Manager) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmds = append(cmds, messages.SendOpenModalViewMsg(d, common.ModalTypeStateSelector))
 
 		case dialog.ActionThemeSelector:
-			availableThemes := m.ThemeManager.GetAvailableThemes()
+			availableThemes := m.ThemeManager.GetAvailableThemeInfos()
 			currentThemeName := theme.Name
 			d, err := dialog.NewThemeSelectorDialog(availableThemes, currentThemeName, theme)
 			if err != nil {
@@ -224,6 +262,12 @@ func (m *Manager) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			cmds = append(cmds, messages.SendOpenModalViewMsg(d, common.ModalTypeRecipeSelector))
 
+		case dialog.ActionCreateRecipe:
+			cmds = append(cmds, tea.Sequence(
+				messages.SendSessionStateMsg(common.SessionStateEdit),
+				messages.SendEditRecipeMsg(nil),
+			))
+
 		case dialog.ActionAddRecipe:
 			d, err := dialog.NewAddRecipeFromURLDialog(m.Cookbook, theme)
 			if err != nil {
@@ -231,6 +275,23 @@ func (m *Manager) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 			cmds = append(cmds, messages.SendOpenModalViewMsg(d, common.ModalTypeAddRecipeFromURL))
+
+		case dialog.ActionToggleAI:
+			if cfg := config.GetGlobalConfig(); cfg != nil {
+				cfg.AddRecipeFromURLDialog.AIParsing = !cfg.AddRecipeFromURLDialog.AIParsing
+				if err := cfg.Save(m.configDir); err != nil {
+					slog.Error("Failed to persist AI parsing setting", "error", err)
+				}
+			}
+
+		case dialog.ActionScraperUpdate:
+			cfg := config.GetGlobalConfig()
+			pythonPath := ""
+			if cfg != nil {
+				pythonPath = cfg.AddRecipeFromURLDialog.PythonPath
+			}
+			d := dialog.NewScraperUpdateDialog(pythonPath, theme)
+			cmds = append(cmds, messages.SendOpenModalViewMsg(d, common.ModalTypeScraperUpdate))
 		}
 
 	case messages.OpenModalViewMsg:
@@ -239,40 +300,50 @@ func (m *Manager) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else {
 			m.ModalView = true
 			m.CurrentModalType = msg.ModalType
-			m.modalModel = msg.ModalModel
-
-			yPos := overlay.Center
-			if msg.ModalType == common.ModalTypeRating {
-				yPos = overlay.Top
+			if msg.ModalType == common.ModalTypeThemeSelector {
+				currentTheme := m.ThemeManager.GetCurrentTheme()
+				if currentTheme != nil {
+					m.themePreviewOriginal = currentTheme.Name
+					m.themePreviewActive = true
+				}
 			}
+			m.modalModel = msg.ModalModel
+			m.sizeModalModel()
+			cmds = append(cmds, m.modalModel.Init())
 
-			m.overlayModel = overlay.New(
-				overlay.WrapTeaViewable(m.modalModel),
-				m.GetCurrentModel(),
-				overlay.Center,
-				yPos,
-				0,
-				0,
-			)
+			m.overlayModel = m.newOverlay()
 		}
 
 	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		m.height = msg.Height - m.config.Height
 		m.statusLine.SetSize(msg.Width, m.config.Height)
 		for _, model := range m.models {
-			model.SetSize(msg.Width, msg.Height-m.config.Height)
+			model.SetSize(m.width, m.height)
 		}
+		m.sizeModalModel()
 
-	case messages.ThemeSelectedMsg:
-		err := m.ThemeManager.SetThemeByName(msg.ThemeName)
-		if err != nil {
-			slog.Error("Failed to set theme", "error", err, "theme", msg.ThemeName)
+	case messages.ThemePreviewMsg:
+		if err := m.applyThemeByName(msg.ThemeName); err != nil {
+			slog.Error("Failed to preview theme", "error", err, "theme", msg.ThemeName)
 			return m, nil
 		}
 
-		// Update all models with new theme
-		newTheme := m.ThemeManager.GetCurrentTheme()
-		m.updateAllModelsTheme(newTheme)
-		m.statusLine.SetTheme(newTheme)
+	case messages.ThemeSelectedMsg:
+		if err := m.applyThemeByName(msg.ThemeName); err != nil {
+			slog.Error("Failed to set theme", "error", err, "theme", msg.ThemeName)
+			return m, nil
+		}
+		m.themePreviewActive = false
+		m.themePreviewOriginal = ""
+
+		cfg := config.GetGlobalConfig()
+		if cfg != nil && cfg.Theme != msg.ThemeName {
+			cfg.Theme = msg.ThemeName
+			if err := cfg.Save(m.configDir); err != nil {
+				slog.Error("Failed to persist theme selection", "error", err, "theme", msg.ThemeName)
+			}
+		}
 
 	case tea.KeyPressMsg:
 		switch {
@@ -280,7 +351,9 @@ func (m *Manager) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		case key.Matches(msg, m.keyMap.Back):
 			if m.ModalView {
+				m.restoreThemePreview()
 				m.ModalView = false
+				m.overlayModel = nil
 				m.modalModel = nil
 				return m, nil
 			}
@@ -294,18 +367,17 @@ func (m *Manager) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 
+			// In the list, esc first clears an active or applied filter.
 			if m.CurrentSessionState == common.SessionStateList {
 				if listModel, ok := m.models[common.SessionStateList].(*yummy_list.ListModel); ok {
-					if listModel.RecipeList.FilterState() != list.Filtering {
-						m.SetCurrentSessionState(m.PreviousSessionState)
-					} else {
-						listModel.RecipeList.SetFilterState(list.Unfiltered)
+					if listModel.RecipeList.FilterState() != list.Unfiltered {
+						listModel.RecipeList.ResetFilter()
+						return m, nil
 					}
 				}
-			} else {
-				m.SetCurrentSessionState(m.PreviousSessionState)
 			}
 
+			m.SetCurrentSessionState(m.parentState(m.CurrentSessionState))
 			return m, nil
 
 		case key.Matches(msg, m.keyMap.StateSelector):
@@ -323,7 +395,7 @@ func (m *Manager) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				break
 			}
 
-			availableThemes := m.ThemeManager.GetAvailableThemes()
+			availableThemes := m.ThemeManager.GetAvailableThemeInfos()
 			currentThemeName := m.ThemeManager.GetCurrentTheme().Name
 			themeSelectorDialog, err := dialog.NewThemeSelectorDialog(availableThemes, currentThemeName, m.ThemeManager.GetCurrentTheme())
 			if err != nil {
@@ -341,6 +413,10 @@ func (m *Manager) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			cmds = append(cmds, messages.SendOpenModalViewMsg(recipeSelectorDialog, common.ModalTypeRecipeSelector))
 
+		case key.Matches(msg, m.keyMap.Add) && !m.ModalView && m.addKeyAvailable():
+			cmds = append(cmds, messages.SendCommandPaletteActionMsg(dialog.ActionAddRecipe))
+			return m, tea.Batch(cmds...)
+
 		case key.Matches(msg, m.keyMap.CommandPalette):
 			palette, err := dialog.NewCommandPaletteDialog(m.ThemeManager.GetCurrentTheme())
 			if err != nil {
@@ -356,19 +432,8 @@ func (m *Manager) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		fgModel, cmd := m.modalModel.Update(msg)
 		m.modalModel = fgModel
 
-		// Recreate overlay with updated models, preserving position
-		yPos := overlay.Center
-		if m.CurrentModalType == common.ModalTypeRating {
-			yPos = overlay.Top
-		}
-		m.overlayModel = overlay.New(
-			overlay.WrapTeaViewable(m.modalModel),
-			m.GetCurrentModel(),
-			overlay.Center,
-			yPos,
-			0,
-			0,
-		)
+		// Recreate overlay with updated models
+		m.overlayModel = m.newOverlay()
 
 		cmds = append(cmds, cmd)
 
@@ -402,11 +467,109 @@ func (m Manager) View() tea.View {
 		content = lipgloss.JoinVertical(lipgloss.Left, content, statusLine)
 	}
 
+	if theme := m.ThemeManager.GetCurrentTheme(); theme != nil && m.width > 0 {
+		totalHeight := m.height
+		if m.GetCurrentModel().GetModelState() == common.ModelStateLoaded {
+			totalHeight += m.config.Height
+		}
+		content = paintCanvas(content, theme, m.width, totalHeight)
+	}
+
 	v := tea.NewView(content)
 	v.WindowTitle = "Yummy"
+	v.ProgramStatus = m.programStatus()
 	v.AltScreen = true
-	v.MouseMode = tea.MouseModeAllMotion
+	// Mouse capture is opt-in (general.mouse): while it is on, the terminal
+	// can't select text or open links, so by default leave the mouse to it.
+	if cfg := config.GetGeneralConfig(); cfg != nil && cfg.Mouse {
+		v.MouseMode = tea.MouseModeCellMotion
+	}
 	return v
+}
+
+// busyReporter is implemented by views and dialogs that run long background
+// work (an LLM answer, a recipe import).
+type busyReporter interface {
+	Busy() (bool, string)
+}
+
+// programStatus reports what the app is doing to terminals that support the
+// Program Status Protocol (OSC 7501), e.g. a "working" indicator on the tab
+// while the assistant answers. Other terminals ignore it.
+func (m *Manager) programStatus() *tea.ProgramStatus {
+	candidates := []any{m.GetCurrentModel(), m.models[common.SessionStateChat]}
+	if m.ModalView {
+		candidates = append([]any{m.modalModel}, candidates...)
+	}
+	for _, c := range candidates {
+		if r, ok := c.(busyReporter); ok {
+			if busy, msg := r.Busy(); busy {
+				return &tea.ProgramStatus{State: tea.ProgramStateWorking, App: "yummy", Message: msg}
+			}
+		}
+	}
+	return &tea.ProgramStatus{State: tea.ProgramStateIdle, App: "yummy"}
+}
+
+// addKeyAvailable reports whether the global add-recipe key applies: not in
+// views that edit text (chat, recipe editor, cooking chat), where it would
+// steal the key from the input.
+func (m *Manager) addKeyAvailable() bool {
+	switch m.CurrentSessionState {
+	case common.SessionStateMainMenu, common.SessionStateDetail:
+		return true
+	case common.SessionStateCooking:
+		if cookingModel, ok := m.models[common.SessionStateCooking].(*detail.CookingModel); ok {
+			return !cookingModel.IsChatOpen()
+		}
+	}
+	// The list handles ctrl+a itself (and must not while filtering).
+	return false
+}
+
+// parentState is where esc leads from a view. Navigation goes up a fixed
+// hierarchy towards the main menu rather than back to whichever view was
+// last open, so repeated esc always ends at the main menu:
+//
+//	main menu
+//	├── recipe list
+//	│   └── recipe detail
+//	│       ├── cooking mode
+//	│       └── edit recipe
+//	└── chat assistant
+//
+// A new recipe (not yet saved) has no detail view, so its editor returns to
+// the list or main menu it was opened from.
+func (m *Manager) parentState(state common.SessionState) common.SessionState {
+	switch state {
+	case common.SessionStateDetail:
+		return common.SessionStateList
+	case common.SessionStateCooking:
+		return common.SessionStateDetail
+	case common.SessionStateEdit:
+		if editModel, ok := m.models[common.SessionStateEdit].(*edit.EditModel); ok && editModel.IsNew() {
+			if m.PreviousSessionState == common.SessionStateList {
+				return common.SessionStateList
+			}
+			return common.SessionStateMainMenu
+		}
+		return common.SessionStateDetail
+	default:
+		return common.SessionStateMainMenu
+	}
+}
+
+// newOverlay centers the current modal over the current view. Every dialog
+// opens in the same place so they read as one family.
+func (m *Manager) newOverlay() *overlay.Model {
+	return overlay.New(
+		overlay.WrapTeaViewable(m.modalModel),
+		m.GetCurrentModel(),
+		overlay.Center,
+		overlay.Center,
+		0,
+		0,
+	)
 }
 
 func (m *Manager) SetCurrentSessionState(state common.SessionState) {
@@ -428,5 +591,57 @@ func (m *Manager) GetModel(state common.SessionState) common.TUIModel {
 func (m *Manager) updateAllModelsTheme(theme *themes.Theme) {
 	for _, model := range m.models {
 		model.SetTheme(theme)
+	}
+}
+
+func (m *Manager) applyThemeByName(name string) error {
+	if err := m.ThemeManager.SetThemeByName(name); err != nil {
+		return err
+	}
+
+	newTheme := m.ThemeManager.GetCurrentTheme()
+	m.updateAllModelsTheme(newTheme)
+	m.statusLine.SetTheme(newTheme)
+
+	if m.CurrentModalType == common.ModalTypeThemeSelector {
+		if selector, ok := m.modalModel.(*dialog.ThemeSelectorDialogCmp); ok {
+			selector.SetTheme(newTheme)
+		}
+	}
+
+	return nil
+}
+
+func (m *Manager) restoreThemePreview() {
+	if !m.themePreviewActive || m.themePreviewOriginal == "" {
+		return
+	}
+	if err := m.applyThemeByName(m.themePreviewOriginal); err != nil {
+		slog.Error("Failed to restore preview theme", "error", err, "theme", m.themePreviewOriginal)
+	}
+	m.themePreviewActive = false
+	m.themePreviewOriginal = ""
+}
+
+// paintCanvas makes the whole frame sit on the theme's canvas: it pads the
+// frame to the full screen height and re-establishes the base background and
+// text color after every SGR reset, so no cell anywhere in the app — gaps
+// between panels, glamour output (which resets to the default background after
+// every span), huh forms, margins — falls through to the terminal's own colors.
+// Spans that set their own background keep it.
+func paintCanvas(content string, theme *themes.Theme, width, height int) string {
+	if lines := strings.Count(content, "\n") + 1; lines < height {
+		content += strings.Repeat("\n", height-lines)
+	}
+	return utils.FillColors(content, theme.AppBackground.GetForeground(), theme.BaseBg, width)
+}
+
+func (m *Manager) sizeModalModel() {
+	if m.modalModel == nil || m.width <= 0 || m.height <= 0 {
+		return
+	}
+
+	if sizable, ok := m.modalModel.(interface{ SetSize(int, int) }); ok {
+		sizable.SetSize(m.width, m.height)
 	}
 }

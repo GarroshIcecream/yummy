@@ -1,0 +1,38 @@
+# Example custom theme. Copy it to ~/.yummy/themes/ and pick it with ctrl+t.
+#
+# A theme only needs a `palette`: every style in the app is derived from these
+# semantic colors, so the whole UI restyles consistently. Unset entries fall
+# back to the default palette. A theme whose name matches a built-in one
+# (default, light, dark, monokai, solarized, ocean_dream, nord, gruvbox,
+# catppuccin, tokyo_night) replaces it.
+name: "custom"
+description: "Example theme: warm espresso tones"
+
+# Optional named colors, usable anywhere a color is expected.
+colors:
+  crema: "#E8C9A0"
+  espresso: "#1B1411"
+
+palette:
+  base: "espresso"       # app canvas
+  surface: "#241B17"     # status bar, selected menu item
+  overlay: "#2C221D"     # popover dialogs
+  selection: "#3E2F27"   # highlighted row in lists and dialogs
+  border: "#45362D"
+  text: "#F2E6DA"        # primary text
+  muted: "#C2AE9C"       # descriptions
+  subtle: "#8C7868"      # hints, help, placeholders
+  primary: "crema"       # titles, focus, selection
+  secondary: "#8FC1A9"   # assistant messages, links
+  accent: "#F0B85A"      # ingredient amounts, rating stars, timers
+  success: "#8FC1A9"
+  warning: "#E89A5B"
+  error: "#E06C75"
+  on_primary: "espresso" # text drawn on a primary background
+
+# Optional per-style overrides on top of the palette-derived styles.
+styles:
+  main_menu_logo:
+    foreground: "crema"
+    background: "espresso"
+    bold: true

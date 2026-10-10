@@ -3,7 +3,7 @@
 <div align="center">
   <img src="./assets/yummy_logo.svg" alt="Yummy Logo" />
 
-  ![Go Version](https://img.shields.io/badge/Go-1.26.0-blue.svg)
+  ![Go Version](https://img.shields.io/badge/Go-1.27.2-blue.svg)
   [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/GarroshIcecream/yummy/blob/master/LICENSE)
   [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
   [![Go Report Card](https://goreportcard.com/badge/github.com/GarroshIcecream/yummy)](https://goreportcard.com/report/github.com/GarroshIcecream/yummy)
@@ -160,11 +160,18 @@ Useful commands:
 
 ```bash
 task deps
+task check
+task ci
 task test
 task test-coverage
 task build
 task fmt
 task lint
+task commitizen:install
+task commit
+task commit:check
+task version:next
+task tag
 task release-snapshot
 ```
 
@@ -180,6 +187,66 @@ Run command help locally:
 go run . --help
 go run . import --help
 go run . export --help
+```
+
+## Commit Workflow
+
+Commit messages are standardized with Commitizen using the repo config in `.cz.toml`.
+
+Install Commitizen into the repo-local tools venv:
+
+```bash
+task commitizen:install
+```
+
+Create an interactive conventional commit:
+
+```bash
+task commit
+```
+
+Validate commit messages, defaulting to the latest commit:
+
+```bash
+task commit:check
+```
+
+Validate a wider range when needed:
+
+```bash
+task commit:check RANGE=main..HEAD
+```
+
+## Release Tags
+
+This repo uses `svu` with the config in `.svu.yaml` and the release workflow triggers on tags matching `v*`.
+
+Preview the next version:
+
+```bash
+task version:next
+```
+
+Create the next local tag automatically from commit history:
+
+```bash
+task tag
+```
+
+The tag tasks require a clean working tree.
+
+Or force a specific bump:
+
+```bash
+task tag:patch
+task tag:minor
+task tag:major
+```
+
+Then push the tag to trigger the release workflow:
+
+```bash
+git push origin <tag>
 ```
 
 ## Contributing

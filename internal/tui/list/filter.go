@@ -14,40 +14,40 @@ func CustomFilter(query string, targets []string) []list.Rank {
 	query = strings.TrimSpace(query)
 
 	// Handle special filter commands
-	if strings.HasPrefix(query, "@author ") {
-		author := strings.TrimSpace(strings.TrimPrefix(query, "@author "))
+	if after, ok := strings.CutPrefix(query, "@author "); ok {
+		author := strings.TrimSpace(after)
 		if author == "" {
 			return []list.Rank{}
 		}
 		return filterByJSONField(author, targets, common.AuthorField)
 	}
 
-	if strings.HasPrefix(query, "@category ") {
-		categoryInput := strings.TrimSpace(strings.TrimPrefix(query, "@category "))
+	if after, ok := strings.CutPrefix(query, "@category "); ok {
+		categoryInput := strings.TrimSpace(after)
 		if categoryInput == "" {
 			return []list.Rank{}
 		}
 		return filterByArrayField(categoryInput, targets, common.CategoryField)
 	}
 
-	if strings.HasPrefix(query, "@description ") {
-		description := strings.TrimSpace(strings.TrimPrefix(query, "@description "))
+	if after, ok := strings.CutPrefix(query, "@description "); ok {
+		description := strings.TrimSpace(after)
 		if description == "" {
 			return []list.Rank{}
 		}
 		return filterByJSONField(description, targets, common.DescriptionField)
 	}
 
-	if strings.HasPrefix(query, "@ingredients ") {
-		ingredientsInput := strings.TrimSpace(strings.TrimPrefix(query, "@ingredients "))
+	if after, ok := strings.CutPrefix(query, "@ingredients "); ok {
+		ingredientsInput := strings.TrimSpace(after)
 		if ingredientsInput == "" {
 			return []list.Rank{}
 		}
 		return filterByArrayField(ingredientsInput, targets, common.IngredientsField)
 	}
 
-	if strings.HasPrefix(query, "@url ") {
-		url := strings.TrimSpace(strings.TrimPrefix(query, "@url "))
+	if after, ok := strings.CutPrefix(query, "@url "); ok {
+		url := strings.TrimSpace(after)
 		if url == "" {
 			return []list.Rank{}
 		}
@@ -104,7 +104,7 @@ func filterByArrayField(input string, targets []string, fieldName common.FilterF
 
 	for i, target := range targets {
 		// Try to parse the target as JSON
-		var filterData map[string]interface{}
+		var filterData map[string]any
 		if err := json.Unmarshal([]byte(target), &filterData); err != nil {
 			// If JSON parsing fails, fall back to simple string matching with AND logic
 			allTermsMatched := true
@@ -138,7 +138,7 @@ func filterByArrayField(input string, targets []string, fieldName common.FilterF
 		// Handle array fields
 		var fieldArray []string
 		switch v := fieldValue.(type) {
-		case []interface{}:
+		case []any:
 			for _, item := range v {
 				if str, ok := item.(string); ok {
 					fieldArray = append(fieldArray, str)

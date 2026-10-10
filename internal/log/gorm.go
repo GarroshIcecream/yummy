@@ -34,21 +34,21 @@ func (l *GormLogger) LogMode(level gormlogger.LogLevel) gormlogger.Interface {
 }
 
 // Info logs info messages using slog
-func (l *GormLogger) Info(ctx context.Context, msg string, data ...interface{}) {
+func (l *GormLogger) Info(ctx context.Context, msg string, data ...any) {
 	if l.level >= gormlogger.Info {
 		slog.Info(fmt.Sprintf(msg, data...))
 	}
 }
 
 // Warn logs warn messages using slog
-func (l *GormLogger) Warn(ctx context.Context, msg string, data ...interface{}) {
+func (l *GormLogger) Warn(ctx context.Context, msg string, data ...any) {
 	if l.level >= gormlogger.Warn {
 		slog.Warn(fmt.Sprintf(msg, data...))
 	}
 }
 
 // Error logs error messages using slog
-func (l *GormLogger) Error(ctx context.Context, msg string, data ...interface{}) {
+func (l *GormLogger) Error(ctx context.Context, msg string, data ...any) {
 	if l.level >= gormlogger.Error {
 		slog.Error(fmt.Sprintf(msg, data...))
 	}

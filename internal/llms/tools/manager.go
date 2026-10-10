@@ -1,7 +1,7 @@
 package tools
 
 import (
-	"log"
+	"log/slog"
 
 	"github.com/GarroshIcecream/yummy/internal/db"
 	"github.com/tmc/langchaingo/tools"
@@ -20,20 +20,17 @@ func NewToolManager(cookbook *db.CookBook) *ToolManager {
 		cookbook: cookbook,
 	}
 
-	// ddg, err := duckduckgo.New(10, "github.com/GarroshIcecream/yummy/internal/tui/chat/tools")
-	// if err != nil {
-	// 	slog.Error("Failed to create DuckDuckGo tool", "error", err)
-	// }
-
 	tm.RegisterTool(NewGetRecipeNameTool(cookbook))
 	tm.RegisterTool(NewGetRecipeIdTool(cookbook))
-	// tm.RegisterTool(ddg)
+	tm.RegisterTool(NewListRecipesTool(cookbook))
+	tm.RegisterTool(NewFindByIngredientsTool(cookbook))
+	tm.RegisterTool(NewCookbookOverviewTool(cookbook))
 	return tm
 }
 
 // RegisterTool registers a new tool with the manager
 func (tm *ToolManager) RegisterTool(tool tools.Tool) {
-	log.Printf("Registered tool: %s (%s)", tool.Name(), tool.Description())
+	slog.Debug("Registered tool", "name", tool.Name())
 	tm.tools = append(tm.tools, tool)
 }
 

@@ -1,6 +1,7 @@
 package themes
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -15,11 +16,16 @@ import (
 
 // YAMLTheme represents a theme defined in YAML format
 type YAMLTheme struct {
-	Name        string               `yaml:"name"`
-	Description string               `yaml:"description,omitempty"`
-	Colors      map[string]string    `yaml:"colors"`
-	Styles      map[string]YAMLStyle `yaml:"styles"`
-	Lists       YAMLListStyles       `yaml:"lists,omitempty"`
+	Name        string            `yaml:"name"`
+	Description string            `yaml:"description,omitempty"`
+	Colors      map[string]string `yaml:"colors"`
+	// Palette sets the semantic colors every style is derived from (see
+	// Palette). Values are hex colors or names from Colors. Unset entries fall
+	// back to the default palette. Styles below override individual styles on
+	// top of the palette-derived ones.
+	Palette map[string]string    `yaml:"palette,omitempty"`
+	Styles  map[string]YAMLStyle `yaml:"styles"`
+	Lists   YAMLListStyles       `yaml:"lists,omitempty"`
 }
 
 // YAMLStyle represents a single style configuration
@@ -74,7 +80,10 @@ func LoadThemeFromYAML(filename string) (*Theme, error) {
 	if err != nil {
 		return nil, err
 	}
+	return parseYAMLTheme(data)
+}
 
+func parseYAMLTheme(data []byte) (*Theme, error) {
 	var yamlTheme YAMLTheme
 	if err := yaml.Unmarshal(data, &yamlTheme); err != nil {
 		return nil, err
@@ -90,6 +99,7 @@ func LoadThemeFromYAML(filename string) (*Theme, error) {
 // LoadThemesFromDirectory loads all YAML themes from a directory
 func LoadThemesFromDirectory(dir string) ([]Theme, error) {
 	var themes []Theme
+	seenNames := make(map[string]string)
 
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -108,6 +118,11 @@ func LoadThemesFromDirectory(dir string) ([]Theme, error) {
 			slog.Error("Failed to load theme", "path", themePath, "error", err)
 			continue
 		}
+		if prevPath, exists := seenNames[theme.Name]; exists {
+			slog.Error("Skipping duplicate theme name", "name", theme.Name, "path", themePath, "existing_path", prevPath)
+			continue
+		}
+		seenNames[theme.Name] = themePath
 
 		themes = append(themes, *theme)
 	}
@@ -117,9 +132,9 @@ func LoadThemesFromDirectory(dir string) ([]Theme, error) {
 
 // ToTheme converts a YAMLTheme to a Theme
 func (yt *YAMLTheme) ToTheme() (Theme, error) {
-	// Start with default theme so any unspecified style inherits proper padding/structure
-	theme := NewDefaultTheme()
-	theme.Name = yt.Name
+	if err := validateYAMLTheme(yt); err != nil {
+		return Theme{}, err
+	}
 
 	// Helper function to resolve color references, returning a plain string
 	resolveColor := func(color string) string {
@@ -133,8 +148,16 @@ func (yt *YAMLTheme) ToTheme() (Theme, error) {
 		return color
 	}
 
+	// Derive every style from the palette (defaults for unset entries) so any
+	// style the theme does not override still matches the theme's colors.
+	palette := DefaultPalette()
+	if err := palette.apply(yt.Palette, resolveColor); err != nil {
+		return Theme{}, err
+	}
+	theme := NewThemeFromPalette(yt.Name, yt.Description, palette)
+
 	// Helper function to create a v2 lipgloss style from YAMLStyle
-	createStyle := func(ys YAMLStyle) lipgloss.Style {
+	createStyle := func(ys YAMLStyle) (lipgloss.Style, error) {
 		style := lipgloss.NewStyle()
 
 		if ys.Foreground != "" {
@@ -158,22 +181,38 @@ func (yt *YAMLTheme) ToTheme() (Theme, error) {
 
 		// Handle padding
 		if ys.Padding != "" {
-			style = applyPadding(style, ys.Padding)
+			var err error
+			style, err = applyPadding(style, ys.Padding)
+			if err != nil {
+				return style, err
+			}
 		}
 
 		// Handle margin
 		if ys.Margin != "" {
-			style = applyMargin(style, ys.Margin)
+			var err error
+			style, err = applyMargin(style, ys.Margin)
+			if err != nil {
+				return style, err
+			}
 		}
 
 		// Handle border
 		if ys.Border != "" && ys.Border != "none" {
-			style = applyBorder(style, ys.Border, lipgloss.Color(resolveColor(ys.BorderColor)))
+			var err error
+			style, err = applyBorder(style, ys.Border, lipgloss.Color(resolveColor(ys.BorderColor)))
+			if err != nil {
+				return style, err
+			}
 		}
 
 		// Handle alignment
 		if ys.Align != "" {
-			style = applyAlign(style, ys.Align)
+			var err error
+			style, err = applyAlign(style, ys.Align)
+			if err != nil {
+				return style, err
+			}
 		}
 
 		if ys.Width > 0 {
@@ -183,15 +222,23 @@ func (yt *YAMLTheme) ToTheme() (Theme, error) {
 			style = style.Height(ys.Height)
 		}
 
-		return style
+		return style, nil
 	}
 
 	// Convert all styles
 	for styleName, yamlStyle := range yt.Styles {
-		style := createStyle(yamlStyle)
+		style, err := createStyle(yamlStyle)
+		if err != nil {
+			return Theme{}, fmt.Errorf("invalid style %q: %w", styleName, err)
+		}
 
 		// Use reflection or a switch statement to set the appropriate field
 		switch styleName {
+		case "app_background":
+			theme.AppBackground = style
+			if bg := style.GetBackground(); isSet(bg) {
+				theme.BaseBg = bg
+			}
 		case "title":
 			theme.Title = style
 		case "info":
@@ -476,6 +523,10 @@ func (yt *YAMLTheme) ToTheme() (Theme, error) {
 			theme.SidebarValue = style
 		case "chat_empty_state":
 			theme.ChatEmptyState = style
+		case "tool_call_label":
+			theme.ToolCallLabel = style
+		case "tool_call_input":
+			theme.ToolCallInput = style
 		case "chat_mention":
 			theme.ChatMention = style
 		case "chat_mention_popup_border":
@@ -511,17 +562,32 @@ func (yt *YAMLTheme) ToTheme() (Theme, error) {
 
 	// Handle list styles
 	if yt.Lists.TitleBar != (YAMLStyle{}) {
-		theme.ListStyles.TitleBar = createStyle(yt.Lists.TitleBar)
+		style, err := createStyle(yt.Lists.TitleBar)
+		if err != nil {
+			return Theme{}, fmt.Errorf("invalid list style %q: %w", "title_bar", err)
+		}
+		theme.ListStyles.TitleBar = style
 	}
 	if yt.Lists.Title != (YAMLStyle{}) {
-		theme.ListStyles.Title = createStyle(yt.Lists.Title)
+		style, err := createStyle(yt.Lists.Title)
+		if err != nil {
+			return Theme{}, fmt.Errorf("invalid list style %q: %w", "title", err)
+		}
+		theme.ListStyles.Title = style
 	}
 	if yt.Lists.Spinner != (YAMLStyle{}) {
-		theme.ListStyles.Spinner = createStyle(yt.Lists.Spinner)
+		style, err := createStyle(yt.Lists.Spinner)
+		if err != nil {
+			return Theme{}, fmt.Errorf("invalid list style %q: %w", "spinner", err)
+		}
+		theme.ListStyles.Spinner = style
 	}
 	if yt.Lists.FilterPrompt != (YAMLStyle{}) {
 		// FilterPrompt maps to Filter.Focused.Prompt and Filter.Blurred.Prompt in bubbles v2
-		promptStyle := createStyle(yt.Lists.FilterPrompt)
+		promptStyle, err := createStyle(yt.Lists.FilterPrompt)
+		if err != nil {
+			return Theme{}, fmt.Errorf("invalid list style %q: %w", "filter_prompt", err)
+		}
 		theme.ListStyles.Filter.Focused.Prompt = promptStyle
 		theme.ListStyles.Filter.Blurred.Prompt = promptStyle
 	}
@@ -532,136 +598,511 @@ func (yt *YAMLTheme) ToTheme() (Theme, error) {
 		}
 	}
 	if yt.Lists.DefaultFilterCharacterMatch != (YAMLStyle{}) {
-		theme.ListStyles.DefaultFilterCharacterMatch = createStyle(yt.Lists.DefaultFilterCharacterMatch)
+		style, err := createStyle(yt.Lists.DefaultFilterCharacterMatch)
+		if err != nil {
+			return Theme{}, fmt.Errorf("invalid list style %q: %w", "default_filter_character_match", err)
+		}
+		theme.ListStyles.DefaultFilterCharacterMatch = style
 	}
 	if yt.Lists.StatusBar != (YAMLStyle{}) {
-		theme.ListStyles.StatusBar = createStyle(yt.Lists.StatusBar)
+		style, err := createStyle(yt.Lists.StatusBar)
+		if err != nil {
+			return Theme{}, fmt.Errorf("invalid list style %q: %w", "status_bar", err)
+		}
+		theme.ListStyles.StatusBar = style
 	}
 	if yt.Lists.StatusEmpty != (YAMLStyle{}) {
-		theme.ListStyles.StatusEmpty = createStyle(yt.Lists.StatusEmpty)
+		style, err := createStyle(yt.Lists.StatusEmpty)
+		if err != nil {
+			return Theme{}, fmt.Errorf("invalid list style %q: %w", "status_empty", err)
+		}
+		theme.ListStyles.StatusEmpty = style
 	}
 	if yt.Lists.StatusBarActiveFilter != (YAMLStyle{}) {
-		theme.ListStyles.StatusBarActiveFilter = createStyle(yt.Lists.StatusBarActiveFilter)
+		style, err := createStyle(yt.Lists.StatusBarActiveFilter)
+		if err != nil {
+			return Theme{}, fmt.Errorf("invalid list style %q: %w", "status_bar_active_filter", err)
+		}
+		theme.ListStyles.StatusBarActiveFilter = style
 	}
 	if yt.Lists.StatusBarFilterCount != (YAMLStyle{}) {
-		theme.ListStyles.StatusBarFilterCount = createStyle(yt.Lists.StatusBarFilterCount)
+		style, err := createStyle(yt.Lists.StatusBarFilterCount)
+		if err != nil {
+			return Theme{}, fmt.Errorf("invalid list style %q: %w", "status_bar_filter_count", err)
+		}
+		theme.ListStyles.StatusBarFilterCount = style
 	}
 	if yt.Lists.NoItems != (YAMLStyle{}) {
-		theme.ListStyles.NoItems = createStyle(yt.Lists.NoItems)
+		style, err := createStyle(yt.Lists.NoItems)
+		if err != nil {
+			return Theme{}, fmt.Errorf("invalid list style %q: %w", "no_items", err)
+		}
+		theme.ListStyles.NoItems = style
 	}
 	if yt.Lists.PaginationStyle != (YAMLStyle{}) {
-		theme.ListStyles.PaginationStyle = createStyle(yt.Lists.PaginationStyle)
+		style, err := createStyle(yt.Lists.PaginationStyle)
+		if err != nil {
+			return Theme{}, fmt.Errorf("invalid list style %q: %w", "pagination_style", err)
+		}
+		theme.ListStyles.PaginationStyle = style
 	}
 	if yt.Lists.HelpStyle != (YAMLStyle{}) {
-		theme.ListStyles.HelpStyle = createStyle(yt.Lists.HelpStyle)
+		style, err := createStyle(yt.Lists.HelpStyle)
+		if err != nil {
+			return Theme{}, fmt.Errorf("invalid list style %q: %w", "help_style", err)
+		}
+		theme.ListStyles.HelpStyle = style
 	}
 	if yt.Lists.ActivePaginationDot != (YAMLStyle{}) {
-		theme.ListStyles.ActivePaginationDot = createStyle(yt.Lists.ActivePaginationDot)
+		style, err := createStyle(yt.Lists.ActivePaginationDot)
+		if err != nil {
+			return Theme{}, fmt.Errorf("invalid list style %q: %w", "active_pagination_dot", err)
+		}
+		theme.ListStyles.ActivePaginationDot = style
 	}
 	if yt.Lists.InactivePaginationDot != (YAMLStyle{}) {
-		theme.ListStyles.InactivePaginationDot = createStyle(yt.Lists.InactivePaginationDot)
+		style, err := createStyle(yt.Lists.InactivePaginationDot)
+		if err != nil {
+			return Theme{}, fmt.Errorf("invalid list style %q: %w", "inactive_pagination_dot", err)
+		}
+		theme.ListStyles.InactivePaginationDot = style
 	}
 	if yt.Lists.ArabicPagination != (YAMLStyle{}) {
-		theme.ListStyles.ArabicPagination = createStyle(yt.Lists.ArabicPagination)
+		style, err := createStyle(yt.Lists.ArabicPagination)
+		if err != nil {
+			return Theme{}, fmt.Errorf("invalid list style %q: %w", "arabic_pagination", err)
+		}
+		theme.ListStyles.ArabicPagination = style
 	}
 	if yt.Lists.DividerDot != (YAMLStyle{}) {
-		theme.ListStyles.DividerDot = createStyle(yt.Lists.DividerDot)
+		style, err := createStyle(yt.Lists.DividerDot)
+		if err != nil {
+			return Theme{}, fmt.Errorf("invalid list style %q: %w", "divider_dot", err)
+		}
+		theme.ListStyles.DividerDot = style
 	}
 
 	// Handle delegate styles
 	if yt.Lists.NormalTitle != (YAMLStyle{}) {
-		theme.DelegateStyles.NormalTitle = createStyle(yt.Lists.NormalTitle)
+		style, err := createStyle(yt.Lists.NormalTitle)
+		if err != nil {
+			return Theme{}, fmt.Errorf("invalid list style %q: %w", "normal_title", err)
+		}
+		theme.DelegateStyles.NormalTitle = style
 	}
 	if yt.Lists.NormalDesc != (YAMLStyle{}) {
-		theme.DelegateStyles.NormalDesc = createStyle(yt.Lists.NormalDesc)
+		style, err := createStyle(yt.Lists.NormalDesc)
+		if err != nil {
+			return Theme{}, fmt.Errorf("invalid list style %q: %w", "normal_desc", err)
+		}
+		theme.DelegateStyles.NormalDesc = style
 	}
 	if yt.Lists.SelectedTitle != (YAMLStyle{}) {
-		theme.DelegateStyles.SelectedTitle = createStyle(yt.Lists.SelectedTitle)
+		style, err := createStyle(yt.Lists.SelectedTitle)
+		if err != nil {
+			return Theme{}, fmt.Errorf("invalid list style %q: %w", "selected_title", err)
+		}
+		theme.DelegateStyles.SelectedTitle = style
 	}
 	if yt.Lists.SelectedDesc != (YAMLStyle{}) {
-		theme.DelegateStyles.SelectedDesc = createStyle(yt.Lists.SelectedDesc)
+		style, err := createStyle(yt.Lists.SelectedDesc)
+		if err != nil {
+			return Theme{}, fmt.Errorf("invalid list style %q: %w", "selected_desc", err)
+		}
+		theme.DelegateStyles.SelectedDesc = style
 	}
 	if yt.Lists.DimmedTitle != (YAMLStyle{}) {
-		theme.DelegateStyles.DimmedTitle = createStyle(yt.Lists.DimmedTitle)
+		style, err := createStyle(yt.Lists.DimmedTitle)
+		if err != nil {
+			return Theme{}, fmt.Errorf("invalid list style %q: %w", "dimmed_title", err)
+		}
+		theme.DelegateStyles.DimmedTitle = style
 	}
 	if yt.Lists.DimmedDesc != (YAMLStyle{}) {
-		theme.DelegateStyles.DimmedDesc = createStyle(yt.Lists.DimmedDesc)
+		style, err := createStyle(yt.Lists.DimmedDesc)
+		if err != nil {
+			return Theme{}, fmt.Errorf("invalid list style %q: %w", "dimmed_desc", err)
+		}
+		theme.DelegateStyles.DimmedDesc = style
 	}
 	if yt.Lists.FilterMatch != (YAMLStyle{}) {
-		theme.DelegateStyles.FilterMatch = createStyle(yt.Lists.FilterMatch)
+		style, err := createStyle(yt.Lists.FilterMatch)
+		if err != nil {
+			return Theme{}, fmt.Errorf("invalid list style %q: %w", "filter_match", err)
+		}
+		theme.DelegateStyles.FilterMatch = style
 	}
 
 	return theme, nil
 }
 
 // Helper functions for style properties
-func applyPadding(style lipgloss.Style, padding string) lipgloss.Style {
+func applyPadding(style lipgloss.Style, padding string) (lipgloss.Style, error) {
 	parts := strings.Split(padding, ",")
 	if len(parts) == 1 {
 		// Single value for all sides
-		return style.Padding(parseInt(parts[0]))
+		value, err := parseInt(parts[0])
+		if err != nil {
+			return style, err
+		}
+		return style.Padding(value), nil
 	} else if len(parts) == 2 {
 		// Vertical, horizontal (CSS shorthand order)
-		return style.Padding(parseInt(parts[0]), parseInt(parts[1]))
+		vertical, err := parseInt(parts[0])
+		if err != nil {
+			return style, err
+		}
+		horizontal, err := parseInt(parts[1])
+		if err != nil {
+			return style, err
+		}
+		return style.Padding(vertical, horizontal), nil
 	} else if len(parts) == 4 {
 		// Top, right, bottom, left
-		return style.Padding(parseInt(parts[0]), parseInt(parts[1]), parseInt(parts[2]), parseInt(parts[3]))
+		top, err := parseInt(parts[0])
+		if err != nil {
+			return style, err
+		}
+		right, err := parseInt(parts[1])
+		if err != nil {
+			return style, err
+		}
+		bottom, err := parseInt(parts[2])
+		if err != nil {
+			return style, err
+		}
+		left, err := parseInt(parts[3])
+		if err != nil {
+			return style, err
+		}
+		return style.Padding(top, right, bottom, left), nil
 	}
-	return style
+	return style, fmt.Errorf("padding must have 1, 2, or 4 comma-separated values")
 }
 
-func applyMargin(style lipgloss.Style, margin string) lipgloss.Style {
+func applyMargin(style lipgloss.Style, margin string) (lipgloss.Style, error) {
 	parts := strings.Split(margin, ",")
 	if len(parts) == 1 {
 		// Single value for all sides
-		return style.Margin(parseInt(parts[0]))
+		value, err := parseInt(parts[0])
+		if err != nil {
+			return style, err
+		}
+		return style.Margin(value), nil
 	} else if len(parts) == 2 {
 		// Vertical, horizontal (CSS shorthand order)
-		return style.Margin(parseInt(parts[0]), parseInt(parts[1]))
+		vertical, err := parseInt(parts[0])
+		if err != nil {
+			return style, err
+		}
+		horizontal, err := parseInt(parts[1])
+		if err != nil {
+			return style, err
+		}
+		return style.Margin(vertical, horizontal), nil
 	} else if len(parts) == 4 {
 		// Top, right, bottom, left
-		return style.Margin(parseInt(parts[0]), parseInt(parts[1]), parseInt(parts[2]), parseInt(parts[3]))
+		top, err := parseInt(parts[0])
+		if err != nil {
+			return style, err
+		}
+		right, err := parseInt(parts[1])
+		if err != nil {
+			return style, err
+		}
+		bottom, err := parseInt(parts[2])
+		if err != nil {
+			return style, err
+		}
+		left, err := parseInt(parts[3])
+		if err != nil {
+			return style, err
+		}
+		return style.Margin(top, right, bottom, left), nil
 	}
-	return style
+	return style, fmt.Errorf("margin must have 1, 2, or 4 comma-separated values")
 }
 
-func applyBorder(style lipgloss.Style, borderType string, borderColor color.Color) lipgloss.Style {
+func applyBorder(style lipgloss.Style, borderType string, borderColor color.Color) (lipgloss.Style, error) {
 	switch borderType {
 	case "normal":
-		return style.Border(lipgloss.NormalBorder()).BorderForeground(borderColor)
+		return style.Border(lipgloss.NormalBorder()).BorderForeground(borderColor), nil
 	case "rounded":
-		return style.Border(lipgloss.RoundedBorder()).BorderForeground(borderColor)
+		return style.Border(lipgloss.RoundedBorder()).BorderForeground(borderColor), nil
 	case "double":
-		return style.Border(lipgloss.DoubleBorder()).BorderForeground(borderColor)
+		return style.Border(lipgloss.DoubleBorder()).BorderForeground(borderColor), nil
 	case "thick":
-		return style.Border(lipgloss.ThickBorder()).BorderForeground(borderColor)
+		return style.Border(lipgloss.ThickBorder()).BorderForeground(borderColor), nil
 	}
-	return style
+	return style, fmt.Errorf("unsupported border type %q", borderType)
 }
 
-func applyAlign(style lipgloss.Style, align string) lipgloss.Style {
+func applyAlign(style lipgloss.Style, align string) (lipgloss.Style, error) {
 	switch align {
 	case "left":
-		return style.Align(lipgloss.Left)
+		return style.Align(lipgloss.Left), nil
 	case "center":
-		return style.Align(lipgloss.Center)
+		return style.Align(lipgloss.Center), nil
 	case "right":
-		return style.Align(lipgloss.Right)
+		return style.Align(lipgloss.Right), nil
 	}
-	return style
+	return style, fmt.Errorf("unsupported align value %q", align)
 }
 
-func parseInt(s string) int {
-	// Simple integer parsing - in a real implementation you might want more robust parsing
+func parseInt(s string) (int, error) {
+	s = strings.TrimSpace(s)
 	if s == "" {
-		return 0
+		return 0, errors.New("value cannot be empty")
 	}
-	// This is a simplified version - you'd want proper error handling
 	var result int
 	_, err := fmt.Sscanf(s, "%d", &result)
 	if err != nil {
-		// If parsing fails, return 0 as default
-		return 0
+		return 0, fmt.Errorf("invalid integer %q", s)
 	}
-	return result
+	return result, nil
+}
+
+func validateYAMLTheme(yt *YAMLTheme) error {
+	if strings.TrimSpace(yt.Name) == "" {
+		return errors.New("theme name is required")
+	}
+
+	for styleName, style := range yt.Styles {
+		if !isSupportedThemeStyle(styleName) {
+			return fmt.Errorf("unknown style key %q", styleName)
+		}
+		if err := validateYAMLStyle(styleName, style); err != nil {
+			return err
+		}
+	}
+
+	listStyles := map[string]YAMLStyle{
+		"title_bar":                      yt.Lists.TitleBar,
+		"title":                          yt.Lists.Title,
+		"spinner":                        yt.Lists.Spinner,
+		"filter_prompt":                  yt.Lists.FilterPrompt,
+		"filter_cursor":                  yt.Lists.FilterCursor,
+		"default_filter_character_match": yt.Lists.DefaultFilterCharacterMatch,
+		"status_bar":                     yt.Lists.StatusBar,
+		"status_empty":                   yt.Lists.StatusEmpty,
+		"status_bar_active_filter":       yt.Lists.StatusBarActiveFilter,
+		"status_bar_filter_count":        yt.Lists.StatusBarFilterCount,
+		"no_items":                       yt.Lists.NoItems,
+		"pagination_style":               yt.Lists.PaginationStyle,
+		"help_style":                     yt.Lists.HelpStyle,
+		"active_pagination_dot":          yt.Lists.ActivePaginationDot,
+		"inactive_pagination_dot":        yt.Lists.InactivePaginationDot,
+		"arabic_pagination":              yt.Lists.ArabicPagination,
+		"divider_dot":                    yt.Lists.DividerDot,
+		"normal_title":                   yt.Lists.NormalTitle,
+		"normal_desc":                    yt.Lists.NormalDesc,
+		"selected_title":                 yt.Lists.SelectedTitle,
+		"selected_desc":                  yt.Lists.SelectedDesc,
+		"dimmed_title":                   yt.Lists.DimmedTitle,
+		"dimmed_desc":                    yt.Lists.DimmedDesc,
+		"filter_match":                   yt.Lists.FilterMatch,
+	}
+
+	for styleName, style := range listStyles {
+		if style == (YAMLStyle{}) {
+			continue
+		}
+		if err := validateYAMLStyle(styleName, style); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func validateYAMLStyle(name string, style YAMLStyle) error {
+	if style.Padding != "" {
+		if _, err := applyPadding(lipgloss.NewStyle(), style.Padding); err != nil {
+			return fmt.Errorf("invalid padding for %q: %w", name, err)
+		}
+	}
+	if style.Margin != "" {
+		if _, err := applyMargin(lipgloss.NewStyle(), style.Margin); err != nil {
+			return fmt.Errorf("invalid margin for %q: %w", name, err)
+		}
+	}
+	if style.Border != "" && style.Border != "none" {
+		if _, err := applyBorder(lipgloss.NewStyle(), style.Border, lipgloss.Color(style.BorderColor)); err != nil {
+			return fmt.Errorf("invalid border for %q: %w", name, err)
+		}
+	}
+	if style.Align != "" {
+		if _, err := applyAlign(lipgloss.NewStyle(), style.Align); err != nil {
+			return fmt.Errorf("invalid alignment for %q: %w", name, err)
+		}
+	}
+	return nil
+}
+
+func isSupportedThemeStyle(name string) bool {
+	_, ok := supportedThemeStyles[name]
+	return ok
+}
+
+var supportedThemeStyles = map[string]struct{}{
+	"app_background":                    {},
+	"title":                             {},
+	"info":                              {},
+	"error":                             {},
+	"header":                            {},
+	"ingredient":                        {},
+	"doc":                               {},
+	"detail_content":                    {},
+	"detail_header":                     {},
+	"detail_footer":                     {},
+	"scroll_bar":                        {},
+	"loading":                           {},
+	"instruction":                       {},
+	"warning":                           {},
+	"success":                           {},
+	"help":                              {},
+	"status_line":                       {},
+	"status_line_left":                  {},
+	"status_line_right":                 {},
+	"status_line_mode":                  {},
+	"status_line_file":                  {},
+	"status_line_info":                  {},
+	"status_line_separator":             {},
+	"chat_title":                        {},
+	"chat":                              {},
+	"sidebar":                           {},
+	"sidebar_header":                    {},
+	"sidebar_section":                   {},
+	"sidebar_content":                   {},
+	"sidebar_success":                   {},
+	"sidebar_error":                     {},
+	"user_message":                      {},
+	"user_content":                      {},
+	"assistant_message":                 {},
+	"assistant_content":                 {},
+	"user":                              {},
+	"assistant":                         {},
+	"spinner":                           {},
+	"main_menu_border":                  {},
+	"main_menu_container":               {},
+	"main_menu_separator":               {},
+	"main_menu_welcome":                 {},
+	"main_menu_logo":                    {},
+	"main_menu_subtitle":                {},
+	"main_menu_title_border":            {},
+	"main_menu_selected_arrow":          {},
+	"main_menu_selected_item":           {},
+	"main_menu_unselected_item":         {},
+	"main_menu_selected_icon":           {},
+	"main_menu_unselected_icon":         {},
+	"main_menu_selected_title":          {},
+	"main_menu_unselected_title":        {},
+	"main_menu_selected_desc":           {},
+	"main_menu_unselected_desc":         {},
+	"main_menu_help_header":             {},
+	"main_menu_help_content":            {},
+	"main_menu_help_border":             {},
+	"main_menu_help_key":                {},
+	"main_menu_help_desc":               {},
+	"main_menu_spinner":                 {},
+	"state_selector_container":          {},
+	"state_selector_dialog":             {},
+	"state_selector_title":              {},
+	"state_selector_help":               {},
+	"state_selector_item":               {},
+	"state_selector_selected_item":      {},
+	"state_selector_indicator":          {},
+	"state_selector_selected_indicator": {},
+	"session_selector_container":        {},
+	"session_selector_dialog":           {},
+	"session_selector_title":            {},
+	"session_selector_pagination":       {},
+	"session_selector_help":             {},
+	"model_selector_container":          {},
+	"model_selector_dialog":             {},
+	"model_selector_title":              {},
+	"model_selector_pagination":         {},
+	"model_selector_help":               {},
+	"theme_selector_container":          {},
+	"theme_selector_dialog":             {},
+	"theme_selector_title":              {},
+	"theme_selector_pagination":         {},
+	"theme_selector_help":               {},
+	"add_recipe_from_url_container":     {},
+	"add_recipe_from_url_dialog":        {},
+	"add_recipe_from_url_title":         {},
+	"add_recipe_from_url_help":          {},
+	"add_recipe_from_url_prompt":        {},
+	"add_recipe_from_url_error":         {},
+	"add_recipe_from_url_separator":     {},
+	"add_recipe_from_url_spinner":       {},
+	"add_recipe_from_url_accent":        {},
+	"add_recipe_from_url_input_border":  {},
+	"add_recipe_from_url_key_highlight": {},
+	"recipe_selector_container":         {},
+	"recipe_selector_dialog":            {},
+	"recipe_selector_title":             {},
+	"recipe_selector_help":              {},
+	"recipe_selector_selected":          {},
+	"command_palette_container":         {},
+	"command_palette_dialog":            {},
+	"command_palette_title":             {},
+	"command_palette_help":              {},
+	"command_palette_shortcut":          {},
+	"command_palette_selected":          {},
+	"rating_bar":                        {},
+	"rating_star_active":                {},
+	"rating_star_inactive":              {},
+	"rating_dialog_container":           {},
+	"rating_dialog_box":                 {},
+	"rating_dialog_title":               {},
+	"rating_dialog_help":                {},
+	"cooking_step_counter":              {},
+	"cooking_instruction":               {},
+	"cooking_nav_hint":                  {},
+	"cooking_sidebar":                   {},
+	"cooking_sidebar_title":             {},
+	"cooking_ingredient":                {},
+	"cooking_ingredient_amount":         {},
+	"cooking_ingredient_detail":         {},
+	"cooking_chat_panel":                {},
+	"cooking_chat_title":                {},
+	"cooking_timer_active":              {},
+	"cooking_timer_done":                {},
+	"cooking_timer_label":               {},
+	"cooking_timer_message":             {},
+	"cooking_timer_bar_filled":          {},
+	"cooking_timer_bar_empty":           {},
+	"cooking_timer_bar_completed":       {},
+	"textarea_cursor_line":              {},
+	"textarea_base":                     {},
+	"textarea_placeholder":              {},
+	"textarea_text":                     {},
+	"textarea_prompt":                   {},
+	"textarea_end_of_buffer":            {},
+	"separator_line":                    {},
+	"message_separator":                 {},
+	"dialog_selected_row":               {},
+	"dialog_unselected_row":             {},
+	"session_selector_selected_desc":    {},
+	"session_selector_unselected_desc":  {},
+	"sidebar_value":                     {},
+	"chat_empty_state":                  {},
+	"tool_call_label":                   {},
+	"tool_call_input":                   {},
+	"chat_mention":                      {},
+	"chat_mention_popup_border":         {},
+	"chat_mention_popup_header":         {},
+	"chat_mention_popup_item":           {},
+	"chat_mention_popup_selected":       {},
+	"cooking_chat_user_label":           {},
+	"cooking_chat_assistant_label":      {},
+	"cooking_chat_empty":                {},
+	"cooking_no_recipe":                 {},
+	"cooking_recipe_name":               {},
+	"cooking_progress_filled":           {},
+	"cooking_progress_unfilled":         {},
+	"cooking_ingredient_highlight":      {},
+	"cooking_nav_arrow":                 {},
+	"cooking_help_key":                  {},
 }

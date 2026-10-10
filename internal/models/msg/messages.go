@@ -59,6 +59,17 @@ type StreamingChunkMsg struct {
 	GenerationID uint64
 }
 
+type ToolCallMsg struct {
+	Tool         string
+	Input        string
+	GenerationID uint64
+}
+
+// DeleteRecipeMsg is sent once the user confirms deleting a recipe.
+type DeleteRecipeMsg struct {
+	RecipeID uint
+}
+
 type SetFavouriteMsg struct {
 	RecipeID uint
 }
@@ -72,6 +83,10 @@ type ModelSelectedMsg struct {
 }
 
 type ThemeSelectedMsg struct {
+	ThemeName string
+}
+
+type ThemePreviewMsg struct {
 	ThemeName string
 }
 
@@ -187,6 +202,10 @@ func SendThemeSelectedMsg(themeName string) tea.Cmd {
 	return CmdHandler(ThemeSelectedMsg{ThemeName: themeName})
 }
 
+func SendThemePreviewMsg(themeName string) tea.Cmd {
+	return CmdHandler(ThemePreviewMsg{ThemeName: themeName})
+}
+
 func SendLoadSessionMsg(sessionID uint) tea.Cmd {
 	return CmdHandler(LoadSessionMsg{
 		SessionID: sessionID,
@@ -211,6 +230,13 @@ type EnterCookingModeMsg struct {
 
 func SendEnterCookingModeMsg(recipe *utils.RecipeRaw) tea.Cmd {
 	return CmdHandler(EnterCookingModeMsg{Recipe: recipe})
+}
+
+// RecipeScrapersVersionMsg is sent after checking the installed recipe-scrapers version.
+type RecipeScrapersVersionMsg struct {
+	Version string // empty string means not installed
+	Latest  string // latest version from PyPI; empty if unavailable
+	Err     error
 }
 
 // RatingSelectedMsg is sent when the user confirms a rating in the rating dialog.

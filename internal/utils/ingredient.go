@@ -43,7 +43,7 @@ func ParseIngredient(input string) (Ingredient, error) {
 	ingredient.Amount = strings.TrimSpace(matches[1])
 	ingredient.Unit = unit
 	ingredient.Name = strings.TrimSpace(matches[3])
-	ingredient.Details = strings.TrimSpace(matches[4])
+	ingredient.Details = CleanIngredientDetails(matches[4])
 	return ingredient, nil
 }
 
@@ -200,8 +200,8 @@ func ParseIngredientsFromMarkdown(text string) ([]Ingredient, error) {
 			continue
 		}
 
-		if strings.HasPrefix(line, "• ") {
-			ingredientText := strings.TrimPrefix(line, "• ")
+		if after, ok := strings.CutPrefix(line, "• "); ok {
+			ingredientText := after
 			ingredient, err := ParseIngredient(ingredientText)
 			if err != nil {
 				slog.Error("Failed to parse ingredient", "error", err)
@@ -213,4 +213,43 @@ func ParseIngredientsFromMarkdown(text string) ([]Ingredient, error) {
 	}
 
 	return ingredients, nil
+}
+
+// CleanIngredientDetails normalises an ingredient's note. Scrapers and the LLM
+// parser often hand back notes that are already parenthesised ("(38g)") or
+// starred ("*optional"); the views add their own parentheses, so those showed
+// up as "((38g))". Strips outer brackets, leading markers and stray commas.
+func CleanIngredientDetails(details string) string {
+	d := strings.TrimSpace(details)
+	for {
+		prev := d
+		d = strings.TrimSpace(strings.TrimLeft(d, "*,;:- "))
+		if wrappedInParens(d) {
+			d = strings.TrimSpace(d[1 : len(d)-1])
+		}
+		if d == prev {
+			return d
+		}
+	}
+}
+
+// wrappedInParens reports whether s is one parenthesised group: it starts with
+// "(" whose matching ")" is the last character ("(a) (b)" is not).
+func wrappedInParens(s string) bool {
+	if len(s) < 2 || s[0] != '(' || s[len(s)-1] != ')' {
+		return false
+	}
+	depth := 0
+	for i, r := range s {
+		switch r {
+		case '(':
+			depth++
+		case ')':
+			depth--
+			if depth == 0 && i != len(s)-1 {
+				return false
+			}
+		}
+	}
+	return depth == 0
 }

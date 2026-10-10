@@ -43,10 +43,23 @@ func (a *adapter) Host() (string, bool) {
 }
 
 func (a *adapter) Categories() ([]string, bool) {
-	if a.j.Category == "" {
-		return nil, false
+	cats := splitList(string(a.j.Category))
+	return cats, len(cats) > 0
+}
+
+// splitList splits a comma-separated schema.org value ("Dessert, Italian")
+// into trimmed, de-duplicated items.
+func splitList(s string) []string {
+	var out []string
+	seen := map[string]bool{}
+	for p := range strings.SplitSeq(s, ",") {
+		p = strings.TrimSpace(p)
+		if p != "" && !seen[strings.ToLower(p)] {
+			seen[strings.ToLower(p)] = true
+			out = append(out, p)
+		}
 	}
-	return []string{strings.TrimSpace(a.j.Category)}, true
+	return out
 }
 
 func (a *adapter) CookTime() (time.Duration, bool) {
@@ -57,7 +70,8 @@ func (a *adapter) CookTime() (time.Duration, bool) {
 }
 
 func (a *adapter) Cuisine() ([]string, bool) {
-	return nil, false
+	cuisines := splitList(string(a.j.Cuisine))
+	return cuisines, len(cuisines) > 0
 }
 
 func (a *adapter) Description() (string, bool) {

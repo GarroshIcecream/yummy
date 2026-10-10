@@ -143,12 +143,18 @@ func formatRating(rating int8) string {
 	return filled + empty
 }
 
-// FormatRecipeContent formats the recipe content into a markdown string
+// FormatRecipeMarkdown formats the recipe as markdown for the detail view,
+// export and the assistant's recipe tool.
+//
+// It deliberately avoids emoji in structural text: multi-codepoint emoji (ZWJ
+// sequences like 👨‍🍳, variation-selector forms like ⏱️) have a cell width
+// terminals disagree on, which shifts the rest of the line and tears overlays
+// drawn on top of it.
 func (r *RecipeRaw) FormatRecipeMarkdown() string {
 	var s strings.Builder
 
 	// Title
-	fmt.Fprintf(&s, "# 🍳 %s\n\n", r.RecipeName)
+	fmt.Fprintf(&s, "# %s\n\n", r.RecipeName)
 
 	// At-a-glance stats line
 	var stats []string
@@ -165,58 +171,48 @@ func (r *RecipeRaw) FormatRecipeMarkdown() string {
 	if t := formatDurationHuman(r.Metadata.TotalTime); t != "" {
 		stats = append(stats, t)
 	}
+	if ratingStr := formatRating(r.Metadata.Rating); ratingStr != "" {
+		stats = append(stats, ratingStr)
+	}
 	if len(stats) > 0 {
-		fmt.Fprintf(&s, "*%s*\n\n", strings.Join(stats, " • "))
+		fmt.Fprintf(&s, "*%s*\n\n", strings.Join(stats, " | "))
 	}
 
 	// Description
 	if r.RecipeDescription != "" {
-		s.WriteString("💭 *About this recipe:*\n")
 		fmt.Fprintf(&s, "> %s\n\n", r.RecipeDescription)
 	}
 
-	// Metadata as simple key-value pairs (no table)
-	metaRows := []struct{ label, value string }{}
-	if r.Metadata.Author != "" {
-		metaRows = append(metaRows, struct{ label, value string }{"👨‍🍳 Recipe By", r.Metadata.Author})
-	}
-	if r.Metadata.Quantity != "" {
-		metaRows = append(metaRows, struct{ label, value string }{"🍽️ Servings", r.Metadata.Quantity})
-	}
-	if t := formatDurationHuman(r.Metadata.TotalTime); t != "" {
-		metaRows = append(metaRows, struct{ label, value string }{"⏱️ Total Time", t})
-	}
-	if t := formatDurationHuman(r.Metadata.PrepTime); t != "" {
-		metaRows = append(metaRows, struct{ label, value string }{"🔪 Prep Time", t})
-	}
-	if t := formatDurationHuman(r.Metadata.CookTime); t != "" {
-		metaRows = append(metaRows, struct{ label, value string }{"🔥 Cook Time", t})
-	}
-	if ratingStr := formatRating(r.Metadata.Rating); ratingStr != "" {
-		metaRows = append(metaRows, struct{ label, value string }{"⭐ Rating", ratingStr})
-	}
-
-	if len(metaRows) > 0 {
-		s.WriteString("---\n\n")
-		for _, row := range metaRows {
-			fmt.Fprintf(&s, "  %s  **%s**\n\n", row.label, row.value)
+	// Metadata as a compact list of facts
+	var facts []string
+	addFact := func(label, value string) {
+		if value != "" {
+			facts = append(facts, fmt.Sprintf("- **%s** %s", label, value))
 		}
-		s.WriteString("---\n\n")
+	}
+	addFact("By", r.Metadata.Author)
+	addFact("Serves", r.Metadata.Quantity)
+	addFact("Prep", formatDurationHuman(r.Metadata.PrepTime))
+	addFact("Cook", formatDurationHuman(r.Metadata.CookTime))
+	addFact("Total", formatDurationHuman(r.Metadata.TotalTime))
+	addFact("Rating", formatRating(r.Metadata.Rating))
+	if len(facts) > 0 {
+		s.WriteString(strings.Join(facts, "\n") + "\n\n")
 	}
 
 	// Ingredients
-	s.WriteString("### 🥘 Ingredients\n\n")
+	s.WriteString("## Ingredients\n\n")
 	currentGroup := ""
 	for _, ing := range r.Metadata.Ingredients {
 		if ing.Group != currentGroup {
 			currentGroup = ing.Group
-			if currentGroup != "" {
-				fmt.Fprintf(&s, "**%s**\n\n", currentGroup)
+			if group := strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(currentGroup), ":")); group != "" {
+				fmt.Fprintf(&s, "\n### %s\n\n", group)
 			}
 		}
 
 		var ingredient strings.Builder
-		ingredient.WriteString("• ")
+		ingredient.WriteString("- ")
 
 		if ing.Amount != "" && ing.Unit != "" {
 			fmt.Fprintf(&ingredient, "**%s %s** ", ing.Amount, ing.Unit)
@@ -224,16 +220,17 @@ func (r *RecipeRaw) FormatRecipeMarkdown() string {
 			fmt.Fprintf(&ingredient, "**%s** ", ing.Amount)
 		}
 
-		fmt.Fprintf(&ingredient, "*%s*", ing.Name)
+		ingredient.WriteString(ing.Name)
 
-		if ing.Details != "" {
-			fmt.Fprintf(&ingredient, " (%s)", ing.Details)
+		if details := CleanIngredientDetails(ing.Details); details != "" {
+			fmt.Fprintf(&ingredient, " *(%s)*", details)
 		}
-		s.WriteString(ingredient.String() + "\n\n")
+		s.WriteString(ingredient.String() + "\n")
 	}
+	s.WriteString("\n")
 
 	// Instructions (with ingredient names highlighted)
-	s.WriteString("### 👩‍🍳 Instructions\n\n")
+	s.WriteString("## Instructions\n\n")
 	for i, inst := range r.Metadata.Instructions {
 		highlighted := HighlightIngredientsInMarkdown(inst, r.Metadata.Ingredients)
 		fmt.Fprintf(&s, "**%d.** %s\n\n", i+1, highlighted)
@@ -241,28 +238,31 @@ func (r *RecipeRaw) FormatRecipeMarkdown() string {
 
 	// Categories
 	if len(r.Metadata.Categories) > 0 {
-		s.WriteString("### 🏷️ Categories\n\n")
+		s.WriteString("## Categories\n\n")
 		for _, cat := range r.Metadata.Categories {
 			fmt.Fprintf(&s, "`%s` ", cat)
 		}
 		s.WriteString("\n\n")
 	}
 
-	// Source
+	// Source and timestamps
+	var footer []string
 	if r.Metadata.URL != "" {
-		s.WriteString("🔗 " + r.Metadata.URL + "\n\n")
+		footer = append(footer, "Source: "+r.Metadata.URL)
 	}
-
-	// Timestamps
 	if !r.Metadata.CreatedAt.IsZero() {
-		fmt.Fprintf(&s, "📅 Added on %s", r.Metadata.CreatedAt.Format("Jan 2, 2006"))
+		added := "Added " + r.Metadata.CreatedAt.Format("Jan 2, 2006")
 		if !r.Metadata.UpdatedAt.IsZero() && r.Metadata.UpdatedAt.Sub(r.Metadata.CreatedAt) > time.Second {
-			fmt.Fprintf(&s, "  ·  🔄 Updated %s", r.Metadata.UpdatedAt.Format("Jan 2, 2006"))
+			added += " | updated " + r.Metadata.UpdatedAt.Format("Jan 2, 2006")
 		}
-		s.WriteString("\n")
+		footer = append(footer, added)
+	}
+	if len(footer) > 0 {
+		s.WriteString("---\n\n")
+		s.WriteString(strings.Join(footer, "\n\n") + "\n")
 	}
 
-	return s.String()
+	return NormalizeSymbols(s.String())
 }
 
 // parseMarkdownRecipe parses a markdown recipe file
@@ -399,4 +399,25 @@ func ParseJSONRecipe(filePath string, customName string) (*RecipeRaw, error) {
 	}
 
 	return recipeData, nil
+}
+
+// symbolReplacer swaps letterlike symbols whose cell width terminals disagree
+// on (East Asian "ambiguous" width — e.g. ℃ is drawn two cells wide by many
+// terminals but measured as one) for plain equivalents, so they don't eat the
+// following character or shift the rest of the line.
+var symbolReplacer = strings.NewReplacer(
+	"℃", "°C",
+	"℉", "°F",
+	"№", "No.",
+	"™", "(TM)",
+)
+
+// NormalizeSymbols replaces width-ambiguous symbols with plain equivalents.
+func NormalizeSymbols(s string) string {
+	return symbolReplacer.Replace(s)
+}
+
+// FormatDurationHuman formats a duration as "1 hr 15 min" ("" for zero).
+func FormatDurationHuman(d time.Duration) string {
+	return formatDurationHuman(d)
 }
