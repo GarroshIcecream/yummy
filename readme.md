@@ -6,7 +6,7 @@
   ![Go Version](https://img.shields.io/badge/Go-1.27.2-blue.svg)
   [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/GarroshIcecream/yummy/blob/master/LICENSE)
   [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
-  [![Go Report Card](https://goreportcard.com/badge/github.com/GarroshIcecream/yummy)](https://goreportcard.com/report/github.com/GarroshIcecream/yummy)
+  [![Lint](https://github.com/GarroshIcecream/yummy/actions/workflows/lint.yml/badge.svg)](https://github.com/GarroshIcecream/yummy/actions/workflows/lint.yml)
   ![Development Status](https://img.shields.io/badge/status-in%20development-orange.svg)
   [![CI](https://github.com/GarroshIcecream/yummy/actions/workflows/ci.yml/badge.svg)](https://github.com/GarroshIcecream/yummy/actions/workflows/ci.yml)
   [![Release Status](https://github.com/GarroshIcecream/yummy/actions/workflows/release.yml/badge.svg)](https://github.com/GarroshIcecream/yummy/actions/workflows/release.yml)
