@@ -37,6 +37,8 @@ func NewProvider(cfg config.ChatConfig, dataDir string) (Provider, error) {
 	switch cfg.Provider {
 	case "", "ollama":
 		return &ollamaProvider{defaultModel: cfg.DefaultModel}, nil
+	case "chatgpt":
+		return newChatGPTProvider(cfg.ChatGPT, dataDir), nil
 	default:
 		return nil, fmt.Errorf("%w %q (valid: ollama, chatgpt)", ErrUnknownProvider, cfg.Provider)
 	}

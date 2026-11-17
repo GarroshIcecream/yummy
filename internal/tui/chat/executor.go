@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"sync"
 
@@ -439,11 +440,20 @@ func (e *ExecutorService) LoadSession(sessionID uint) error {
 		return err
 	}
 
-	// Set the model for the session
-	err = e.SetModelByName(sessionMessages[0].ModelName)
-	if err != nil {
-		slog.Error("Failed to set model", "error", err)
-		return err
+	// Resume on the session's model when the active provider still offers
+	// it; otherwise (e.g. it was recorded on another provider) keep the
+	// current model rather than refusing to open the session.
+	if len(sessionMessages) > 0 {
+		sessionModel := sessionMessages[0].ModelName
+		if slices.Contains(e.ai.GetInstalledModels(), sessionModel) {
+			if err := e.SetModelByName(sessionModel); err != nil {
+				slog.Error("Failed to set model", "error", err)
+				return err
+			}
+		} else if sessionModel != "" {
+			slog.Warn("Session model not available, keeping current model",
+				"session_model", sessionModel, "current_model", e.ai.GetModelName())
+		}
 	}
 
 	// Get session stats (excludes system messages)

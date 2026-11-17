@@ -250,8 +250,21 @@ type ChatConfig struct {
 	UserAvatar               string  `json:"user_avatar"`
 	AssistantThinkingMessage string  `json:"assistant_thinking_message"`
 
+	// ChatGPT configures the "chatgpt" provider (ChatGPT subscription).
+	ChatGPT ChatGPTConfig `json:"chatgpt"`
+
 	// UI Layout constants
 	UILayout UILayoutConfig `json:"ui_layout"`
+}
+
+// ChatGPTConfig configures the ChatGPT-subscription provider. Sign in with
+// `yummy login chatgpt`.
+type ChatGPTConfig struct {
+	// DefaultModel is the model to start with. Empty = first model the
+	// account offers.
+	DefaultModel string `json:"default_model"`
+	// Models is used when the account's model list can't be fetched.
+	Models []string `json:"models"`
 }
 
 func NewDefaultChatConfig() ChatConfig {

@@ -219,7 +219,7 @@ func (m *CookingModel) Update(msg tea.Msg) (common.TUIModel, tea.Cmd) {
 			slog.Error("Cooking chat LLM error", "error", msg.err)
 			m.chatHistory = append(m.chatHistory, chatEntry{
 				role:    "assistant",
-				content: "Sorry, I couldn't generate a response. Make sure Ollama is running.",
+				content: fmt.Sprintf("Sorry, I couldn't generate a response. Check that %s is available.", m.ai.Provider().DisplayName()),
 			})
 		} else {
 			// Use the streaming response if we have it, otherwise fall back to the final result

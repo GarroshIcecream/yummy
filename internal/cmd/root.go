@@ -32,7 +32,8 @@ var rootCmd = &cobra.Command{
 	Use:   "yummy",
 	Short: "Terminal cookbook manager and recipe assistant",
 	Long: `Yummy is a terminal-first cookbook manager with recipe import/export,
-URL scraping, themes, and an Ollama-powered cooking assistant.`,
+URL scraping, themes, and a cooking assistant powered by a local Ollama model
+or your ChatGPT subscription (yummy login chatgpt).`,
 	Example: `
 # Run in interactive mode
 yummy

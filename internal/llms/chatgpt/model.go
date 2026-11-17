@@ -33,10 +33,11 @@ type LLM struct {
 	// langchaingo's own providers emit.
 	CallbacksHandler callbacks.Handler
 
-	model    string
-	endpoint string
-	http     *http.Client
-	tokens   TokenProvider
+	model     string
+	endpoint  string
+	modelsURL string
+	http      *http.Client
+	tokens    TokenProvider
 }
 
 var _ langllms.Model = (*LLM)(nil)
