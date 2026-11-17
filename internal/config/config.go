@@ -187,7 +187,7 @@ type AddRecipeFromURLDialogConfig struct {
 	Height             int    `json:"height"`
 	Width              int    `json:"width"`
 	PythonPath         string `json:"python_path"`          // optional; path to Python for recipe-scrapers (e.g. "python3" or venv path). Empty = auto-detect (python3 then python).
-	LLMIngredientModel string `json:"llm_ingredient_model"` // Ollama model for ingredient parsing (empty = use chat default)
+	LLMIngredientModel string `json:"llm_ingredient_model"` // model for ingredient parsing on the active provider (empty = provider default)
 	// AIParsing uses the LLM when importing from a URL: structured ingredient
 	// parsing, ingredient group labels and categories for uncategorised
 	// recipes. Off = plain rule-based parsing only. Toggle from the command

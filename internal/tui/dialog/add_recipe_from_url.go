@@ -15,11 +15,13 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/GarroshIcecream/yummy/internal/config"
 	db "github.com/GarroshIcecream/yummy/internal/db"
+	yllms "github.com/GarroshIcecream/yummy/internal/llms"
 	common "github.com/GarroshIcecream/yummy/internal/models/common"
 	messages "github.com/GarroshIcecream/yummy/internal/models/msg"
 	"github.com/GarroshIcecream/yummy/internal/scrape"
 	themes "github.com/GarroshIcecream/yummy/internal/themes"
 	"github.com/GarroshIcecream/yummy/internal/utils"
+	langllms "github.com/tmc/langchaingo/llms"
 )
 
 var addRecipeSubmitKey = key.NewBinding(key.WithKeys("enter"))
@@ -38,7 +40,8 @@ type AddRecipeFromURLDialogCmp struct {
 	fetchedURL         string
 	pythonPath         string // optional path to Python for recipe-scrapers (from config)
 	existingID         uint   // non-zero when URL already exists in cookbook
-	llmIngredientModel string // Ollama model name for ingredient parsing
+	llmIngredientModel string // model for ingredient parsing ("" = provider default)
+	aiParsing          bool   // whether any AI step of the import runs
 }
 
 func NewAddRecipeFromURLDialog(cookbook *db.CookBook, theme *themes.Theme) (*AddRecipeFromURLDialogCmp, error) {
@@ -61,16 +64,6 @@ func NewAddRecipeFromURLDialog(cookbook *db.CookBook, theme *themes.Theme) (*Add
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 
-	// Resolve LLM model name: use dedicated model if set, otherwise fall back
-	// to chat default. An empty model disables every AI step of the import.
-	llmModel := ""
-	if dialogConfig.AIParsing {
-		llmModel = dialogConfig.LLMIngredientModel
-		if llmModel == "" {
-			llmModel = cfg.Chat.DefaultModel
-		}
-	}
-
 	return &AddRecipeFromURLDialogCmp{
 		cookbook:           cookbook,
 		urlInput:           ti,
@@ -80,7 +73,8 @@ func NewAddRecipeFromURLDialog(cookbook *db.CookBook, theme *themes.Theme) (*Add
 		height:             dialogConfig.Height,
 		theme:              theme,
 		pythonPath:         dialogConfig.PythonPath,
-		llmIngredientModel: llmModel,
+		llmIngredientModel: dialogConfig.LLMIngredientModel,
+		aiParsing:          dialogConfig.AIParsing,
 	}, nil
 }
 
@@ -106,7 +100,7 @@ func (m *AddRecipeFromURLDialogCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Scraping done — pick a fun quip for the ingredient parsing phase.
 		quip := ingredientParsingQuips[rand.Intn(len(ingredientParsingQuips))]
 		m.loadingText = quip
-		return m, parseAndSaveCmd(msg.scraper, msg.url, msg.llmModel, m.cookbook)
+		return m, parseAndSaveCmd(msg.scraper, msg.url, msg.llmModel, msg.aiParsing, m.cookbook)
 
 	case scrapeAndSaveResultMsg:
 		m.loading = false
@@ -165,7 +159,7 @@ func (m *AddRecipeFromURLDialogCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.loading = true
 
 			cmds = append(cmds, m.spinner.Tick, scrapeURLCmd(
-				urlStr, m.pythonPath, m.llmIngredientModel,
+				urlStr, m.pythonPath, m.llmIngredientModel, m.aiParsing,
 			))
 		}
 	}
@@ -205,7 +199,7 @@ func (m *AddRecipeFromURLDialogCmp) View() tea.View {
 	// Label
 	label := row(m.theme.AddRecipeFromURLPrompt, lipgloss.Center, "Paste a recipe URL to import it")
 	aiMode := "AI parsing on"
-	if m.llmIngredientModel == "" {
+	if !m.aiParsing {
 		aiMode = "AI parsing off"
 	}
 	aiLine := row(m.theme.AddRecipeFromURLHelp, lipgloss.Center, aiMode+" | change it in ctrl+p")
@@ -302,9 +296,10 @@ type scrapeProgressMsg struct {
 
 // scrapeDoneMsg carries the scraped data to the next phase (ingredient parsing + save).
 type scrapeDoneMsg struct {
-	scraper  scrape.Scraper
-	url      string
-	llmModel string
+	scraper   scrape.Scraper
+	url       string
+	llmModel  string
+	aiParsing bool
 }
 
 // scrapeAndSaveResultMsg is the internal result of the full pipeline.
@@ -325,21 +320,32 @@ var ingredientParsingQuips = []string{
 }
 
 // scrapeURLCmd handles only the URL scraping phase.
-func scrapeURLCmd(url, pythonPath, llmModel string) tea.Cmd {
+func scrapeURLCmd(url, pythonPath, llmModel string, aiParsing bool) tea.Cmd {
 	return func() tea.Msg {
 		scraper, err := scrape.ScrapeURL(url, pythonPath)
 		if err != nil {
 			return scrapeAndSaveResultMsg{err: err}
 		}
-		return scrapeDoneMsg{scraper: scraper, url: url, llmModel: llmModel}
+		return scrapeDoneMsg{scraper: scraper, url: url, llmModel: llmModel, aiParsing: aiParsing}
 	}
 }
 
 // parseAndSaveCmd handles ingredient parsing (with LLM) and saving to DB.
-func parseAndSaveCmd(s scrape.Scraper, url, llmModel string, cookbook *db.CookBook) tea.Cmd {
+// With aiParsing off, or when the model can't be built, every AI step is
+// skipped and the rule-based parser is used.
+func parseAndSaveCmd(s scrape.Scraper, url, llmModel string, aiParsing bool, cookbook *db.CookBook) tea.Cmd {
 	return func() tea.Msg {
-		recipeData := recipeRawFromScraper(s, url, llmModel)
-		suggestCategories(recipeData, s, llmModel, cookbook)
+		var llm langllms.Model
+		if aiParsing {
+			m, err := yllms.NewIngredientModel(llmModel)
+			if err != nil {
+				slog.Error("Failed to create LLM for import, using rule-based parsing", "error", err)
+			} else {
+				llm = m
+			}
+		}
+		recipeData := recipeRawFromScraper(s, url, llm)
+		suggestCategories(recipeData, s, llm, cookbook)
 
 		recipeID, err := cookbook.SaveScrapedRecipe(recipeData)
 		if err != nil {
@@ -381,9 +387,9 @@ func friendlyScrapeError(err error) string {
 }
 
 // recipeRawFromScraper converts a scrape.Scraper into utils.RecipeRaw for saving.
-// When useLLM is true it attempts to parse ingredients via Ollama (experimental),
-// falling back to the regex parser on any error.
-func recipeRawFromScraper(s scrape.Scraper, sourceURL string, llmModel string) *utils.RecipeRaw {
+// When llm is non-nil it attempts to parse ingredients via the LLM
+// (experimental), falling back to the regex parser on any error.
+func recipeRawFromScraper(s scrape.Scraper, sourceURL string, llm langllms.Model) *utils.RecipeRaw {
 	r := &utils.RecipeRaw{
 		Metadata: utils.RecipeMetadata{
 			URL:          sourceURL,
@@ -430,12 +436,12 @@ func recipeRawFromScraper(s scrape.Scraper, sourceURL string, llmModel string) *
 
 		// Ask LLM to generate labels for unlabelled groups.
 		var llmLabels []string
-		if needsLabels && llmModel != "" {
+		if needsLabels && llm != nil {
 			unlabelled := make([][]string, len(groups))
 			for i, g := range groups {
 				unlabelled[i] = g.Ingredients
 			}
-			labels, err := utils.LabelIngredientGroups(context.Background(), unlabelled, llmModel)
+			labels, err := utils.LabelIngredientGroups(context.Background(), unlabelled, llm)
 			if err != nil {
 				slog.Error("LLM group labelling failed, groups will be unlabelled", "error", err)
 			} else {
@@ -452,14 +458,14 @@ func recipeRawFromScraper(s scrape.Scraper, sourceURL string, llmModel string) *
 			if purpose == "" && i < len(llmLabels) {
 				purpose = strings.TrimSpace(llmLabels[i])
 			}
-			parsed := parseIngredientList(g.Ingredients, llmModel)
+			parsed := parseIngredientList(g.Ingredients, llm)
 			for j := range parsed {
 				parsed[j].Group = purpose
 			}
 			r.Metadata.Ingredients = append(r.Metadata.Ingredients, parsed...)
 		}
 	} else if ingList, ok := s.Ingredients(); ok {
-		r.Metadata.Ingredients = parseIngredientList(ingList, llmModel)
+		r.Metadata.Ingredients = parseIngredientList(ingList, llm)
 	}
 	if instr, ok := s.Instructions(); ok {
 		for _, step := range instr {
@@ -481,7 +487,7 @@ func recipeRawFromScraper(s scrape.Scraper, sourceURL string, llmModel string) *
 // suggestCategories fills in categories when the site provides none: first
 // from the recipe's cuisine, then (with AI parsing on) from the LLM, which is
 // steered towards the cookbook's existing categories.
-func suggestCategories(r *utils.RecipeRaw, s scrape.Scraper, llmModel string, cookbook *db.CookBook) {
+func suggestCategories(r *utils.RecipeRaw, s scrape.Scraper, llm langllms.Model, cookbook *db.CookBook) {
 	if len(r.Metadata.Categories) > 0 {
 		return
 	}
@@ -489,7 +495,7 @@ func suggestCategories(r *utils.RecipeRaw, s scrape.Scraper, llmModel string, co
 		r.Metadata.Categories = append(r.Metadata.Categories, cuisines...)
 		return
 	}
-	if llmModel == "" {
+	if llm == nil {
 		return
 	}
 	existing, err := cookbook.GetAllCategories()
@@ -500,7 +506,7 @@ func suggestCategories(r *utils.RecipeRaw, s scrape.Scraper, llmModel string, co
 	for _, ing := range r.Metadata.Ingredients {
 		names = append(names, ing.Name)
 	}
-	cats, err := utils.SuggestCategories(context.Background(), r.RecipeName, names, existing, llmModel)
+	cats, err := utils.SuggestCategories(context.Background(), r.RecipeName, names, existing, llm)
 	if err != nil {
 		slog.Error("LLM category suggestion failed, recipe stays uncategorised", "error", err)
 		return
@@ -508,11 +514,11 @@ func suggestCategories(r *utils.RecipeRaw, s scrape.Scraper, llmModel string, co
 	r.Metadata.Categories = cats
 }
 
-// parseIngredientList parses a list of raw ingredient strings. When useLLM is
-// true it sends the entire list to an Ollama model for structured extraction
+// parseIngredientList parses a list of raw ingredient strings. When llm is
+// non-nil it sends the entire list to the LLM for structured extraction
 // and falls back to the regex parser if the LLM call fails. Even on the regex
 // fallback path, LLM is still used to extract base names for highlighting.
-func parseIngredientList(rawList []string, llmModel string) []utils.Ingredient {
+func parseIngredientList(rawList []string, llm langllms.Model) []utils.Ingredient {
 	// Clean up the raw list first.
 	cleaned := make([]string, 0, len(rawList))
 	for _, s := range rawList {
@@ -525,9 +531,9 @@ func parseIngredientList(rawList []string, llmModel string) []utils.Ingredient {
 	}
 
 	// Experimental: try full LLM-based parsing (amount + unit + name + base_name).
-	if llmModel != "" {
-		slog.Info("Attempting LLM ingredient parsing", "model", llmModel, "count", len(cleaned))
-		parsed, err := utils.ParseIngredientsWithLLM(context.Background(), cleaned, llmModel)
+	if llm != nil {
+		slog.Info("Attempting LLM ingredient parsing", "count", len(cleaned))
+		parsed, err := utils.ParseIngredientsWithLLM(context.Background(), cleaned, llm)
 		if err != nil {
 			slog.Error("LLM ingredient parsing failed, falling back to regex", "error", err)
 		} else if len(parsed) > 0 {
@@ -548,9 +554,9 @@ func parseIngredientList(rawList []string, llmModel string) []utils.Ingredient {
 
 	// Even on the regex path, try the lightweight LLM base-name extraction
 	// so we get good highlighting tokens.
-	if llmModel != "" && len(ingredients) > 0 {
-		slog.Info("Attempting LLM base name extraction", "model", llmModel, "count", len(ingredients))
-		if err := utils.ExtractBaseNamesWithLLM(context.Background(), ingredients, llmModel); err != nil {
+	if llm != nil && len(ingredients) > 0 {
+		slog.Info("Attempting LLM base name extraction", "count", len(ingredients))
+		if err := utils.ExtractBaseNamesWithLLM(context.Background(), ingredients, llm); err != nil {
 			slog.Error("LLM base name extraction failed, using full names for highlighting", "error", err)
 		}
 	}
