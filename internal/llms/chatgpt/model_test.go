@@ -319,3 +319,12 @@ type errTokens struct{}
 
 func (errTokens) Token(context.Context) (*auth.Tokens, error)        { return nil, auth.ErrNotLoggedIn }
 func (errTokens) ForceRefresh(context.Context) (*auth.Tokens, error) { return nil, auth.ErrNotLoggedIn }
+
+func TestStreamWithoutTerminalEventIsError(t *testing.T) {
+	srv, _ := newServer(t, sseEvents(delta("partial answ")))
+	_, err := newTestLLM(srv, &fakeTokens{access: "tok"}).GenerateContent(context.Background(),
+		[]langllms.MessageContent{langllms.TextParts(langllms.ChatMessageTypeHuman, "x")})
+	if err == nil || !strings.Contains(err.Error(), "ended before") {
+		t.Fatalf("err = %v, want stream-ended-early error", err)
+	}
+}

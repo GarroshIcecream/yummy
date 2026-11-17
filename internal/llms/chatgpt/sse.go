@@ -44,6 +44,7 @@ func readStream(ctx context.Context, body io.Reader, stopWords []string, stream 
 	var res streamResult
 	var full strings.Builder
 	emitted := 0
+	sawEnd := false
 	holdBack := 0
 	for _, s := range stopWords {
 		holdBack = max(holdBack, len(s)-1)
@@ -99,6 +100,7 @@ func readStream(ctx context.Context, body io.Reader, stopWords []string, stream 
 				return res, err
 			}
 		case "response.completed", "response.incomplete":
+			sawEnd = true
 			if ev.Response != nil && ev.Response.Usage != nil {
 				res.inputTokens = ev.Response.Usage.InputTokens
 				res.outputTokens = ev.Response.Usage.OutputTokens
@@ -128,6 +130,11 @@ func readStream(ctx context.Context, body io.Reader, stopWords []string, stream 
 	}
 	if err := ctx.Err(); err != nil {
 		return res, err
+	}
+	if !sawEnd {
+		// A connection cut or a non-streaming reply: don't pass a partial
+		// answer off as complete.
+		return res, fmt.Errorf("ChatGPT response ended before completion (%d chars received)", full.Len())
 	}
 	res.text = full.String()
 	if res.stopReason == "" {

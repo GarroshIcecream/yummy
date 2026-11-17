@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -382,5 +383,86 @@ func TestTokenSourceNotLoggedIn(t *testing.T) {
 	src := NewTokenSource(NewStore(t.TempDir()), NewClient())
 	if _, err := src.Token(context.Background()); !errors.Is(err, ErrNotLoggedIn) {
 		t.Fatalf("err = %v, want ErrNotLoggedIn", err)
+	}
+}
+
+// rotatingTokenServer issues a new refresh token on every refresh and
+// rejects any refresh token it has already rotated away.
+func rotatingTokenServer(t *testing.T) (*httptest.Server, *atomic.Int32) {
+	var n atomic.Int32
+	var mu sync.Mutex
+	current := "refresh-0"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = r.ParseForm()
+		mu.Lock()
+		defer mu.Unlock()
+		if r.PostForm.Get("refresh_token") != current {
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = io.WriteString(w, `{"error":"refresh_token_reused"}`)
+			return
+		}
+		i := n.Add(1)
+		current = "refresh-" + strconv.Itoa(int(i))
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"access_token":  "access-" + strconv.Itoa(int(i)),
+			"refresh_token": current,
+			"expires_in":    3600,
+		})
+	}))
+	t.Cleanup(srv.Close)
+	return srv, &n
+}
+
+func TestTokenSourcesSharingStoreSurviveRotation(t *testing.T) {
+	srv, refreshes := rotatingTokenServer(t)
+	store := NewStore(t.TempDir())
+	if err := store.Save(&Tokens{AccessToken: "old", RefreshToken: "refresh-0", ExpiresAt: time.Now().Add(time.Hour)}); err != nil {
+		t.Fatal(err)
+	}
+	client := NewClient()
+	client.TokenURL = srv.URL
+	a := NewTokenSource(store, client)
+	b := NewTokenSource(store, client)
+	// Both load the session into memory.
+	for _, src := range []*TokenSource{a, b} {
+		if _, err := src.Token(context.Background()); err != nil {
+			t.Fatalf("Token: %v", err)
+		}
+	}
+	// a rotates the refresh token; b still holds refresh-0 in memory.
+	if _, err := a.ForceRefresh(context.Background()); err != nil {
+		t.Fatalf("a.ForceRefresh: %v", err)
+	}
+	tok, err := b.ForceRefresh(context.Background())
+	if err != nil {
+		t.Fatalf("b.ForceRefresh after a rotated: %v", err)
+	}
+	if tok.AccessToken != "access-1" {
+		t.Errorf("b got %q, want a's refreshed access-1 adopted from disk", tok.AccessToken)
+	}
+	if n := refreshes.Load(); n != 1 {
+		t.Errorf("refreshes = %d, want 1", n)
+	}
+}
+
+func TestTokenSourcePicksUpNewLogin(t *testing.T) {
+	store := NewStore(t.TempDir())
+	if err := store.Save(&Tokens{AccessToken: "old", RefreshToken: "r-old", ExpiresAt: time.Now().Add(time.Hour)}); err != nil {
+		t.Fatal(err)
+	}
+	ts := NewTokenSource(store, NewClient())
+	if _, err := ts.Token(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	// `yummy login chatgpt` in another terminal writes a new session.
+	if err := store.Save(&Tokens{AccessToken: "new", RefreshToken: "r-new", ExpiresAt: time.Now().Add(time.Hour)}); err != nil {
+		t.Fatal(err)
+	}
+	tok, err := ts.ForceRefresh(context.Background())
+	if err != nil {
+		t.Fatalf("ForceRefresh: %v", err)
+	}
+	if tok.AccessToken != "new" {
+		t.Errorf("ForceRefresh = %q, want the newly saved session", tok.AccessToken)
 	}
 }

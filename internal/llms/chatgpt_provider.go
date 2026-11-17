@@ -17,15 +17,28 @@ type chatgptProvider struct {
 	cfg config.ChatGPTConfig
 	ts  *auth.TokenSource
 
-	mu     sync.Mutex
-	models []string // cached after the first successful listing
+	// modelOpts are passed to chatgpt.FetchModels (tests point it at a stub).
+	modelOpts []chatgpt.Option
+
+	mu      sync.Mutex
+	models  []string // cached after the first listing
+	listErr error    // why the live catalog couldn't be fetched, if it couldn't
+}
+
+// tokenSources holds one TokenSource per data directory so every provider
+// in the process shares a session and refresh-token rotations never race.
+var tokenSources sync.Map // dataDir -> *auth.TokenSource
+
+func sharedTokenSource(dataDir string) *auth.TokenSource {
+	if ts, ok := tokenSources.Load(dataDir); ok {
+		return ts.(*auth.TokenSource)
+	}
+	ts, _ := tokenSources.LoadOrStore(dataDir, auth.NewTokenSource(auth.NewStore(dataDir), auth.NewClient()))
+	return ts.(*auth.TokenSource)
 }
 
 func newChatGPTProvider(cfg config.ChatGPTConfig, dataDir string) *chatgptProvider {
-	return &chatgptProvider{
-		cfg: cfg,
-		ts:  auth.NewTokenSource(auth.NewStore(dataDir), auth.NewClient()),
-	}
+	return &chatgptProvider{cfg: cfg, ts: sharedTokenSource(dataDir)}
 }
 
 func (p *chatgptProvider) Name() string        { return "chatgpt" }
@@ -48,35 +61,46 @@ func (p *chatgptProvider) Check(ctx context.Context) error {
 	if _, err := p.ts.Token(ctx); err != nil {
 		return err
 	}
+	if _, err := p.ListModels(ctx); err != nil {
+		return err
+	}
 	if p.DefaultModel() == "" {
 		return errors.New("no ChatGPT models available; set chat.chatgpt.default_model in config.json")
 	}
 	return nil
 }
 
-// ListModels returns the account's model catalog, falling back to the
-// configured list when it can't be fetched.
+// ListModels returns the account's model catalog. If it can't be fetched,
+// the configured default model and model list are used instead.
 func (p *chatgptProvider) ListModels(ctx context.Context) ([]string, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.models != nil {
 		return p.models, nil
 	}
-	models, err := chatgpt.FetchModels(ctx, p.ts)
+	models, err := chatgpt.FetchModels(ctx, p.ts, p.modelOpts...)
 	if err == nil && len(models) > 0 {
 		p.models = models
 		return models, nil
 	}
-	if len(p.cfg.Models) > 0 {
-		if err != nil {
-			slog.Warn("Could not fetch ChatGPT models, using configured list", "error", err)
-		}
-		return p.cfg.Models, nil
-	}
 	if err == nil {
 		err = errors.New("ChatGPT account offers no models")
 	}
-	return nil, err
+	var fallback []string
+	if p.cfg.DefaultModel != "" {
+		fallback = append(fallback, p.cfg.DefaultModel)
+	}
+	for _, m := range p.cfg.Models {
+		if m != p.cfg.DefaultModel {
+			fallback = append(fallback, m)
+		}
+	}
+	if len(fallback) == 0 {
+		return nil, err
+	}
+	slog.Warn("Could not fetch ChatGPT models, using configured ones", "error", err)
+	p.models = fallback
+	return fallback, nil
 }
 
 func (p *chatgptProvider) NewModel(model string) (langllms.Model, error) {

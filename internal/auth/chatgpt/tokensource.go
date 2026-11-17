@@ -78,6 +78,16 @@ func (ts *TokenSource) loadLocked() error {
 }
 
 func (ts *TokenSource) refreshLocked(ctx context.Context) error {
+	// Another TokenSource (a second Yummy process, or `yummy login`) may have
+	// rotated or replaced the session since we loaded it. Refreshing with
+	// our stale refresh token would be rejected, so adopt the newer one.
+	if disk, err := ts.store.Load(); err == nil && disk.RefreshToken != ts.tokens.RefreshToken {
+		ts.tokens = disk
+		if disk.ExpiresAt.IsZero() || time.Until(disk.ExpiresAt) >= refreshSkew {
+			ts.lastRefresh = time.Now()
+			return nil
+		}
+	}
 	if ts.tokens.RefreshToken == "" {
 		return ErrNotLoggedIn
 	}
