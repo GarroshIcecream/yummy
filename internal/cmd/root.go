@@ -24,6 +24,8 @@ func init() {
 
 	rootCmd.AddCommand(exportCmd)
 	rootCmd.AddCommand(importCmd)
+	rootCmd.AddCommand(loginCmd)
+	rootCmd.AddCommand(logoutCmd)
 }
 
 var rootCmd = &cobra.Command{
