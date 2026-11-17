@@ -320,7 +320,7 @@ func (e *ExecutorService) VisibleMessageCount() int {
 
 // GetProviderName returns the display name of the LLM provider.
 func (e *ExecutorService) GetProviderName() string {
-	return "Ollama"
+	return e.ai.Provider().DisplayName()
 }
 
 // GetSessionID returns the current session ID
@@ -463,7 +463,7 @@ func (e *ExecutorService) GetCurrentModelName() string {
 	return e.ai.GetModelName()
 }
 
-// GetInstalledModels returns the list of Ollama models available locally.
+// GetInstalledModels returns the models available on the active provider.
 func (e *ExecutorService) GetInstalledModels() []string {
 	return e.ai.GetInstalledModels()
 }
@@ -634,11 +634,6 @@ func (e *ExecutorService) GetFullRecipe(recipeID uint) (string, error) {
 		return "", fmt.Errorf("recipe not found: %w", err)
 	}
 	return recipe.FormatRecipeMarkdown(), nil
-}
-
-// GetOllamaStatus returns the Ollama service status.
-func (e *ExecutorService) GetOllamaStatus() *llms.OllamaServiceStatus {
-	return e.ai.GetOllamaStatus()
 }
 
 // GetAI returns the underlying LLMService.

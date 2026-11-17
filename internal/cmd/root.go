@@ -129,11 +129,14 @@ func setupApp(cmd *cobra.Command) (*tui.Manager, error) {
 		return nil, fmt.Errorf("failed to initialize session log: %v", err)
 	}
 
-	chatConfig := config.GetChatConfig()
-	_, err = llms.GetOllamaServiceStatus(chatConfig.DefaultModel)
+	provider, err := llms.NewProvider(config.GetChatConfig(), datadir)
 	if err != nil {
-		slog.Error("Failed to get ollama service status", "error", err)
-		return nil, fmt.Errorf("failed to get ollama service status: %v", err)
+		slog.Error("Failed to create LLM provider", "error", err)
+		return nil, err
+	}
+	if err := provider.Check(ctx); err != nil {
+		slog.Error("LLM provider not ready", "provider", provider.Name(), "error", err)
+		return nil, fmt.Errorf("%s is not ready: %w", provider.DisplayName(), err)
 	}
 
 	tuiInstance, err := tui.New(cookbook, sessionLog, themeManager, datadir, ctx)

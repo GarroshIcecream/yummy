@@ -1,12 +1,16 @@
 package llms
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"os/exec"
 	"slices"
 	"strings"
 	"time"
+
+	langllms "github.com/tmc/langchaingo/llms"
+	"github.com/tmc/langchaingo/llms/ollama"
 )
 
 type OllamaServiceStatus struct {
@@ -147,4 +151,28 @@ func GetOllamaServiceStatus(modelName string) (*OllamaServiceStatus, error) {
 	}
 
 	return status, nil
+}
+
+// ollamaProvider serves models from a local Ollama installation.
+type ollamaProvider struct {
+	defaultModel string
+}
+
+func (p *ollamaProvider) Name() string         { return "ollama" }
+func (p *ollamaProvider) DisplayName() string  { return "Ollama" }
+func (p *ollamaProvider) DefaultModel() string { return p.defaultModel }
+
+// Check verifies Ollama is installed, running (starting it if needed) and has
+// the default model pulled.
+func (p *ollamaProvider) Check(context.Context) error {
+	_, err := GetOllamaServiceStatus(p.defaultModel)
+	return err
+}
+
+func (p *ollamaProvider) ListModels(context.Context) ([]string, error) {
+	return GetOllamaInstalledModels()
+}
+
+func (p *ollamaProvider) NewModel(model string) (langllms.Model, error) {
+	return ollama.New(ollama.WithModel(model))
 }

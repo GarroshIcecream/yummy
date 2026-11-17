@@ -12,6 +12,7 @@ import (
 var (
 	globalConfig   *Config
 	globalConfigMu sync.RWMutex
+	dataDir        string
 )
 
 // Config represents the application configuration
@@ -232,6 +233,8 @@ func NewDefaultCommandPaletteDialogConfig() CommandPaletteDialogConfig {
 
 // ChatConfig contains chat-related settings
 type ChatConfig struct {
+	// Provider selects the LLM backend: "ollama" (default) or "chatgpt".
+	Provider                 string  `json:"provider"`
 	DefaultModel             string  `json:"default_model"`
 	Temperature              float64 `json:"temperature"`
 	MaxTokens                int     `json:"max_tokens"`
@@ -253,6 +256,7 @@ type ChatConfig struct {
 
 func NewDefaultChatConfig() ChatConfig {
 	return ChatConfig{
+		Provider:                 "ollama",
 		DefaultModel:             "gemma3:4b",
 		Temperature:              0.9,
 		MaxTokens:                1000,
@@ -495,6 +499,7 @@ func NewDefaultListConfig() ListConfig {
 
 // LoadConfig loads configuration from the .yummy directory
 func LoadConfig(configDir string) (*Config, error) {
+	setDataDir(configDir)
 	configPath := filepath.Join(configDir, "config.json")
 
 	// Check if config file exists
@@ -612,6 +617,22 @@ func GetGlobalConfig() *Config {
 	globalConfigMu.RLock()
 	defer globalConfigMu.RUnlock()
 	return globalConfig
+}
+
+// setDataDir records the Yummy data directory (e.g. ~/.yummy) that the
+// config was loaded from.
+func setDataDir(dir string) {
+	globalConfigMu.Lock()
+	defer globalConfigMu.Unlock()
+	dataDir = dir
+}
+
+// DataDir returns the Yummy data directory recorded by LoadConfig, or "" if
+// no config has been loaded yet.
+func DataDir() string {
+	globalConfigMu.RLock()
+	defer globalConfigMu.RUnlock()
+	return dataDir
 }
 
 // GetChatConfig returns the global chat configuration
