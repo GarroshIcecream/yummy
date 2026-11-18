@@ -18,6 +18,7 @@ import (
 	"github.com/GarroshIcecream/yummy/internal/config"
 	db "github.com/GarroshIcecream/yummy/internal/db"
 	yllms "github.com/GarroshIcecream/yummy/internal/llms"
+	"github.com/GarroshIcecream/yummy/internal/llms/chatgpt"
 	common "github.com/GarroshIcecream/yummy/internal/models/common"
 	messages "github.com/GarroshIcecream/yummy/internal/models/msg"
 	"github.com/GarroshIcecream/yummy/internal/scrape"
@@ -381,11 +382,19 @@ func aiScrapeCmd(url, llmModel string, aiParsing bool) tea.Cmd {
 		if err != nil {
 			return scrapeAndSaveResultMsg{err: err}
 		}
+		var s scrape.Scraper
 		text, err := scrape.FetchPageText(ctx, nil, url)
-		if err != nil {
+		switch {
+		case errors.Is(err, scrape.ErrSiteBlocked):
+			// The site refuses our download (e.g. a Cloudflare check), so let
+			// ChatGPT open the page from OpenAI's side with its web tool.
+			slog.Info("Page blocks direct download, asking ChatGPT to open it", "url", url)
+			s, err = scrape.ExtractRecipeFromURLWithLLM(ctx, llm, url, chatgpt.WithWebSearch())
+		case err != nil:
 			return scrapeAndSaveResultMsg{err: err}
+		default:
+			s, err = scrape.ExtractRecipeWithLLM(ctx, llm, url, text)
 		}
-		s, err := scrape.ExtractRecipeWithLLM(ctx, llm, url, text)
 		if err != nil {
 			slog.Error("AI recipe import failed", "url", url, "error", err)
 			return scrapeAndSaveResultMsg{err: err}

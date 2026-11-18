@@ -192,8 +192,18 @@ func ExtractRecipeWithLLM(ctx context.Context, llm llms.Model, pageURL, pageText
 	if len(resp.Choices) == 0 {
 		return nil, fmt.Errorf("read recipe with AI: empty response")
 	}
+	return parseAIRecipe(resp.Choices[0].Content, pageURL)
+}
+
+// parseAIRecipe turns the model's JSON reply into a Scraper. The JSON may be
+// wrapped in a code fence or surrounded by prose.
+func parseAIRecipe(reply, pageURL string) (Scraper, error) {
+	raw := stripCodeFence(reply)
+	if i, j := strings.IndexByte(raw, '{'), strings.LastIndexByte(raw, '}'); i >= 0 && j > i {
+		raw = raw[i : j+1]
+	}
 	var r aiRecipe
-	if err := json.Unmarshal([]byte(stripCodeFence(resp.Choices[0].Content)), &r); err != nil {
+	if err := json.Unmarshal([]byte(raw), &r); err != nil {
 		return nil, fmt.Errorf("read recipe with AI: invalid JSON: %w", err)
 	}
 
@@ -229,6 +239,35 @@ func ExtractRecipeWithLLM(ctx context.Context, llm llms.Model, pageURL, pageText
 		j.IngredientGroups = nil // a single unnamed group is just the ingredient list
 	}
 	return &adapter{j: j}, nil
+}
+
+const extractFromURLPrompt = `Open the web page at the URL below with your web tool and extract the cooking recipe on that exact page. Use only that page: if you can't open it, or it has no recipe, reply {"found": false}. Do not substitute a similar recipe from another site.
+
+`
+
+// ExtractRecipeFromURLWithLLM has the model open pageURL itself, through a
+// hosted web tool passed in opts (e.g. chatgpt.WithWebSearch), for pages
+// that refuse direct downloads. It returns an error wrapping ErrSiteBlocked
+// when the model can't open the page or finds no recipe there.
+func ExtractRecipeFromURLWithLLM(ctx context.Context, llm llms.Model, pageURL string, opts ...llms.CallOption) (Scraper, error) {
+	msgs := []llms.MessageContent{
+		llms.TextParts(llms.ChatMessageTypeSystem, extractRecipePrompt),
+		llms.TextParts(llms.ChatMessageTypeHuman, extractFromURLPrompt+"URL: "+pageURL),
+	}
+	// No JSON mode: OpenAI doesn't allow it together with the web tool, so
+	// the prompt asks for JSON and parseAIRecipe digs it out of the reply.
+	resp, err := llm.GenerateContent(ctx, msgs, opts...)
+	if err != nil {
+		return nil, fmt.Errorf("read recipe with AI: %w", err)
+	}
+	if len(resp.Choices) == 0 {
+		return nil, fmt.Errorf("read recipe with AI: empty response")
+	}
+	s, err := parseAIRecipe(resp.Choices[0].Content, pageURL)
+	if errors.Is(err, ErrNoRecipeOnPage) {
+		return nil, fmt.Errorf("%w: the AI couldn't open it either", ErrSiteBlocked)
+	}
+	return s, err
 }
 
 func stripCodeFence(s string) string {

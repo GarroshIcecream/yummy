@@ -95,7 +95,11 @@ func (l *LLM) generate(ctx context.Context, messages []langllms.MessageContent, 
 	for _, o := range options {
 		o(&opts)
 	}
-	body, err := json.Marshal(buildRequest(l.model, messages, opts.JSONMode))
+	req := buildRequest(l.model, messages, opts.JSONMode)
+	if on, _ := opts.Metadata[webSearchKey].(bool); on {
+		req.Tools = []tool{{Type: "web_search"}}
+	}
+	body, err := json.Marshal(req)
 	if err != nil {
 		return nil, err
 	}
@@ -182,12 +186,31 @@ type textFormat struct {
 	} `json:"format"`
 }
 
+type tool struct {
+	Type string `json:"type"`
+}
+
 type request struct {
 	Model  string      `json:"model"`
 	Stream bool        `json:"stream"`
 	Store  bool        `json:"store"`
 	Input  []inputItem `json:"input"`
+	Tools  []tool      `json:"tools,omitempty"`
 	Text   *textFormat `json:"text,omitempty"`
+}
+
+// webSearchKey is the CallOptions.Metadata key set by WithWebSearch.
+const webSearchKey = "chatgpt.web_search"
+
+// WithWebSearch lets the model use OpenAI's hosted web tool (search and
+// open pages) for this call. The page is fetched by OpenAI, not locally.
+func WithWebSearch() langllms.CallOption {
+	return func(o *langllms.CallOptions) {
+		if o.Metadata == nil {
+			o.Metadata = map[string]any{}
+		}
+		o.Metadata[webSearchKey] = true
+	}
 }
 
 // buildRequest maps langchaingo messages onto Responses API input items.

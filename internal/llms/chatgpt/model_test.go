@@ -328,3 +328,32 @@ func TestStreamWithoutTerminalEventIsError(t *testing.T) {
 		t.Fatalf("err = %v, want stream-ended-early error", err)
 	}
 }
+
+func TestWebSearchTool(t *testing.T) {
+	// A web search turn streams web_search_call items before the answer.
+	srv, reqs := newServer(t, sseEvents(
+		map[string]any{"type": "response.output_item.added", "item": map[string]any{"type": "web_search_call", "id": "ws_1"}},
+		map[string]any{"type": "response.web_search_call.completed", "item_id": "ws_1"},
+		delta("found it"), completed(1, 1)))
+	llm := newTestLLM(srv, &fakeTokens{access: "tok"})
+	msgs := []langllms.MessageContent{langllms.TextParts(langllms.ChatMessageTypeHuman, "x")}
+
+	resp, err := llm.GenerateContent(context.Background(), msgs, WithWebSearch())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.Choices[0].Content != "found it" {
+		t.Errorf("content = %q", resp.Choices[0].Content)
+	}
+	tools, _ := (*reqs)[0].body["tools"].([]any)
+	if len(tools) != 1 || tools[0].(map[string]any)["type"] != "web_search" {
+		t.Errorf("tools = %v, want [{type: web_search}]", (*reqs)[0].body["tools"])
+	}
+
+	if _, err := llm.GenerateContent(context.Background(), msgs); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := (*reqs)[1].body["tools"]; ok {
+		t.Errorf("tools sent without WithWebSearch: %v", (*reqs)[1].body["tools"])
+	}
+}

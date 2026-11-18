@@ -78,10 +78,11 @@ func TestFetchPageTextTruncatesLongPages(t *testing.T) {
 }
 
 type fakeLLM struct {
-	reply    string
-	err      error
-	prompt   string
-	jsonMode bool
+	reply     string
+	err       error
+	prompt    string
+	jsonMode  bool
+	maxTokens int
 }
 
 func (f *fakeLLM) GenerateContent(_ context.Context, msgs []llms.MessageContent, opts ...llms.CallOption) (*llms.ContentResponse, error) {
@@ -90,6 +91,7 @@ func (f *fakeLLM) GenerateContent(_ context.Context, msgs []llms.MessageContent,
 		opt(&o)
 	}
 	f.jsonMode = o.JSONMode
+	f.maxTokens = o.MaxTokens
 	for _, m := range msgs {
 		for _, p := range m.Parts {
 			if tp, ok := p.(llms.TextContent); ok {
@@ -184,5 +186,33 @@ func TestFetchPageTextReportsBlockedSite(t *testing.T) {
 	_, err := FetchPageText(context.Background(), srv.Client(), srv.URL)
 	if !errors.Is(err, ErrSiteBlocked) {
 		t.Fatalf("err = %v, want ErrSiteBlocked", err)
+	}
+}
+
+func TestExtractRecipeFromURLWithLLM(t *testing.T) {
+	f := &fakeLLM{reply: "Here it is:\n```json\n" + `{"found": true, "title": "Ramen", "ingredient_groups": [{"purpose": "", "ingredients": ["2 packs noodles"]}], "instructions": ["Boil."]}` + "\n```"}
+	marker := llms.WithMaxTokens(7) // stands in for the provider's web tool option
+	s, err := ExtractRecipeFromURLWithLLM(context.Background(), f, "https://blocked.example/ramen", marker)
+	if err != nil {
+		t.Fatalf("ExtractRecipeFromURLWithLLM: %v", err)
+	}
+	if f.jsonMode {
+		t.Error("JSON mode should be off: it can't be combined with the web tool")
+	}
+	if f.maxTokens != 7 {
+		t.Error("caller's options (the web tool) were not passed to the model")
+	}
+	if !strings.Contains(f.prompt, "https://blocked.example/ramen") {
+		t.Errorf("prompt is missing the URL:\n%s", f.prompt)
+	}
+	if name, _ := s.Name(); name != "Ramen" {
+		t.Errorf("Name = %q", name)
+	}
+}
+
+func TestExtractRecipeFromURLWithLLMCouldNotOpen(t *testing.T) {
+	_, err := ExtractRecipeFromURLWithLLM(context.Background(), &fakeLLM{reply: `{"found": false}`}, "https://blocked.example/ramen")
+	if !errors.Is(err, ErrSiteBlocked) {
+		t.Fatalf("err = %v, want ErrSiteBlocked (the model couldn't open it either)", err)
 	}
 }

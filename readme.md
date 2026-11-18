@@ -109,7 +109,7 @@ The add-from-URL flow uses [recipe-scrapers](https://github.com/hhursev/recipe-s
 - `recipe-scrapers` is auto-installed on first use
 - On externally managed Python installs, Yummy creates and uses `~/.yummy/recipe-scrapers-venv`
 
-When ChatGPT is the active provider and recipe-scrapers can't read a page (unsupported site, no recipe schema, or no Python), the dialog offers to let ChatGPT read the page instead: press `enter` again and Yummy downloads the page and asks ChatGPT to pull the recipe out of it. This sends the page's text to ChatGPT and uses your subscription's quota.
+When ChatGPT is the active provider and recipe-scrapers can't read a page (unsupported site, no recipe schema, or no Python), the dialog offers to let ChatGPT read the page instead: press `enter` again and Yummy downloads the page and asks ChatGPT to pull the recipe out of it. If the site blocks automated downloads (e.g. a Cloudflare check), ChatGPT opens the page itself with OpenAI's web tool instead. This sends the page's text to ChatGPT and uses your subscription's quota.
 
 If Python is not auto-detected, set it in `~/.yummy/config.json`:
 
