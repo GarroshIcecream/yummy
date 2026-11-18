@@ -108,3 +108,12 @@ func (ts *TokenSource) refreshLocked(ctx context.Context) error {
 	ts.lastRefresh = time.Now()
 	return nil
 }
+
+// Invalidate drops the in-memory session so the next call re-reads the
+// store, e.g. after signing in or out from elsewhere in the process.
+func (ts *TokenSource) Invalidate() {
+	ts.mu.Lock()
+	defer ts.mu.Unlock()
+	ts.tokens = nil
+	ts.lastRefresh = time.Time{}
+}

@@ -132,14 +132,13 @@ func setupApp(cmd *cobra.Command) (*tui.Manager, error) {
 		return nil, fmt.Errorf("failed to initialize session log: %v", err)
 	}
 
-	provider, err := llms.NewProvider(config.GetChatConfig(), datadir)
-	if err != nil {
+	// An unready provider (Ollama not running, not signed in to ChatGPT)
+	// no longer blocks startup: the app opens and the chat explains how to
+	// sign in or switch provider from the command palette. A misspelled
+	// provider is still a hard error.
+	if _, err := llms.NewProvider(config.GetChatConfig(), datadir); err != nil {
 		slog.Error("Failed to create LLM provider", "error", err)
 		return nil, err
-	}
-	if err := provider.Check(ctx); err != nil {
-		slog.Error("LLM provider not ready", "provider", provider.Name(), "error", err)
-		return nil, fmt.Errorf("%s is not ready: %w", provider.DisplayName(), err)
 	}
 
 	tuiInstance, err := tui.New(cookbook, sessionLog, themeManager, datadir, ctx)

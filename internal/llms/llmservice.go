@@ -31,8 +31,10 @@ type LLMService struct {
 	llm       langllms.Model
 	modelName string
 	provider  Provider
-	// models is the provider's model list, fetched once at construction.
-	models          []string
+	// models is the provider's model list, fetched when it was applied.
+	models []string
+	// providerErr is why the provider isn't usable (nil when it is).
+	providerErr     error
 	ctx             context.Context
 	cancelCtx       context.CancelFunc
 	callbackHandler *callbacks.DefaultAgentCallbackHandler
@@ -71,17 +73,9 @@ func NewLLMServiceWithProvider(cookbook *db.CookBook, provider Provider) (*LLMSe
 	const initialGeneration = 1
 	chatConfig := config.GetChatConfig()
 
-	models, err := provider.ListModels(context.Background())
-	if err != nil {
-		slog.Error("Failed to list models", "provider", provider.Name(), "error", err)
-		return nil, err
-	}
-
-	modelName := provider.DefaultModel()
-	llm, err := provider.NewModel(modelName)
-	if err != nil {
-		slog.Error("Failed to create LLM", "error", err)
-		return nil, err
+	st := PrepareProvider(context.Background(), provider)
+	if st.Err != nil {
+		slog.Warn("LLM provider not ready", "provider", provider.Name(), "error", st.Err)
 	}
 
 	toolManager := llmtools.NewToolManager(cookbook)
@@ -94,10 +88,11 @@ func NewLLMServiceWithProvider(cookbook *db.CookBook, provider Provider) (*LLMSe
 	callbackHandler.SetGeneration(initialGeneration)
 
 	s := &LLMService{
-		llm:             llm,
-		modelName:       modelName,
+		llm:             st.LLM,
+		modelName:       st.ModelName,
 		provider:        provider,
-		models:          models,
+		models:          st.Models,
+		providerErr:     st.Err,
 		ctx:             ctx,
 		cancelCtx:       cancel,
 		callbackHandler: callbackHandler,
@@ -233,11 +228,34 @@ func (s *LLMService) GetToolManager() *llmtools.ToolManager {
 
 // Provider returns the LLM provider backing this service.
 func (s *LLMService) Provider() Provider {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	return s.provider
+}
+
+// ProviderError reports why the active provider can't be used, or nil.
+func (s *LLMService) ProviderError() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.providerErr
+}
+
+// ApplyProvider installs a prepared provider. Agents built before the call
+// keep the old model; callers rebuild them (see NewAgent).
+func (s *LLMService) ApplyProvider(st ProviderState) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.provider = st.Provider
+	s.models = st.Models
+	s.modelName = st.ModelName
+	s.llm = st.LLM
+	s.providerErr = st.Err
 }
 
 // GetInstalledModels returns the models available on the active provider.
 func (s *LLMService) GetInstalledModels() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	return s.models
 }
 
@@ -260,11 +278,14 @@ func (s *LLMService) GetTokenUsage() callbacks.TokenUsage {
 }
 
 func (s *LLMService) SetModelByName(modelName string) error {
-	if !slices.Contains(s.models, modelName) {
-		return fmt.Errorf("model %s is not available on %s", modelName, s.provider.DisplayName())
+	s.mu.Lock()
+	provider, models := s.provider, s.models
+	s.mu.Unlock()
+	if !slices.Contains(models, modelName) {
+		return fmt.Errorf("model %s is not available on %s", modelName, provider.DisplayName())
 	}
 
-	llm, err := s.provider.NewModel(modelName)
+	llm, err := provider.NewModel(modelName)
 	if err != nil {
 		return fmt.Errorf("failed to create LLM: %w", err)
 	}
@@ -272,6 +293,7 @@ func (s *LLMService) SetModelByName(modelName string) error {
 	s.mu.Lock()
 	s.llm = llm
 	s.modelName = modelName
+	s.providerErr = nil
 	s.mu.Unlock()
 	return nil
 }

@@ -466,3 +466,21 @@ func TestTokenSourcePicksUpNewLogin(t *testing.T) {
 		t.Errorf("ForceRefresh = %q, want the newly saved session", tok.AccessToken)
 	}
 }
+
+func TestTokenSourceInvalidateRereadsStore(t *testing.T) {
+	store := NewStore(t.TempDir())
+	if err := store.Save(&Tokens{AccessToken: "one", RefreshToken: "r1", ExpiresAt: time.Now().Add(time.Hour)}); err != nil {
+		t.Fatal(err)
+	}
+	ts := NewTokenSource(store, NewClient())
+	if _, err := ts.Token(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Delete(); err != nil {
+		t.Fatal(err)
+	}
+	ts.Invalidate()
+	if _, err := ts.Token(context.Background()); !errors.Is(err, ErrNotLoggedIn) {
+		t.Fatalf("after logout+Invalidate: err = %v, want ErrNotLoggedIn", err)
+	}
+}

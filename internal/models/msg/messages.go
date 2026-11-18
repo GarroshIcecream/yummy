@@ -52,6 +52,8 @@ type CloseModalViewMsg struct{}
 type ResponseMsg struct {
 	Response     string
 	GenerationID uint64
+	// Err is set when the generation failed; the chat shows it.
+	Err error
 }
 
 type StreamingChunkMsg struct {

@@ -514,14 +514,18 @@ func (e *ExecutorService) SetModelByName(modelName string) error {
 		return err
 	}
 
-	// Recreate the agent executor with the new model (memory already has system prompt)
-	mem := e.GetMemory()
-	executor := e.ai.NewAgent(mem)
+	e.ReloadAgent()
+	return nil
+}
+
+// ReloadAgent rebuilds the agent on the LLM service's current model, keeping
+// the conversation. Call it after the model or provider changes.
+func (e *ExecutorService) ReloadAgent() {
+	// Memory already holds the system prompt.
+	executor := e.ai.NewAgent(e.GetMemory())
 	e.mu.Lock()
 	e.executor = executor
 	e.mu.Unlock()
-
-	return nil
 }
 
 // AppendSystemPrompt appends the system prompt to the memory and saves it to the database

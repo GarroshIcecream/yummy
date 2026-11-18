@@ -3,12 +3,11 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"os/exec"
-	"runtime"
 	"strings"
 	"time"
 
 	"github.com/GarroshIcecream/yummy/internal/auth/chatgpt"
+	"github.com/GarroshIcecream/yummy/internal/utils"
 	"github.com/spf13/cobra"
 )
 
@@ -58,7 +57,7 @@ var loginCmd = &cobra.Command{
 		out := cmd.OutOrStdout()
 		tokens, err := chatgpt.NewClient().Login(ctx, func(authURL string) error {
 			_, _ = fmt.Fprintf(out, "Opening your browser to sign in to ChatGPT.\nIf it doesn't open, visit:\n\n  %s\n\n", authURL)
-			return openBrowser(authURL)
+			return utils.OpenBrowser(authURL)
 		})
 		if err != nil {
 			return err
@@ -96,18 +95,4 @@ var logoutCmd = &cobra.Command{
 		_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Logged out of ChatGPT.")
 		return nil
 	},
-}
-
-// openBrowser opens url in the user's default browser.
-func openBrowser(url string) error {
-	var c *exec.Cmd
-	switch runtime.GOOS {
-	case "darwin":
-		c = exec.Command("open", url)
-	case "windows":
-		c = exec.Command("rundll32", "url.dll,FileProtocolHandler", url)
-	default:
-		c = exec.Command("xdg-open", url)
-	}
-	return c.Start()
 }
