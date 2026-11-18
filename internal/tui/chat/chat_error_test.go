@@ -47,3 +47,32 @@ func TestChatShowsGenerationError(t *testing.T) {
 		t.Fatalf("viewport does not show the error:\n%s", got)
 	}
 }
+
+func TestChatEmptyStateExplainsUnreadyProvider(t *testing.T) {
+	config.SetGlobalConfig(config.NewDefaultConfig())
+	sessionLog, err := db.NewSessionLog(t.TempDir(), &config.NewDefaultConfig().Database)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ai, err := llms.NewLLMServiceWithProvider(nil, downProvider{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	e, err := NewExecutorService(ai, nil, sessionLog)
+	if err != nil {
+		t.Fatal(err)
+	}
+	theme := themes.NewDefaultTheme()
+	m, err := NewChatModel(e, &theme)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m.SetSize(120, 40)
+	if err := m.RenderConversationAsMarkdown(); err != nil {
+		t.Fatal(err)
+	}
+	got := ansi.Strip(m.viewport.View())
+	if !strings.Contains(got, "isn't ready") || !strings.Contains(got, "command palette") {
+		t.Fatalf("empty state does not explain the unready provider:\n%s", got)
+	}
+}

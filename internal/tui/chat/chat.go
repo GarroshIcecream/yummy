@@ -283,7 +283,7 @@ func (m *ChatModel) Update(msg tea.Msg) (common.TUIModel, tea.Cmd) {
 		case key.Matches(msg, m.keyMap.ModelSelector):
 			currentModelName := m.ExecutorService.GetCurrentModelName()
 			installedModels := m.ExecutorService.GetInstalledModels()
-			modelSelectorDialog, err := dialog.NewModelSelectorDialog(installedModels, currentModelName, m.theme)
+			modelSelectorDialog, err := dialog.NewModelSelectorDialog(m.ExecutorService.GetProviderName(), installedModels, currentModelName, m.theme)
 			if err != nil {
 				slog.Error("Error creating model selector dialog", "error", err)
 				return m, nil
@@ -740,6 +740,16 @@ func (m *ChatModel) renderEmptyState() string {
 		"",
 		suggestBlock,
 	)
+	if m.ExecutorService.GetAI().ProviderError() != nil {
+		palette := "the command palette"
+		if cfg := config.GetGlobalConfig(); cfg != nil && len(cfg.Keymap.CommandPalette) > 0 {
+			palette += " (" + strings.Join(cfg.Keymap.CommandPalette, " / ") + ")"
+		}
+		notice := fmt.Sprintf("%s isn't ready. Open %s to sign in or switch provider.",
+			m.ExecutorService.GetProviderName(), palette)
+		notice = utils.WrapTextToWidth(notice, max(m.viewport.Width()-8, 20))
+		emptyText = lipgloss.JoinVertical(lipgloss.Center, emptyText, "", "", m.theme.Error.Render(notice))
+	}
 
 	verticalPad := max((m.viewport.Height()-lipgloss.Height(emptyText))/2, 0)
 	return lipgloss.NewStyle().

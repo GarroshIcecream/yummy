@@ -66,7 +66,7 @@ var loginCmd = &cobra.Command{
 			return err
 		}
 		_, _ = fmt.Fprintf(out, "Logged in to ChatGPT (account %s).\n", tokens.AccountID)
-		_, _ = fmt.Fprintln(out, `To use it, set "chat": {"provider": "chatgpt"} in ~/.yummy/config.json.`)
+		_, _ = fmt.Fprintln(out, `To use it, choose "Switch LLM Provider" in the command palette (ctrl+p), or set "chat": {"provider": "chatgpt"} in ~/.yummy/config.json.`)
 		return nil
 	},
 }

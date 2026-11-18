@@ -112,4 +112,5 @@ const (
 	ModalTypeRating           ModalType = "RATING"
 	ModalTypeScraperUpdate    ModalType = "SCRAPER_UPDATE"
 	ModalTypeConfirm          ModalType = "CONFIRM"
+	ModalTypeProvider         ModalType = "PROVIDER"
 )

@@ -8,6 +8,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/GarroshIcecream/yummy/internal/config"
+	"github.com/GarroshIcecream/yummy/internal/llms"
 	common "github.com/GarroshIcecream/yummy/internal/models/common"
 	messages "github.com/GarroshIcecream/yummy/internal/models/msg"
 	themes "github.com/GarroshIcecream/yummy/internal/themes"
@@ -24,6 +25,9 @@ const (
 	ActionRecipeSelector = "recipe_selector"
 	ActionScraperUpdate  = "scraper_update"
 	ActionToggleAI       = "toggle_ai_parsing"
+	ActionProvider       = "provider_selector"
+	ActionChatGPTSignIn  = "chatgpt_sign_in"
+	ActionChatGPTSignOut = "chatgpt_sign_out"
 )
 
 // CommandItem represents a single command in the palette.
@@ -56,6 +60,8 @@ func NewCommandPaletteDialog(theme *themes.Theme) (*CommandPaletteDialogCmp, err
 		{Name: "Switch View", Shortcut: strings.Join(km.StateSelector, " / "), Action: ActionStateSelector},
 		{Name: "Change Theme", Shortcut: strings.Join(km.ThemeSelector, " / "), Action: ActionThemeSelector},
 		{Name: "Change Model", Shortcut: strings.Join(km.ModelSelector, " / "), Action: ActionModelSelector},
+		{Name: "Switch LLM Provider", Action: ActionProvider},
+		chatGPTAccountItem(llms.ChatGPTSignedIn(config.DataDir())),
 		{Name: "Add Recipe", Shortcut: strings.Join(km.Add, " / "), Action: ActionAddRecipe},
 		{Name: "Find Recipe", Shortcut: strings.Join(km.RecipeSelector, " / "), Action: ActionRecipeSelector},
 		{Name: "Check recipe-scrapers Update", Action: ActionScraperUpdate},
@@ -81,6 +87,14 @@ func NewCommandPaletteDialog(theme *themes.Theme) (*CommandPaletteDialogCmp, err
 		height:      dialogConfig.Height,
 		theme:       theme,
 	}, nil
+}
+
+// chatGPTAccountItem offers sign-in or sign-out depending on the session.
+func chatGPTAccountItem(signedIn bool) CommandItem {
+	if signedIn {
+		return CommandItem{Name: "Sign Out of ChatGPT", Action: ActionChatGPTSignOut}
+	}
+	return CommandItem{Name: "Sign In to ChatGPT", Action: ActionChatGPTSignIn}
 }
 
 // aiParsingLabel names the toggle by the action it performs.

@@ -57,7 +57,7 @@ The cooking assistant runs on one of two providers, selected with `chat.provider
 - `"ollama"` (default): a local model served by Ollama.
 - `"chatgpt"`: your ChatGPT Plus/Pro subscription, no API key needed.
 
-The interactive TUI checks the selected provider during startup.
+The app opens even if the selected provider isn't ready (Ollama not running, not signed in to ChatGPT); the chat explains what's wrong, and you can sign in or switch provider from the command palette.
 
 ### Ollama
 
@@ -74,13 +74,15 @@ ollama pull gemma3:4b
 
 ### ChatGPT subscription
 
-Sign in with your ChatGPT account (opens a browser; uses a local callback on port 1455 or 1457):
+From the app: open the command palette (`ctrl+p`) and choose **Switch LLM Provider** → **ChatGPT**. If you aren't signed in yet, a browser opens to sign in, then the app switches over. **Sign In to ChatGPT** / **Sign Out of ChatGPT** are also in the palette.
+
+From the terminal (opens a browser; uses a local callback on port 1455 or 1457):
 
 ```bash
 yummy login chatgpt
 ```
 
-Then select the provider in `~/.yummy/config.json`:
+The provider choice is saved in `~/.yummy/config.json`:
 
 ```json
 {
