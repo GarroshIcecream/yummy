@@ -20,9 +20,8 @@ type chatgptProvider struct {
 	// modelOpts are passed to chatgpt.FetchModels (tests point it at a stub).
 	modelOpts []chatgpt.Option
 
-	mu      sync.Mutex
-	models  []string // cached after the first listing
-	listErr error    // why the live catalog couldn't be fetched, if it couldn't
+	mu     sync.Mutex
+	models []string // cached after the first listing
 }
 
 // tokenSources holds one TokenSource per data directory so every provider

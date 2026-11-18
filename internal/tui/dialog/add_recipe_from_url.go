@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"strconv"
 	"strings"
+	"time"
 
 	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/spinner"
@@ -42,6 +43,8 @@ type AddRecipeFromURLDialogCmp struct {
 	existingID         uint   // non-zero when URL already exists in cookbook
 	llmIngredientModel string // model for ingredient parsing ("" = provider default)
 	aiParsing          bool   // whether any AI step of the import runs
+	aiFallback         bool   // ChatGPT is active, so pages recipe-scrapers can't read can be read by AI
+	aiOffer            bool   // scraping failed and enter now imports the page with AI
 }
 
 func NewAddRecipeFromURLDialog(cookbook *db.CookBook, theme *themes.Theme) (*AddRecipeFromURLDialogCmp, error) {
@@ -75,6 +78,7 @@ func NewAddRecipeFromURLDialog(cookbook *db.CookBook, theme *themes.Theme) (*Add
 		pythonPath:         dialogConfig.PythonPath,
 		llmIngredientModel: dialogConfig.LLMIngredientModel,
 		aiParsing:          dialogConfig.AIParsing,
+		aiFallback:         cfg.Chat.Provider == "chatgpt",
 	}, nil
 }
 
@@ -101,6 +105,12 @@ func (m *AddRecipeFromURLDialogCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		quip := ingredientParsingQuips[rand.Intn(len(ingredientParsingQuips))]
 		m.loadingText = quip
 		return m, parseAndSaveCmd(msg.scraper, msg.url, msg.llmModel, msg.aiParsing, m.cookbook)
+
+	case scrapeFailedMsg:
+		m.loading = false
+		m.errorMsg = friendlyScrapeError(msg.err)
+		m.aiOffer = m.aiFallback && aiCanRead(msg.err)
+		return m, nil
 
 	case scrapeAndSaveResultMsg:
 		m.loading = false
@@ -133,6 +143,15 @@ func (m *AddRecipeFromURLDialogCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				cmds = append(cmds, messages.SendSessionStateMsg(common.SessionStateList))
 				cmds = append(cmds, messages.SendRecipeAddedFromURLMsg(m.existingID, ""))
 				return m, tea.Sequence(cmds...)
+			}
+
+			if m.aiOffer {
+				m.aiOffer = false
+				m.errorMsg = ""
+				m.loading = true
+				m.loadingText = "ChatGPT is reading the page…"
+				return m, tea.Batch(m.spinner.Tick,
+					aiScrapeCmd(m.fetchedURL, m.llmIngredientModel, m.aiParsing))
 			}
 
 			urlStr := m.urlInput.Value()
@@ -171,6 +190,7 @@ func (m *AddRecipeFromURLDialogCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Reset duplicate state when the user edits the URL
 	if m.urlInput.Value() != prevValue {
 		m.existingID = 0
+		m.aiOffer = false
 	}
 	return m, tea.Batch(cmds...)
 }
@@ -229,6 +249,10 @@ func (m *AddRecipeFromURLDialogCmp) View() tea.View {
 				m.theme.AddRecipeFromURLPrompt.Render(" "+spinnerText))
 	} else if m.errorMsg != "" {
 		status = row(m.theme.AddRecipeFromURLError, lipgloss.Center, m.errorMsg)
+		if m.aiOffer {
+			status += "\n" + row(m.theme.AddRecipeFromURLPrompt, lipgloss.Center,
+				"Press enter to let ChatGPT read the page instead")
+		}
 	}
 
 	// Help — subtle keys, centered
@@ -237,8 +261,12 @@ func (m *AddRecipeFromURLDialogCmp) View() tea.View {
 	enterKey := m.theme.AddRecipeFromURLKeyHighlight.Render(enterHelp)
 	escKey := m.theme.AddRecipeFromURLKeyHighlight.Render(escHelp)
 	dot := m.theme.AddRecipeFromURLHelp.Render(" | ")
+	enterLabel := " import"
+	if m.aiOffer {
+		enterLabel = " read with ChatGPT"
+	}
 	helpText := enterKey +
-		m.theme.AddRecipeFromURLHelp.Render(" import") + dot +
+		m.theme.AddRecipeFromURLHelp.Render(enterLabel) + dot +
 		m.theme.AddRecipeFromURLKeyHighlight.Render("tab") +
 		m.theme.AddRecipeFromURLHelp.Render(" write manually") + dot +
 		escKey + m.theme.AddRecipeFromURLHelp.Render(" cancel")
@@ -302,6 +330,11 @@ type scrapeDoneMsg struct {
 	aiParsing bool
 }
 
+// scrapeFailedMsg reports that recipe-scrapers couldn't read the page.
+type scrapeFailedMsg struct {
+	err error
+}
+
 // scrapeAndSaveResultMsg is the internal result of the full pipeline.
 type scrapeAndSaveResultMsg struct {
 	recipeID uint
@@ -324,10 +357,49 @@ func scrapeURLCmd(url, pythonPath, llmModel string, aiParsing bool) tea.Cmd {
 	return func() tea.Msg {
 		scraper, err := scrape.ScrapeURL(url, pythonPath)
 		if err != nil {
-			return scrapeAndSaveResultMsg{err: err}
+			return scrapeFailedMsg{err: err}
 		}
 		return scrapeDoneMsg{scraper: scraper, url: url, llmModel: llmModel, aiParsing: aiParsing}
 	}
+}
+
+// aiScrapeTimeout bounds downloading the page and the model reading it.
+const aiScrapeTimeout = 3 * time.Minute
+
+// aiScrapeCmd downloads the page and has the active model (ChatGPT) read the
+// recipe out of it, for sites recipe-scrapers doesn't support. The result
+// continues through the same parse-and-save phase as a scraped recipe.
+func aiScrapeCmd(url, llmModel string, aiParsing bool) tea.Cmd {
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), aiScrapeTimeout)
+		defer cancel()
+		llm, err := yllms.NewActiveModel(ctx)
+		if err != nil {
+			return scrapeAndSaveResultMsg{err: err}
+		}
+		text, err := scrape.FetchPageText(ctx, nil, url)
+		if err != nil {
+			return scrapeAndSaveResultMsg{err: err}
+		}
+		s, err := scrape.ExtractRecipeWithLLM(ctx, llm, url, text)
+		if err != nil {
+			slog.Error("AI recipe import failed", "url", url, "error", err)
+			return scrapeAndSaveResultMsg{err: err}
+		}
+		return scrapeDoneMsg{scraper: s, url: url, llmModel: llmModel, aiParsing: aiParsing}
+	}
+}
+
+// aiCanRead reports whether reading the page with AI might succeed after
+// recipe-scrapers failed with err: not when the page itself can't be fetched.
+func aiCanRead(err error) bool {
+	low := strings.ToLower(err.Error())
+	for _, unreachable := range []string{"no such host", "dial tcp", "connection refused", "404"} {
+		if strings.Contains(low, unreachable) {
+			return false
+		}
+	}
+	return true
 }
 
 // parseAndSaveCmd handles ingredient parsing (with LLM) and saving to DB.

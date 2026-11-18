@@ -56,3 +56,17 @@ func NewIngredientModel(name string) (langllms.Model, error) {
 	}
 	return p.NewModel(name)
 }
+
+// NewActiveModel prepares the active provider and returns its default
+// model, or the reason it isn't ready. It may block on the network.
+func NewActiveModel(ctx context.Context) (langllms.Model, error) {
+	p, err := NewProvider(config.GetChatConfig(), config.DataDir())
+	if err != nil {
+		return nil, err
+	}
+	st := PrepareProvider(ctx, p)
+	if st.Err != nil {
+		return nil, fmt.Errorf("%s isn't ready: %w", p.DisplayName(), st.Err)
+	}
+	return st.LLM, nil
+}

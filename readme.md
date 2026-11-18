@@ -74,7 +74,7 @@ ollama pull gemma3:4b
 
 ### ChatGPT subscription
 
-From the app: open the command palette (`ctrl+p`) and choose **Switch LLM Provider** → **ChatGPT**. If you aren't signed in yet, a browser opens to sign in, then the app switches over. **Sign In to ChatGPT** / **Sign Out of ChatGPT** are also in the palette.
+From the app: open the command palette (`ctrl+p`) and choose **Switch LLM Provider** → **ChatGPT**. If you aren't signed in yet, a browser opens to sign in, then the app switches over. To sign out, select ChatGPT in the same dialog and press `x`.
 
 From the terminal (opens a browser; uses a local callback on port 1455 or 1457):
 
@@ -108,6 +108,8 @@ The add-from-URL flow uses [recipe-scrapers](https://github.com/hhursev/recipe-s
 - Python 3 must be installed
 - `recipe-scrapers` is auto-installed on first use
 - On externally managed Python installs, Yummy creates and uses `~/.yummy/recipe-scrapers-venv`
+
+When ChatGPT is the active provider and recipe-scrapers can't read a page (unsupported site, no recipe schema, or no Python), the dialog offers to let ChatGPT read the page instead: press `enter` again and Yummy downloads the page and asks ChatGPT to pull the recipe out of it. This sends the page's text to ChatGPT and uses your subscription's quota.
 
 If Python is not auto-detected, set it in `~/.yummy/config.json`:
 
