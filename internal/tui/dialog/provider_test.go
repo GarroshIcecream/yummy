@@ -50,6 +50,7 @@ type fakeDeps struct {
 	opened      []string
 	prepareErr  error
 	preparedFor []string
+	loggedOut   int
 }
 
 func (f *fakeDeps) deps() providerDeps {
@@ -64,6 +65,11 @@ func (f *fakeDeps) deps() providerDeps {
 			return "acc_1", nil
 		},
 		browser: func(u string) error { f.opened = append(f.opened, u); return nil },
+		logout: func() error {
+			f.loggedOut++
+			f.signedIn = false
+			return nil
+		},
 		prepare: func(name string) llms.ProviderState {
 			f.preparedFor = append(f.preparedFor, name)
 			if f.prepareErr != nil {
@@ -90,6 +96,8 @@ func press(d *ProviderDialogCmp, key string) []tea.Msg {
 		k = tea.KeyPressMsg{Code: tea.KeyDown}
 	case "esc":
 		k = tea.KeyPressMsg{Code: tea.KeyEscape}
+	default:
+		k = tea.KeyPressMsg{Code: rune(key[0]), Text: key}
 	}
 	_, cmd := d.Update(k)
 	return runCmd(cmd)
@@ -190,5 +198,48 @@ func TestProviderDialogEscCancelsSignIn(t *testing.T) {
 	}
 	if d.cancel == nil {
 		t.Fatal("sign-in had no cancel func")
+	}
+}
+
+func TestProviderDialogSignOutOfActiveChatGPT(t *testing.T) {
+	f := &fakeDeps{signedIn: true}
+	d := newTestProviderDialog("chatgpt", f)
+	if !strings.Contains(ansi.Strip(d.View().Content), "sign out") {
+		t.Errorf("chooser should offer sign-out on the signed-in ChatGPT row:\n%s", ansi.Strip(d.View().Content))
+	}
+	msgs := press(d, "x")
+	if f.loggedOut != 1 {
+		t.Fatalf("logout called %d times, want 1", f.loggedOut)
+	}
+	// ChatGPT is active, so the app must re-check it and report not ready.
+	applied, ok := findMsg[ProviderAppliedMsg](msgs)
+	if !ok || applied.Name != "chatgpt" {
+		t.Fatalf("msgs = %#v, want ProviderAppliedMsg re-checking chatgpt", msgs)
+	}
+	if !strings.Contains(ansi.Strip(d.View().Content), "not signed in") {
+		t.Errorf("chooser should now show ChatGPT as not signed in:\n%s", ansi.Strip(d.View().Content))
+	}
+}
+
+func TestProviderDialogSignOutWhileOnOllamaKeepsProvider(t *testing.T) {
+	f := &fakeDeps{signedIn: true}
+	d := newTestProviderDialog("ollama", f)
+	d.selected = 1
+	msgs := press(d, "x")
+	if f.loggedOut != 1 {
+		t.Fatalf("logout called %d times, want 1", f.loggedOut)
+	}
+	if _, ok := findMsg[ProviderAppliedMsg](msgs); ok {
+		t.Fatal("signing out of an inactive provider should not touch the active one")
+	}
+}
+
+func TestProviderDialogSignOutIgnoredWhenNotSignedIn(t *testing.T) {
+	f := &fakeDeps{}
+	d := newTestProviderDialog("ollama", f)
+	d.selected = 1
+	press(d, "x")
+	if f.loggedOut != 0 {
+		t.Fatalf("logout called %d times while signed out", f.loggedOut)
 	}
 }

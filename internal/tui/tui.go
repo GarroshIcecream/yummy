@@ -292,19 +292,6 @@ func (m *Manager) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			d := dialog.NewProviderDialog(m.llmService.Provider().Name(), theme)
 			cmds = append(cmds, messages.SendOpenModalViewMsg(d, common.ModalTypeProvider))
 
-		case dialog.ActionChatGPTSignIn:
-			d := dialog.NewChatGPTSignInDialog(m.llmService.Provider().Name(), theme)
-			cmds = append(cmds, messages.SendOpenModalViewMsg(d, common.ModalTypeProvider))
-
-		case dialog.ActionChatGPTSignOut:
-			if err := llms.ChatGPTLogout(config.DataDir()); err != nil {
-				slog.Error("Failed to sign out of ChatGPT", "error", err)
-			}
-			// Re-check the active provider so the chat reports the change.
-			if m.llmService.Provider().Name() == "chatgpt" {
-				cmds = append(cmds, dialog.SwitchProviderCmd("chatgpt"))
-			}
-
 		case dialog.ActionScraperUpdate:
 			cfg := config.GetGlobalConfig()
 			pythonPath := ""

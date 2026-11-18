@@ -84,6 +84,7 @@ type providerDeps struct {
 	signedIn func() bool
 	login    func(ctx context.Context, openBrowser func(url string) error) (account string, err error)
 	browser  func(url string) error
+	logout   func() error
 	prepare  func(name string) llms.ProviderState
 }
 
@@ -98,6 +99,7 @@ func defaultProviderDeps() providerDeps {
 			return t.AccountID, nil
 		},
 		browser: utils.OpenBrowser,
+		logout:  func() error { return llms.ChatGPTLogout(config.DataDir()) },
 		prepare: prepareProvider,
 	}
 }
@@ -132,6 +134,7 @@ type ProviderDialogCmp struct {
 	account  string
 	errMsg   string
 	doneText string
+	notice   string // one-line status under the chooser
 	cancel   context.CancelFunc
 }
 
@@ -139,15 +142,6 @@ type ProviderDialogCmp struct {
 // provider's name.
 func NewProviderDialog(current string, theme *themes.Theme) *ProviderDialogCmp {
 	return newProviderDialog(current, theme, defaultProviderDeps())
-}
-
-// NewChatGPTSignInDialog starts straight at ChatGPT sign-in and switches to
-// ChatGPT once signed in.
-func NewChatGPTSignInDialog(current string, theme *themes.Theme) *ProviderDialogCmp {
-	d := newProviderDialog(current, theme, defaultProviderDeps())
-	d.phase = providerPhaseSigningIn
-	d.target = "chatgpt"
-	return d
 }
 
 func newProviderDialog(current string, theme *themes.Theme, deps providerDeps) *ProviderDialogCmp {
@@ -215,6 +209,24 @@ func (d *ProviderDialogCmp) startSwitch(name string) tea.Cmd {
 	return tea.Batch(d.spinner.Tick, func() tea.Msg {
 		return providerPreparedMsg{name: name, state: prepare(name)}
 	})
+}
+
+// signOut removes the ChatGPT session. When ChatGPT is the active provider
+// it is re-checked so the app reports that it is no longer ready.
+func (d *ProviderDialogCmp) signOut() tea.Cmd {
+	if err := d.deps.logout(); err != nil {
+		d.notice = "Couldn't sign out: " + err.Error()
+		return nil
+	}
+	d.signedIn = false
+	d.notice = "Signed out of ChatGPT."
+	if d.current != "chatgpt" {
+		return nil
+	}
+	prepare := d.deps.prepare
+	return func() tea.Msg {
+		return ProviderAppliedMsg{Name: "chatgpt", State: prepare("chatgpt")}
+	}
 }
 
 func (d *ProviderDialogCmp) close() tea.Cmd {
@@ -285,7 +297,12 @@ func (d *ProviderDialogCmp) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if d.selected < len(providerItems)-1 {
 					d.selected++
 				}
+			case "x":
+				if providerItems[d.selected].name == "chatgpt" && d.signedIn {
+					return d, d.signOut()
+				}
 			case "enter":
+				d.notice = ""
 				name := providerItems[d.selected].name
 				if name == "chatgpt" && !d.signedIn {
 					return d, d.startLogin()
@@ -351,7 +368,18 @@ func (d *ProviderDialogCmp) View() tea.View {
 			}
 			body = append(body, style.Width(innerWidth).Render(line))
 		}
-		help = keyHelp("↑/↓", "choose", "enter", "use", "esc", "cancel")
+		if d.notice != "" {
+			body = append(body, "", row(th.AddRecipeFromURLHelp, d.notice))
+		}
+		enterHelp := "use"
+		if providerItems[d.selected].name == "chatgpt" && !d.signedIn {
+			enterHelp = "sign in & use"
+		}
+		pairs := []string{"↑/↓", "choose", "enter", enterHelp}
+		if providerItems[d.selected].name == "chatgpt" && d.signedIn {
+			pairs = append(pairs, "x", "sign out")
+		}
+		help = keyHelp(append(pairs, "esc", "cancel")...)
 
 	case providerPhaseSigningIn:
 		body = append(body, spin("Waiting for ChatGPT sign-in in your browser…"))
