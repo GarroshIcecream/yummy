@@ -2,12 +2,14 @@ package dialog
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
 	"charm.land/bubbles/v2/spinner"
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
+	"github.com/GarroshIcecream/yummy/internal/scrape"
 	themes "github.com/GarroshIcecream/yummy/internal/themes"
 	"github.com/charmbracelet/x/ansi"
 )
@@ -87,5 +89,43 @@ func TestAddRecipeEditingURLWithdrawsAIOffer(t *testing.T) {
 	d.Update(tea.KeyPressMsg{Code: 'x', Text: "x"})
 	if d.aiOffer {
 		t.Fatal("offer should be withdrawn once the URL changes")
+	}
+}
+
+func TestFriendlyScrapeErrorHidesRawOutput(t *testing.T) {
+	cases := map[string]string{
+		"exit status 1 (stderr: HTTP Error 403: Forbidden\n)":         "This site blocked the import",
+		"exit status 1 (stderr: HTTP Error 429: Too Many Requests\n)": "This site is rate limiting imports, try again later",
+		"exit status 1 (stderr: HTTP Error 503: Service Unavailable)": "This site is having trouble, try again later",
+		"exit status 1 (stderr: Traceback ... KeyError: 'whatever')":  "Couldn't read a recipe from this page",
+	}
+	for raw, want := range cases {
+		if got := friendlyScrapeError(errors.New(raw)); got != want {
+			t.Errorf("friendlyScrapeError(%q) = %q, want %q", raw, got, want)
+		}
+	}
+}
+
+func TestAddRecipeAIOfferIsTheHeadline(t *testing.T) {
+	d := newTestAddRecipeDialog(true)
+	d.Update(scrapeFailedMsg{err: errors.New("exit status 1 (stderr: HTTP Error 403: Forbidden\n)")})
+	if !d.aiOffer {
+		t.Fatal("a site blocking recipe-scrapers should still get the AI offer")
+	}
+	v := viewText(d)
+	if strings.Contains(v, "exit status") || strings.Contains(v, "stderr") {
+		t.Errorf("raw scraper output leaked into the dialog:\n%s", v)
+	}
+	if !strings.Contains(v, "This site blocked the import") {
+		t.Errorf("view should give the short reason:\n%s", v)
+	}
+}
+
+func TestAddRecipeAIImportBlockedSaysWhy(t *testing.T) {
+	d := newTestAddRecipeDialog(true)
+	d.Update(scrapeAndSaveResultMsg{err: fmt.Errorf("%w (403 Forbidden)", scrape.ErrSiteBlocked)})
+	v := viewText(d)
+	if !strings.Contains(v, "blocks automated downloads") || !strings.Contains(v, "ChatGPT can't read it") {
+		t.Errorf("view should explain the site blocks downloads, not that ChatGPT failed:\n%s", v)
 	}
 }

@@ -2,6 +2,7 @@ package dialog
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"math/rand"
@@ -248,10 +249,13 @@ func (m *AddRecipeFromURLDialogCmp) View() tea.View {
 			m.theme.AddRecipeFromURLSpinner.Render(m.spinner.View()) +
 				m.theme.AddRecipeFromURLPrompt.Render(" "+spinnerText))
 	} else if m.errorMsg != "" {
-		status = row(m.theme.AddRecipeFromURLError, lipgloss.Center, m.errorMsg)
 		if m.aiOffer {
-			status += "\n" + row(m.theme.AddRecipeFromURLPrompt, lipgloss.Center,
-				"Press enter to let ChatGPT read the page instead")
+			// The offer is the way forward, so it leads; the reason is a muted aside.
+			status = row(m.theme.AddRecipeFromURLPrompt, lipgloss.Center,
+				"Press enter to let ChatGPT read the page instead") + "\n" +
+				row(m.theme.AddRecipeFromURLHelp, lipgloss.Center, m.errorMsg)
+		} else {
+			status = row(m.theme.AddRecipeFromURLError, lipgloss.Center, m.errorMsg)
 		}
 	}
 
@@ -429,10 +433,16 @@ func parseAndSaveCmd(s scrape.Scraper, url, llmModel string, aiParsing bool, coo
 	}
 }
 
-// friendlyScrapeError turns a raw scrape error into a short, user-friendly message.
+// friendlyScrapeError turns a raw scrape error into a short, user-friendly
+// message. Raw scraper output (exit codes, Python tracebacks) is logged, never
+// shown.
 func friendlyScrapeError(err error) string {
 	msg := err.Error()
 	low := strings.ToLower(msg)
+	slog.Warn("Recipe import failed", "error", msg)
+	if errors.Is(err, scrape.ErrSiteBlocked) {
+		return "This site blocks automated downloads, so ChatGPT can't read it either"
+	}
 
 	switch {
 	case strings.Contains(low, "isn't currently supported") ||
@@ -446,10 +456,20 @@ func friendlyScrapeError(err error) string {
 		return "Can't reach that website"
 	case strings.Contains(low, "404") || strings.Contains(low, "not found"):
 		return "Page not found"
+	case strings.Contains(low, "http error 401") || strings.Contains(low, "http error 403") || strings.Contains(low, "forbidden"):
+		return "This site blocked the import"
+	case strings.Contains(low, "http error 429") || strings.Contains(low, "too many requests"):
+		return "This site is rate limiting imports, try again later"
+	case strings.Contains(low, "http error 5") || strings.Contains(low, "service unavailable") ||
+		strings.Contains(low, "bad gateway"):
+		return "This site is having trouble, try again later"
 	case strings.Contains(low, "timeout") || strings.Contains(low, "deadline exceeded"):
 		return "Request timed out"
 	case strings.Contains(low, "no recipe found") || strings.Contains(low, "no schema found"):
 		return "No recipe found on this page"
+	case strings.Contains(low, "exit status") || strings.Contains(low, "stderr") ||
+		strings.Contains(low, "traceback"):
+		return "Couldn't read a recipe from this page"
 	default:
 		if len(msg) > 80 {
 			msg = msg[:77] + "..."

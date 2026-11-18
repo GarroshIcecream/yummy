@@ -25,6 +25,10 @@ const maxPageBytes = 5 << 20
 // browserUserAgent is sent because many recipe sites refuse Go's default.
 const browserUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"
 
+// ErrSiteBlocked means the site refused the download, typically a bot
+// check (e.g. a Cloudflare challenge) that only a real browser passes.
+var ErrSiteBlocked = errors.New("site blocks automated downloads")
+
 // ErrNoRecipeOnPage means the model found no recipe in the page.
 var ErrNoRecipeOnPage = errors.New("no recipe found on this page")
 
@@ -61,6 +65,10 @@ func FetchPageText(ctx context.Context, client *http.Client, pageURL string) (st
 		return "", err
 	}
 	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusUnauthorized ||
+		resp.Header.Get("cf-mitigated") != "" {
+		return "", fmt.Errorf("%w (%s)", ErrSiteBlocked, resp.Status)
+	}
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("page returned %s", resp.Status)
 	}

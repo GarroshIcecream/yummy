@@ -174,3 +174,15 @@ func TestExtractRecipeWithLLMPassesModelError(t *testing.T) {
 		t.Fatalf("err = %v, want it to wrap %v", err, boom)
 	}
 }
+
+func TestFetchPageTextReportsBlockedSite(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("cf-mitigated", "challenge")
+		http.Error(w, "Just a moment...", http.StatusForbidden)
+	}))
+	defer srv.Close()
+	_, err := FetchPageText(context.Background(), srv.Client(), srv.URL)
+	if !errors.Is(err, ErrSiteBlocked) {
+		t.Fatalf("err = %v, want ErrSiteBlocked", err)
+	}
+}
