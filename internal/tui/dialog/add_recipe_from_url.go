@@ -224,7 +224,11 @@ func (m *AddRecipeFromURLDialogCmp) View() tea.View {
 	if !m.aiParsing {
 		aiMode = "AI parsing off"
 	}
-	aiLine := row(m.theme.AddRecipeFromURLHelp, lipgloss.Center, aiMode+" | change it in ctrl+p")
+	aiHint := "change it in the command palette"
+	if k := m.keyMap.CommandPalette.Help().Key; k != "" {
+		aiHint = "change it with " + k
+	}
+	aiLine := row(m.theme.AddRecipeFromURLHelp, lipgloss.Center, aiMode+" · "+aiHint)
 
 	// Input field — material-design inspired: bottom line only, no box
 	inputBorder := lipgloss.Border{Bottom: "━"}
@@ -251,31 +255,36 @@ func (m *AddRecipeFromURLDialogCmp) View() tea.View {
 				m.theme.AddRecipeFromURLPrompt.Render(" "+spinnerText))
 	} else if m.errorMsg != "" {
 		if m.aiOffer {
-			// The offer is the way forward, so it leads; the reason is a muted aside.
-			status = row(m.theme.AddRecipeFromURLPrompt, lipgloss.Center,
-				"Press enter to let ChatGPT read the page instead") + "\n" +
-				row(m.theme.AddRecipeFromURLHelp, lipgloss.Center, m.errorMsg)
+			// A muted reason, then the way forward.
+			status = row(m.theme.AddRecipeFromURLHelp, lipgloss.Center, m.errorMsg) + "\n" +
+				row(m.theme.AddRecipeFromURLPrompt, lipgloss.Center,
+					"Press enter to let ChatGPT read the page instead")
 		} else {
 			status = row(m.theme.AddRecipeFromURLError, lipgloss.Center, m.errorMsg)
 		}
 	}
 
 	// Help — subtle keys, centered
-	enterHelp := m.keyMap.Enter.Help().Key
-	escHelp := "esc"
-	enterKey := m.theme.AddRecipeFromURLKeyHighlight.Render(enterHelp)
-	escKey := m.theme.AddRecipeFromURLKeyHighlight.Render(escHelp)
-	dot := m.theme.AddRecipeFromURLHelp.Render(" | ")
-	enterLabel := " import"
-	if m.aiOffer {
-		enterLabel = " read with ChatGPT"
+	enterKey := m.keyMap.Enter.Help().Key
+	if enterKey == "" {
+		enterKey = "enter"
 	}
-	helpText := enterKey +
-		m.theme.AddRecipeFromURLHelp.Render(enterLabel) + dot +
-		m.theme.AddRecipeFromURLKeyHighlight.Render("tab") +
-		m.theme.AddRecipeFromURLHelp.Render(" write manually") + dot +
-		escKey + m.theme.AddRecipeFromURLHelp.Render(" cancel")
-	helpLine := lipgloss.NewStyle().Width(innerWidth).Align(lipgloss.Center).Render(helpText)
+	enterLabel := "import"
+	if m.aiOffer {
+		enterLabel = "use ChatGPT"
+	}
+	helpItem := func(k, label string) string {
+		return m.theme.AddRecipeFromURLKeyHighlight.Render(k) + m.theme.AddRecipeFromURLHelp.Render(" "+label)
+	}
+	items := []string{
+		helpItem(enterKey, enterLabel),
+		helpItem("tab", "write manually"),
+		helpItem("esc", "cancel"),
+	}
+	if m.loading {
+		items = items[2:] // enter and tab do nothing mid-import
+	}
+	helpLine := packHelp(items, m.theme.AddRecipeFromURLHelp.Render(" · "), innerWidth)
 
 	// Assemble — all rows are innerWidth so left-join keeps them flush
 	parts := []string{title, sep, "", label, inputBox}
@@ -296,6 +305,32 @@ func (m *AddRecipeFromURLDialogCmp) View() tea.View {
 		Render(content)
 
 	return tea.NewView(m.theme.AddRecipeFromURLContainer.Render(rendered))
+}
+
+// packHelp lays out help items on centered lines no wider than width,
+// breaking only between items so a key never ends up apart from its label.
+func packHelp(items []string, sep string, width int) string {
+	var lines []string
+	cur := ""
+	for _, it := range items {
+		if cur != "" && lipgloss.Width(cur+sep+it) > width {
+			lines = append(lines, cur)
+			cur = ""
+		}
+		if cur == "" {
+			cur = it
+		} else {
+			cur += sep + it
+		}
+	}
+	if cur != "" {
+		lines = append(lines, cur)
+	}
+	center := lipgloss.NewStyle().Width(width).Align(lipgloss.Center)
+	for i, l := range lines {
+		lines[i] = center.Render(l)
+	}
+	return strings.Join(lines, "\n")
 }
 
 func (m *AddRecipeFromURLDialogCmp) SetSize(width, height int) {

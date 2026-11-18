@@ -9,6 +9,7 @@ import (
 	"charm.land/bubbles/v2/spinner"
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
+	"github.com/GarroshIcecream/yummy/internal/config"
 	"github.com/GarroshIcecream/yummy/internal/scrape"
 	themes "github.com/GarroshIcecream/yummy/internal/themes"
 	"github.com/charmbracelet/x/ansi"
@@ -19,7 +20,10 @@ func newTestAddRecipeDialog(aiFallback bool) *AddRecipeFromURLDialogCmp {
 	ti := textinput.New()
 	ti.Focus()
 	ti.SetValue("https://blog.example/pie")
+	km := config.NewDefaultKeyBindings()
+	km.CommandPalette = []string{"ctrl+k"}
 	d := &AddRecipeFromURLDialogCmp{
+		keyMap:     km.ToKeyMap(),
 		urlInput:   ti,
 		spinner:    spinner.New(),
 		theme:      &theme,
@@ -127,5 +131,53 @@ func TestAddRecipeAIImportBlockedSaysWhy(t *testing.T) {
 	v := viewText(d)
 	if !strings.Contains(v, "blocks automated downloads") || !strings.Contains(v, "ChatGPT can't read it") {
 		t.Errorf("view should explain the site blocks downloads, not that ChatGPT failed:\n%s", v)
+	}
+}
+
+// lineWith returns the index of the first view line containing s, or -1.
+func lineWith(view, s string) int {
+	for i, l := range strings.Split(view, "\n") {
+		if strings.Contains(l, s) {
+			return i
+		}
+	}
+	return -1
+}
+
+func TestAddRecipeHelpWrapsBetweenItems(t *testing.T) {
+	d := newTestAddRecipeDialog(true)
+	d.SetSize(56, 30) // narrow terminal
+	d.Update(scrapeFailedMsg{err: errors.New("exit status 1 (stderr: HTTP Error 403: Forbidden\n)")})
+	v := viewText(d)
+	for _, item := range []string{"enter use ChatGPT", "tab write manually", "esc cancel"} {
+		if lineWith(v, item) < 0 {
+			t.Errorf("help item %q is split across lines:\n%s", item, v)
+		}
+	}
+}
+
+func TestAddRecipeReasonThenOffer(t *testing.T) {
+	d := newTestAddRecipeDialog(true)
+	d.Update(scrapeFailedMsg{err: errors.New("exit status 1 (stderr: HTTP Error 403: Forbidden\n)")})
+	v := viewText(d)
+	reason, offer := lineWith(v, "This site blocked the import"), lineWith(v, "ChatGPT read the page")
+	if reason < 0 || offer < 0 || reason > offer {
+		t.Errorf("want the reason, then the offer (reason line %d, offer line %d):\n%s", reason, offer, v)
+	}
+}
+
+func TestAddRecipeAIHintUsesPaletteKey(t *testing.T) {
+	d := newTestAddRecipeDialog(false)
+	d.loading = false
+	if v := viewText(d); !strings.Contains(v, "ctrl+k") || strings.Contains(v, "ctrl+p") {
+		t.Errorf("AI parsing hint should name the configured palette key (ctrl+k):\n%s", v)
+	}
+}
+
+func TestAddRecipeLoadingShowsOnlyCancel(t *testing.T) {
+	d := newTestAddRecipeDialog(true) // starts mid-import
+	v := viewText(d)
+	if !strings.Contains(v, "esc cancel") || strings.Contains(v, "write manually") {
+		t.Errorf("mid-import help should only offer esc:\n%s", v)
 	}
 }
