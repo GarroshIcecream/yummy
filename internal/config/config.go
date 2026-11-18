@@ -12,6 +12,7 @@ import (
 var (
 	globalConfig   *Config
 	globalConfigMu sync.RWMutex
+	dataDir        string
 )
 
 // Config represents the application configuration
@@ -186,7 +187,7 @@ type AddRecipeFromURLDialogConfig struct {
 	Height             int    `json:"height"`
 	Width              int    `json:"width"`
 	PythonPath         string `json:"python_path"`          // optional; path to Python for recipe-scrapers (e.g. "python3" or venv path). Empty = auto-detect (python3 then python).
-	LLMIngredientModel string `json:"llm_ingredient_model"` // Ollama model for ingredient parsing (empty = use chat default)
+	LLMIngredientModel string `json:"llm_ingredient_model"` // model for ingredient parsing on the active provider (empty = provider default)
 	// AIParsing uses the LLM when importing from a URL: structured ingredient
 	// parsing, ingredient group labels and categories for uncategorised
 	// recipes. Off = plain rule-based parsing only. Toggle from the command
@@ -232,6 +233,8 @@ func NewDefaultCommandPaletteDialogConfig() CommandPaletteDialogConfig {
 
 // ChatConfig contains chat-related settings
 type ChatConfig struct {
+	// Provider selects the LLM backend: "ollama" (default) or "chatgpt".
+	Provider                 string  `json:"provider"`
 	DefaultModel             string  `json:"default_model"`
 	Temperature              float64 `json:"temperature"`
 	MaxTokens                int     `json:"max_tokens"`
@@ -247,12 +250,26 @@ type ChatConfig struct {
 	UserAvatar               string  `json:"user_avatar"`
 	AssistantThinkingMessage string  `json:"assistant_thinking_message"`
 
+	// ChatGPT configures the "chatgpt" provider (ChatGPT subscription).
+	ChatGPT ChatGPTConfig `json:"chatgpt"`
+
 	// UI Layout constants
 	UILayout UILayoutConfig `json:"ui_layout"`
 }
 
+// ChatGPTConfig configures the ChatGPT-subscription provider. Sign in with
+// `yummy login chatgpt`.
+type ChatGPTConfig struct {
+	// DefaultModel is the model to start with. Empty = first model the
+	// account offers.
+	DefaultModel string `json:"default_model"`
+	// Models is used when the account's model list can't be fetched.
+	Models []string `json:"models"`
+}
+
 func NewDefaultChatConfig() ChatConfig {
 	return ChatConfig{
+		Provider:                 "ollama",
 		DefaultModel:             "gemma3:4b",
 		Temperature:              0.9,
 		MaxTokens:                1000,
@@ -495,6 +512,7 @@ func NewDefaultListConfig() ListConfig {
 
 // LoadConfig loads configuration from the .yummy directory
 func LoadConfig(configDir string) (*Config, error) {
+	setDataDir(configDir)
 	configPath := filepath.Join(configDir, "config.json")
 
 	// Check if config file exists
@@ -612,6 +630,22 @@ func GetGlobalConfig() *Config {
 	globalConfigMu.RLock()
 	defer globalConfigMu.RUnlock()
 	return globalConfig
+}
+
+// setDataDir records the Yummy data directory (e.g. ~/.yummy) that the
+// config was loaded from.
+func setDataDir(dir string) {
+	globalConfigMu.Lock()
+	defer globalConfigMu.Unlock()
+	dataDir = dir
+}
+
+// DataDir returns the Yummy data directory recorded by LoadConfig, or "" if
+// no config has been loaded yet.
+func DataDir() string {
+	globalConfigMu.RLock()
+	defer globalConfigMu.RUnlock()
+	return dataDir
 }
 
 // GetChatConfig returns the global chat configuration

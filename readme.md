@@ -12,7 +12,7 @@
   [![Release Status](https://github.com/GarroshIcecream/yummy/actions/workflows/release.yml/badge.svg)](https://github.com/GarroshIcecream/yummy/actions/workflows/release.yml)
 </div>
 
-> A terminal-first cookbook manager with a Bubble Tea TUI, local SQLite storage, recipe import/export, URL scraping, theming, and an Ollama-powered cooking assistant.
+> A terminal-first cookbook manager with a Bubble Tea TUI, local SQLite storage, recipe import/export, URL scraping, theming, and a cooking assistant powered by Ollama or your ChatGPT subscription.
 
 ## Features
 
@@ -21,7 +21,7 @@
 - Recipe import from Markdown or JSON
 - Recipe export to Markdown
 - Add-from-URL flow backed by Python `recipe-scrapers`
-- Ollama-powered cooking chat with recipe-aware context
+- Cooking chat with recipe-aware context, running on local Ollama or your ChatGPT Plus/Pro subscription
 - Configurable key bindings, chat settings, and custom YAML themes
 
 ## Installation
@@ -50,9 +50,18 @@ go install github.com/GarroshIcecream/yummy@latest
 
 ## Runtime Requirements
 
+### LLM provider
+
+The cooking assistant runs on one of two providers, selected with `chat.provider` in `~/.yummy/config.json`:
+
+- `"ollama"` (default): a local model served by Ollama.
+- `"chatgpt"`: your ChatGPT Plus/Pro subscription, no API key needed.
+
+The app opens even if the selected provider isn't ready (Ollama not running, not signed in to ChatGPT); the chat explains what's wrong, and you can sign in or switch provider from the command palette.
+
 ### Ollama
 
-The interactive TUI currently checks Ollama during startup. Make sure Ollama is installed, running, and has the configured model available before launching `yummy`.
+When using Ollama, the TUI checks it during startup. Make sure Ollama is installed, running, and has the configured model available before launching `yummy`.
 
 By default, the app uses `gemma3:4b`.
 
@@ -63,6 +72,35 @@ ollama serve
 ollama pull gemma3:4b
 ```
 
+### ChatGPT subscription
+
+From the app: open the command palette (`ctrl+p`) and choose **Switch LLM Provider** → **ChatGPT**. If you aren't signed in yet, a browser opens to sign in, then the app switches over. To sign out, select ChatGPT in the same dialog and press `x`.
+
+From the terminal (opens a browser; uses a local callback on port 1455 or 1457):
+
+```bash
+yummy login chatgpt
+```
+
+The provider choice is saved in `~/.yummy/config.json`:
+
+```json
+{
+  "chat": {
+    "provider": "chatgpt",
+    "chatgpt": {
+      "default_model": ""
+    }
+  }
+}
+```
+
+- `default_model` empty = first model your plan offers. The model selector lists the models available on your account.
+- `models` (optional) is a fallback list used if the model catalog can't be fetched.
+- The session is stored in `~/.yummy/auth/chatgpt.json` (readable only by you) and refreshed automatically. `yummy logout chatgpt` removes it.
+
+> **Note:** this uses the same sign-in flow and backend as OpenAI's Codex CLI. It is not a documented public API, so it may change or break without notice.
+
 ### Add recipe from URL
 
 The add-from-URL flow uses [recipe-scrapers](https://github.com/hhursev/recipe-scrapers).
@@ -70,6 +108,8 @@ The add-from-URL flow uses [recipe-scrapers](https://github.com/hhursev/recipe-s
 - Python 3 must be installed
 - `recipe-scrapers` is auto-installed on first use
 - On externally managed Python installs, Yummy creates and uses `~/.yummy/recipe-scrapers-venv`
+
+When ChatGPT is the active provider and recipe-scrapers can't read a page (unsupported site, no recipe schema, or no Python), the dialog offers to let ChatGPT read the page instead: press `enter` again and Yummy downloads the page and asks ChatGPT to pull the recipe out of it. If the site blocks automated downloads (e.g. a Cloudflare check), ChatGPT opens the page itself with OpenAI's web tool instead. This sends the page's text to ChatGPT and uses your subscription's quota.
 
 If Python is not auto-detected, set it in `~/.yummy/config.json`:
 

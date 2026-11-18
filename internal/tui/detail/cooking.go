@@ -141,6 +141,15 @@ func (m *CookingModel) Init() tea.Cmd {
 	return nil
 }
 
+// ReloadAgent rebuilds the cooking agent on the LLM service's current model,
+// keeping the cooking conversation. Call it after the provider changes.
+func (m *CookingModel) ReloadAgent() {
+	if m.chatMemory == nil {
+		return
+	}
+	m.executor = m.ai.NewAgent(m.chatMemory)
+}
+
 // initAgent creates a fresh agent executor with the cooking-specific system prompt.
 func (m *CookingModel) initAgent() {
 	systemPrompt := m.buildSystemPrompt()
@@ -219,7 +228,7 @@ func (m *CookingModel) Update(msg tea.Msg) (common.TUIModel, tea.Cmd) {
 			slog.Error("Cooking chat LLM error", "error", msg.err)
 			m.chatHistory = append(m.chatHistory, chatEntry{
 				role:    "assistant",
-				content: "Sorry, I couldn't generate a response. Make sure Ollama is running.",
+				content: fmt.Sprintf("Sorry, I couldn't generate a response: %v", msg.err),
 			})
 		} else {
 			// Use the streaming response if we have it, otherwise fall back to the final result

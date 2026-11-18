@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"sync"
 
@@ -320,7 +321,7 @@ func (e *ExecutorService) VisibleMessageCount() int {
 
 // GetProviderName returns the display name of the LLM provider.
 func (e *ExecutorService) GetProviderName() string {
-	return "Ollama"
+	return e.ai.Provider().DisplayName()
 }
 
 // GetSessionID returns the current session ID
@@ -439,11 +440,20 @@ func (e *ExecutorService) LoadSession(sessionID uint) error {
 		return err
 	}
 
-	// Set the model for the session
-	err = e.SetModelByName(sessionMessages[0].ModelName)
-	if err != nil {
-		slog.Error("Failed to set model", "error", err)
-		return err
+	// Resume on the session's model when the active provider still offers
+	// it; otherwise (e.g. it was recorded on another provider) keep the
+	// current model rather than refusing to open the session.
+	if len(sessionMessages) > 0 {
+		sessionModel := sessionMessages[0].ModelName
+		if slices.Contains(e.ai.GetInstalledModels(), sessionModel) {
+			if err := e.SetModelByName(sessionModel); err != nil {
+				slog.Error("Failed to set model", "error", err)
+				return err
+			}
+		} else if sessionModel != "" {
+			slog.Warn("Session model not available, keeping current model",
+				"session_model", sessionModel, "current_model", e.ai.GetModelName())
+		}
 	}
 
 	// Get session stats (excludes system messages)
@@ -463,7 +473,7 @@ func (e *ExecutorService) GetCurrentModelName() string {
 	return e.ai.GetModelName()
 }
 
-// GetInstalledModels returns the list of Ollama models available locally.
+// GetInstalledModels returns the models available on the active provider.
 func (e *ExecutorService) GetInstalledModels() []string {
 	return e.ai.GetInstalledModels()
 }
@@ -504,14 +514,18 @@ func (e *ExecutorService) SetModelByName(modelName string) error {
 		return err
 	}
 
-	// Recreate the agent executor with the new model (memory already has system prompt)
-	mem := e.GetMemory()
-	executor := e.ai.NewAgent(mem)
+	e.ReloadAgent()
+	return nil
+}
+
+// ReloadAgent rebuilds the agent on the LLM service's current model, keeping
+// the conversation. Call it after the model or provider changes.
+func (e *ExecutorService) ReloadAgent() {
+	// Memory already holds the system prompt.
+	executor := e.ai.NewAgent(e.GetMemory())
 	e.mu.Lock()
 	e.executor = executor
 	e.mu.Unlock()
-
-	return nil
 }
 
 // AppendSystemPrompt appends the system prompt to the memory and saves it to the database
@@ -634,11 +648,6 @@ func (e *ExecutorService) GetFullRecipe(recipeID uint) (string, error) {
 		return "", fmt.Errorf("recipe not found: %w", err)
 	}
 	return recipe.FormatRecipeMarkdown(), nil
-}
-
-// GetOllamaStatus returns the Ollama service status.
-func (e *ExecutorService) GetOllamaStatus() *llms.OllamaServiceStatus {
-	return e.ai.GetOllamaStatus()
 }
 
 // GetAI returns the underlying LLMService.

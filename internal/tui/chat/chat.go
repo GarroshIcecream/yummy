@@ -71,6 +71,10 @@ type ChatModel struct {
 	// pendingUserInput holds the user message that was just submitted so it
 	// can be rendered immediately, before the LLM executor adds it to memory.
 	pendingUserInput string
+
+	// lastError is shown as the assistant's reply when a generation fails
+	// (e.g. the provider isn't signed in); cleared on the next question.
+	lastError string
 }
 
 func NewChatModel(executorService *ExecutorService, theme *themes.Theme) (*ChatModel, error) {
@@ -174,6 +178,7 @@ func (m *ChatModel) Update(msg tea.Msg) (common.TUIModel, tea.Cmd) {
 		m.waitingForResponse = true
 		m.isStreaming = true
 		m.streamingResponse = ""
+		m.lastError = ""
 		genID := m.generationID
 		// Start listeners on the fresh channels created by PrepareForGeneration.
 		cmds = append(cmds, m.listenForStreamingChunks(genID))
@@ -198,6 +203,10 @@ func (m *ChatModel) Update(msg tea.Msg) (common.TUIModel, tea.Cmd) {
 		m.isStreaming = false
 		m.streamingResponse = ""
 		m.pendingUserInput = ""
+		m.lastError = ""
+		if msg.Err != nil {
+			m.lastError = msg.Err.Error()
+		}
 		// Keep pendingToolCalls — they render between the last human/AI pair
 		cmds = append(cmds, messages.SendRenderConversationAsMarkdownMsg())
 
@@ -274,7 +283,7 @@ func (m *ChatModel) Update(msg tea.Msg) (common.TUIModel, tea.Cmd) {
 		case key.Matches(msg, m.keyMap.ModelSelector):
 			currentModelName := m.ExecutorService.GetCurrentModelName()
 			installedModels := m.ExecutorService.GetInstalledModels()
-			modelSelectorDialog, err := dialog.NewModelSelectorDialog(installedModels, currentModelName, m.theme)
+			modelSelectorDialog, err := dialog.NewModelSelectorDialog(m.ExecutorService.GetProviderName(), installedModels, currentModelName, m.theme)
 			if err != nil {
 				slog.Error("Error creating model selector dialog", "error", err)
 				return m, nil
@@ -478,7 +487,7 @@ func (m *ChatModel) SendGenerateResponseMsg(promptInput, displayInput string, ge
 		response, err := m.ExecutorService.GenerateResponse(promptInput, displayInput)
 		if err != nil {
 			slog.Error("Error generating response", "error", err)
-			return messages.ResponseMsg{Response: "", GenerationID: genID}
+			return messages.ResponseMsg{Response: "", GenerationID: genID, Err: err}
 		}
 		return messages.ResponseMsg{Response: response, GenerationID: genID}
 	}
@@ -541,6 +550,11 @@ func (m *ChatModel) RenderConversationAsMarkdown() error {
 	// Show the user message immediately (before the executor adds it to memory)
 	if m.pendingUserInput != "" {
 		turns = append(turns, m.renderTurn(true, m.renderMarkdown(m.pendingUserInput)))
+	}
+
+	if m.lastError != "" && !generating {
+		errText := utils.WrapTextToWidth(m.lastError, max(m.viewport.Width()-4, 20))
+		turns = append(turns, m.renderTurn(false, indentLines(m.theme.Error.Render(errText), "  ")))
 	}
 
 	// The in-progress assistant turn: tool calls so far, then the streamed
@@ -726,6 +740,16 @@ func (m *ChatModel) renderEmptyState() string {
 		"",
 		suggestBlock,
 	)
+	if m.ExecutorService.GetAI().ProviderError() != nil {
+		palette := "the command palette"
+		if cfg := config.GetGlobalConfig(); cfg != nil && len(cfg.Keymap.CommandPalette) > 0 {
+			palette += " (" + strings.Join(cfg.Keymap.CommandPalette, " / ") + ")"
+		}
+		notice := fmt.Sprintf("%s isn't ready. Open %s to sign in or switch provider.",
+			m.ExecutorService.GetProviderName(), palette)
+		notice = utils.WrapTextToWidth(notice, max(m.viewport.Width()-8, 20))
+		emptyText = lipgloss.JoinVertical(lipgloss.Center, emptyText, "", "", m.theme.Error.Render(notice))
+	}
 
 	verticalPad := max((m.viewport.Height()-lipgloss.Height(emptyText))/2, 0)
 	return lipgloss.NewStyle().
@@ -805,4 +829,13 @@ func (m *ChatModel) SetTheme(theme *themes.Theme) {
 // cooking views all render with one palette.
 func newThemedMarkdownRenderer(theme *themes.Theme, wordWrap int) (*glamour.TermRenderer, error) {
 	return markdown.NewThemedRenderer(theme, wordWrap)
+}
+
+// indentLines prefixes every line of s with pad.
+func indentLines(s, pad string) string {
+	lines := strings.Split(s, "\n")
+	for i, l := range lines {
+		lines[i] = pad + l
+	}
+	return strings.Join(lines, "\n")
 }

@@ -38,6 +38,9 @@ type Manager struct {
 	themePreviewOriginal string
 	themePreviewActive   bool
 
+	// Shared LLM service (chat and cooking)
+	llmService *llms.LLMService
+
 	// Database and configuration
 	Cookbook   *db.CookBook
 	SessionLog *db.SessionLog
@@ -130,6 +133,7 @@ func New(cookbook *db.CookBook, sessionLog *db.SessionLog, themeManager *themes.
 		CurrentSessionState:  common.SessionStateMainMenu,
 		PreviousSessionState: common.SessionStateMainMenu,
 		Cookbook:             cookbook,
+		llmService:           llmService,
 		models:               models,
 		statusLine:           statusLine,
 		Ctx:                  ctx,
@@ -244,7 +248,7 @@ func (m *Manager) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if chatModel, ok := m.models[common.SessionStateChat].(*chat.ChatModel); ok {
 				currentModelName := chatModel.ExecutorService.GetCurrentModelName()
 				installedModels := chatModel.ExecutorService.GetInstalledModels()
-				d, err := dialog.NewModelSelectorDialog(installedModels, currentModelName, theme)
+				d, err := dialog.NewModelSelectorDialog(chatModel.ExecutorService.GetProviderName(), installedModels, currentModelName, theme)
 				if err != nil {
 					slog.Error("Failed to create model selector dialog", "error", err)
 					return m, nil
@@ -284,6 +288,10 @@ func (m *Manager) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 
+		case dialog.ActionProvider:
+			d := dialog.NewProviderDialog(m.llmService.Provider().Name(), theme)
+			cmds = append(cmds, messages.SendOpenModalViewMsg(d, common.ModalTypeProvider))
+
 		case dialog.ActionScraperUpdate:
 			cfg := config.GetGlobalConfig()
 			pythonPath := ""
@@ -293,6 +301,10 @@ func (m *Manager) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			d := dialog.NewScraperUpdateDialog(pythonPath, theme)
 			cmds = append(cmds, messages.SendOpenModalViewMsg(d, common.ModalTypeScraperUpdate))
 		}
+
+	case dialog.ProviderAppliedMsg:
+		m.applyProvider(msg)
+		return m, tea.Batch(cmds...)
 
 	case messages.OpenModalViewMsg:
 		if m.ModalView && m.CurrentModalType == msg.ModalType {
@@ -644,4 +656,30 @@ func (m *Manager) sizeModalModel() {
 	if sizable, ok := m.modalModel.(interface{ SetSize(int, int) }); ok {
 		sizable.SetSize(m.width, m.height)
 	}
+}
+
+// applyProvider installs a prepared provider: the LLM service switches over,
+// the chat and cooking agents are rebuilt on it, and the choice is saved.
+func (m *Manager) applyProvider(msg dialog.ProviderAppliedMsg) {
+	if msg.State.Provider == nil {
+		slog.Error("Provider switch failed", "provider", msg.Name, "error", msg.State.Err)
+		return
+	}
+	m.llmService.ApplyProvider(msg.State)
+	if chatModel, ok := m.models[common.SessionStateChat].(*chat.ChatModel); ok {
+		chatModel.ExecutorService.ReloadAgent()
+		if err := chatModel.RenderConversationAsMarkdown(); err != nil {
+			slog.Error("Failed to re-render chat after provider switch", "error", err)
+		}
+	}
+	if cookingModel, ok := m.models[common.SessionStateCooking].(*detail.CookingModel); ok {
+		cookingModel.ReloadAgent()
+	}
+	if cfg := config.GetGlobalConfig(); cfg != nil && cfg.Chat.Provider != msg.Name {
+		cfg.Chat.Provider = msg.Name
+		if err := cfg.Save(m.configDir); err != nil {
+			slog.Error("Failed to persist LLM provider", "error", err)
+		}
+	}
+	slog.Info("LLM provider applied", "provider", msg.Name, "model", msg.State.ModelName, "error", msg.State.Err)
 }

@@ -24,6 +24,7 @@ const (
 	ActionRecipeSelector = "recipe_selector"
 	ActionScraperUpdate  = "scraper_update"
 	ActionToggleAI       = "toggle_ai_parsing"
+	ActionProvider       = "provider_selector"
 )
 
 // CommandItem represents a single command in the palette.
@@ -56,6 +57,7 @@ func NewCommandPaletteDialog(theme *themes.Theme) (*CommandPaletteDialogCmp, err
 		{Name: "Switch View", Shortcut: strings.Join(km.StateSelector, " / "), Action: ActionStateSelector},
 		{Name: "Change Theme", Shortcut: strings.Join(km.ThemeSelector, " / "), Action: ActionThemeSelector},
 		{Name: "Change Model", Shortcut: strings.Join(km.ModelSelector, " / "), Action: ActionModelSelector},
+		{Name: "Switch LLM Provider", Action: ActionProvider},
 		{Name: "Add Recipe", Shortcut: strings.Join(km.Add, " / "), Action: ActionAddRecipe},
 		{Name: "Find Recipe", Shortcut: strings.Join(km.RecipeSelector, " / "), Action: ActionRecipeSelector},
 		{Name: "Check recipe-scrapers Update", Action: ActionScraperUpdate},

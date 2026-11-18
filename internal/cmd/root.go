@@ -24,13 +24,16 @@ func init() {
 
 	rootCmd.AddCommand(exportCmd)
 	rootCmd.AddCommand(importCmd)
+	rootCmd.AddCommand(loginCmd)
+	rootCmd.AddCommand(logoutCmd)
 }
 
 var rootCmd = &cobra.Command{
 	Use:   "yummy",
 	Short: "Terminal cookbook manager and recipe assistant",
 	Long: `Yummy is a terminal-first cookbook manager with recipe import/export,
-URL scraping, themes, and an Ollama-powered cooking assistant.`,
+URL scraping, themes, and a cooking assistant powered by a local Ollama model
+or your ChatGPT subscription (yummy login chatgpt).`,
 	Example: `
 # Run in interactive mode
 yummy
@@ -129,11 +132,13 @@ func setupApp(cmd *cobra.Command) (*tui.Manager, error) {
 		return nil, fmt.Errorf("failed to initialize session log: %v", err)
 	}
 
-	chatConfig := config.GetChatConfig()
-	_, err = llms.GetOllamaServiceStatus(chatConfig.DefaultModel)
-	if err != nil {
-		slog.Error("Failed to get ollama service status", "error", err)
-		return nil, fmt.Errorf("failed to get ollama service status: %v", err)
+	// An unready provider (Ollama not running, not signed in to ChatGPT)
+	// no longer blocks startup: the app opens and the chat explains how to
+	// sign in or switch provider from the command palette. A misspelled
+	// provider is still a hard error.
+	if _, err := llms.NewProvider(config.GetChatConfig(), datadir); err != nil {
+		slog.Error("Failed to create LLM provider", "error", err)
+		return nil, err
 	}
 
 	tuiInstance, err := tui.New(cookbook, sessionLog, themeManager, datadir, ctx)

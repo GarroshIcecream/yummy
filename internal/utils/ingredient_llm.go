@@ -9,7 +9,6 @@ import (
 	"sync"
 
 	"github.com/tmc/langchaingo/llms"
-	"github.com/tmc/langchaingo/llms/ollama"
 )
 
 // llmIngredient mirrors the JSON shape we ask the LLM to produce.
@@ -21,7 +20,7 @@ type llmIngredient struct {
 	BaseName string `json:"base_name"`
 }
 
-// maxParallelLLM limits the number of concurrent Ollama requests to avoid
+// maxParallelLLM limits the number of concurrent LLM requests to avoid
 // overwhelming the local model server.
 const maxParallelLLM = 4
 
@@ -83,7 +82,7 @@ func parseSingleIngredient(ctx context.Context, llm llms.Model, raw string) (llm
 		llms.WithJSONMode(),
 	)
 	if err != nil {
-		return llmIngredient{}, fmt.Errorf("ollama generate: %w", err)
+		return llmIngredient{}, fmt.Errorf("llm generate: %w", err)
 	}
 
 	if len(resp.Choices) == 0 || resp.Choices[0].Content == "" {
@@ -101,22 +100,17 @@ func parseSingleIngredient(ctx context.Context, llm llms.Model, raw string) (llm
 	return parsed, nil
 }
 
-// ParseIngredientsWithLLM sends parallel requests to a local Ollama model —
+// ParseIngredientsWithLLM sends parallel requests to the LLM —
 // one per ingredient — and returns structured Ingredient values. Each request
 // uses JSON mode so the model is forced to return valid JSON.
 //
 // If an individual ingredient fails to parse via LLM, it falls back to the
 // regex-based ParseIngredient for that ingredient only.
 //
-// modelName is the Ollama model to use (e.g. "gemma3:4b").
-func ParseIngredientsWithLLM(ctx context.Context, rawIngredients []string, modelName string) ([]Ingredient, error) {
+// llm is the model to use (built by the active provider).
+func ParseIngredientsWithLLM(ctx context.Context, rawIngredients []string, llm llms.Model) ([]Ingredient, error) {
 	if len(rawIngredients) == 0 {
 		return []Ingredient{}, nil
-	}
-
-	llm, err := ollama.New(ollama.WithModel(modelName))
-	if err != nil {
-		return nil, fmt.Errorf("create ollama client: %w", err)
 	}
 
 	// Filter out empty lines upfront, keeping track of original indices.
@@ -191,25 +185,20 @@ func ParseIngredientsWithLLM(ctx context.Context, rawIngredients []string, model
 		slog.Warn("Some ingredients failed to parse", "failures", len(errs), "succeeded", len(ingredients))
 	}
 
-	slog.Info("Parsed ingredients with LLM", "count", len(ingredients), "model", modelName)
+	slog.Info("Parsed ingredients with LLM", "count", len(ingredients))
 	return ingredients, nil
 }
 
-// ExtractBaseNamesWithLLM takes already-parsed ingredients and asks an Ollama
+// ExtractBaseNamesWithLLM takes already-parsed ingredients and asks the LLM
 // model to extract the core ingredient noun(s) for each. It mutates the
 // BaseName field in-place on the provided slice.
 //
 // This is the lighter-weight alternative: it only extracts base names rather
 // than doing a full structured parse, so it can be used even when ingredients
 // were parsed via the regex path.
-func ExtractBaseNamesWithLLM(ctx context.Context, ingredients []Ingredient, modelName string) error {
+func ExtractBaseNamesWithLLM(ctx context.Context, ingredients []Ingredient, llm llms.Model) error {
 	if len(ingredients) == 0 {
 		return nil
-	}
-
-	llm, err := ollama.New(ollama.WithModel(modelName))
-	if err != nil {
-		return fmt.Errorf("create ollama client: %w", err)
 	}
 
 	// Build numbered list of ingredient names.
@@ -232,7 +221,7 @@ func ExtractBaseNamesWithLLM(ctx context.Context, ingredients []Ingredient, mode
 		llms.WithJSONMode(),
 	)
 	if err != nil {
-		return fmt.Errorf("ollama generate: %w", err)
+		return fmt.Errorf("llm generate: %w", err)
 	}
 
 	if len(resp.Choices) == 0 || resp.Choices[0].Content == "" {
@@ -257,7 +246,7 @@ func ExtractBaseNamesWithLLM(ctx context.Context, ingredients []Ingredient, mode
 		}
 	}
 
-	slog.Info("Extracted base names with LLM", "count", len(baseNames), "model", modelName)
+	slog.Info("Extracted base names with LLM", "count", len(baseNames))
 	return nil
 }
 
@@ -273,18 +262,13 @@ Groups:
 
 JSON output:`
 
-// LabelIngredientGroups asks an Ollama model to generate purpose labels for
+// LabelIngredientGroups asks the LLM to generate purpose labels for
 // ingredient groups that don't have one. groups is a slice of string slices,
 // where each inner slice contains the raw ingredient strings for that group.
 // Returns a slice of labels in the same order.
-func LabelIngredientGroups(ctx context.Context, groups [][]string, modelName string) ([]string, error) {
+func LabelIngredientGroups(ctx context.Context, groups [][]string, llm llms.Model) ([]string, error) {
 	if len(groups) == 0 {
 		return nil, nil
-	}
-
-	llm, err := ollama.New(ollama.WithModel(modelName))
-	if err != nil {
-		return nil, fmt.Errorf("create ollama client: %w", err)
 	}
 
 	var sb strings.Builder
@@ -305,7 +289,7 @@ func LabelIngredientGroups(ctx context.Context, groups [][]string, modelName str
 		llms.WithJSONMode(),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("ollama generate: %w", err)
+		return nil, fmt.Errorf("llm generate: %w", err)
 	}
 
 	if len(resp.Choices) == 0 || resp.Choices[0].Content == "" {
@@ -319,7 +303,7 @@ func LabelIngredientGroups(ctx context.Context, groups [][]string, modelName str
 		return nil, fmt.Errorf("json decode: %w (body: %s)", err, body)
 	}
 
-	slog.Info("LLM generated group labels", "count", len(labels), "model", modelName)
+	slog.Info("LLM generated group labels", "count", len(labels))
 	return labels, nil
 }
 
@@ -366,11 +350,7 @@ Ingredients:
 // SuggestCategories asks the LLM for 1-3 categories for a recipe the source
 // site did not categorise, preferring the cookbook's existing categories so
 // filters stay consistent.
-func SuggestCategories(ctx context.Context, recipeName string, ingredients []string, existing []string, modelName string) ([]string, error) {
-	llm, err := ollama.New(ollama.WithModel(modelName))
-	if err != nil {
-		return nil, fmt.Errorf("create ollama client: %w", err)
-	}
+func SuggestCategories(ctx context.Context, recipeName string, ingredients []string, existing []string, llm llms.Model) ([]string, error) {
 
 	existingList := "none yet"
 	if len(existing) > 0 {
@@ -390,7 +370,7 @@ func SuggestCategories(ctx context.Context, recipeName string, ingredients []str
 		llms.WithJSONMode(),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("ollama generate: %w", err)
+		return nil, fmt.Errorf("llm generate: %w", err)
 	}
 	if len(resp.Choices) == 0 || resp.Choices[0].Content == "" {
 		return nil, fmt.Errorf("empty response from LLM")
@@ -409,7 +389,7 @@ func SuggestCategories(ctx context.Context, recipeName string, ingredients []str
 			out = append(out, c)
 		}
 	}
-	slog.Info("LLM suggested categories", "categories", out, "model", modelName)
+	slog.Info("LLM suggested categories", "categories", out)
 	return out, nil
 }
 

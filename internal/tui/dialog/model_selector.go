@@ -21,6 +21,7 @@ type modelEntry struct {
 }
 
 type ModelSelectorDialogCmp struct {
+	provider      string // display name of the active LLM provider
 	allItems      []modelEntry
 	filtered      []modelEntry
 	selectedIndex int
@@ -30,7 +31,7 @@ type ModelSelectorDialogCmp struct {
 	theme         *themes.Theme
 }
 
-func NewModelSelectorDialog(installedModels []string, currentModelName string, theme *themes.Theme) (*ModelSelectorDialogCmp, error) {
+func NewModelSelectorDialog(provider string, installedModels []string, currentModelName string, theme *themes.Theme) (*ModelSelectorDialogCmp, error) {
 	cfg := config.GetGlobalConfig()
 	if cfg == nil {
 		return nil, fmt.Errorf("global config not set")
@@ -56,6 +57,7 @@ func NewModelSelectorDialog(installedModels []string, currentModelName string, t
 	}
 
 	return &ModelSelectorDialogCmp{
+		provider:    provider,
 		allItems:    items,
 		filtered:    items,
 		searchInput: ti,
@@ -132,7 +134,11 @@ func (m *ModelSelectorDialogCmp) View() tea.View {
 	innerWidth := max(m.width-6, 20)
 
 	// Header
-	titleLeft := m.theme.ModelSelectorTitle.Render("Select Model")
+	title := "Select Model"
+	if m.provider != "" {
+		title += " · " + m.provider
+	}
+	titleLeft := m.theme.ModelSelectorTitle.Render(title)
 	escHint := m.theme.ModelSelectorHelp.Render("esc")
 	pad := max(innerWidth-lipgloss.Width(titleLeft)-lipgloss.Width(escHint), 1)
 	header := titleLeft + strings.Repeat(" ", pad) + escHint
@@ -164,7 +170,10 @@ func (m *ModelSelectorDialogCmp) View() tea.View {
 		}
 	}
 
-	if len(m.filtered) == 0 {
+	if len(m.allItems) == 0 {
+		rows = append(rows, m.theme.ModelSelectorHelp.Render("No models available. Use \"Switch LLM Provider\" or"),
+			m.theme.ModelSelectorHelp.Render("\"Sign In to ChatGPT\" in the command palette."))
+	} else if len(m.filtered) == 0 {
 		rows = append(rows, m.theme.ModelSelectorHelp.Render("No matching models"))
 	}
 

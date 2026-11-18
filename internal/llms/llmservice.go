@@ -13,7 +13,6 @@ import (
 	llmtools "github.com/GarroshIcecream/yummy/internal/llms/tools"
 	"github.com/tmc/langchaingo/agents"
 	langllms "github.com/tmc/langchaingo/llms"
-	"github.com/tmc/langchaingo/llms/ollama"
 	"github.com/tmc/langchaingo/memory"
 )
 
@@ -28,9 +27,14 @@ type LLMService struct {
 	// mu guards the mutable fields (llm, modelName, ctx, cancelCtx and the
 	// channels): they are swapped on the main goroutine while LLM goroutines
 	// read them via the getters.
-	mu              sync.Mutex
-	llm             *ollama.LLM
-	modelName       string
+	mu        sync.Mutex
+	llm       langllms.Model
+	modelName string
+	provider  Provider
+	// models is the provider's model list, fetched when it was applied.
+	models []string
+	// providerErr is why the provider isn't usable (nil when it is).
+	providerErr     error
 	ctx             context.Context
 	cancelCtx       context.CancelFunc
 	callbackHandler *callbacks.DefaultAgentCallbackHandler
@@ -44,7 +48,6 @@ type LLMService struct {
 	// cancelled runs that are still draining.
 	generation    uint64
 	toolManager   *llmtools.ToolManager
-	ollamaStatus  *OllamaServiceStatus
 	maxIterations int
 
 	// toolCallLog records the tool calls of the current generation so the
@@ -53,26 +56,30 @@ type LLMService struct {
 	toolCallLog []ToolCallEvent
 }
 
+// NewLLMService creates the shared LLM service on the provider selected in the
+// chat config.
 func NewLLMService(cookbook *db.CookBook) (*LLMService, error) {
+	provider, err := NewProvider(config.GetChatConfig(), config.DataDir())
+	if err != nil {
+		slog.Error("Failed to create LLM provider", "error", err)
+		return nil, err
+	}
+	return NewLLMServiceWithProvider(cookbook, provider)
+}
+
+// NewLLMServiceWithProvider creates the shared LLM service on the given
+// provider, starting with the provider's default model.
+func NewLLMServiceWithProvider(cookbook *db.CookBook, provider Provider) (*LLMService, error) {
 	const initialGeneration = 1
-	ctx, cancel := context.WithCancel(callbacks.WithGeneration(context.Background(), initialGeneration))
 	chatConfig := config.GetChatConfig()
 
-	ollamaStatus, err := GetOllamaServiceStatus(chatConfig.DefaultModel)
-	if err != nil {
-		slog.Error("Failed to get ollama service status", "error", err)
-		cancel()
-		return nil, err
+	st := PrepareProvider(context.Background(), provider)
+	if st.Err != nil {
+		slog.Warn("LLM provider not ready", "provider", provider.Name(), "error", st.Err)
 	}
 
 	toolManager := llmtools.NewToolManager(cookbook)
-
-	llm, err := ollama.New(ollama.WithModel(chatConfig.DefaultModel))
-	if err != nil {
-		slog.Error("Failed to create LLM", "error", err)
-		cancel()
-		return nil, err
-	}
+	ctx, cancel := context.WithCancel(callbacks.WithGeneration(context.Background(), initialGeneration))
 
 	streamCh := make(chan string, 64)
 	toolCallCh := make(chan ToolCallEvent, 8)
@@ -81,8 +88,11 @@ func NewLLMService(cookbook *db.CookBook) (*LLMService, error) {
 	callbackHandler.SetGeneration(initialGeneration)
 
 	s := &LLMService{
-		llm:             llm,
-		modelName:       chatConfig.DefaultModel,
+		llm:             st.LLM,
+		modelName:       st.ModelName,
+		provider:        provider,
+		models:          st.Models,
+		providerErr:     st.Err,
 		ctx:             ctx,
 		cancelCtx:       cancel,
 		callbackHandler: callbackHandler,
@@ -91,7 +101,6 @@ func NewLLMService(cookbook *db.CookBook) (*LLMService, error) {
 		doneCh:          doneCh,
 		generation:      initialGeneration,
 		toolManager:     toolManager,
-		ollamaStatus:    ollamaStatus,
 		maxIterations:   chatConfig.MaxIterations,
 	}
 	s.wireCallbacks(callbackHandler, streamCh, toolCallCh, doneCh)
@@ -201,7 +210,7 @@ func (s *LLMService) CancelStreaming() {
 	s.replaceChannels()
 }
 
-func (s *LLMService) GetLLM() *ollama.LLM {
+func (s *LLMService) GetLLM() langllms.Model {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.llm
@@ -217,12 +226,37 @@ func (s *LLMService) GetToolManager() *llmtools.ToolManager {
 	return s.toolManager
 }
 
-func (s *LLMService) GetOllamaStatus() *OllamaServiceStatus {
-	return s.ollamaStatus
+// Provider returns the LLM provider backing this service.
+func (s *LLMService) Provider() Provider {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.provider
 }
 
+// ProviderError reports why the active provider can't be used, or nil.
+func (s *LLMService) ProviderError() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.providerErr
+}
+
+// ApplyProvider installs a prepared provider. Agents built before the call
+// keep the old model; callers rebuild them (see NewAgent).
+func (s *LLMService) ApplyProvider(st ProviderState) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.provider = st.Provider
+	s.models = st.Models
+	s.modelName = st.ModelName
+	s.llm = st.LLM
+	s.providerErr = st.Err
+}
+
+// GetInstalledModels returns the models available on the active provider.
 func (s *LLMService) GetInstalledModels() []string {
-	return s.ollamaStatus.InstalledModels
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.models
 }
 
 // ResetCallbackState resets token usage, stream buffer, and replaces both the
@@ -244,11 +278,14 @@ func (s *LLMService) GetTokenUsage() callbacks.TokenUsage {
 }
 
 func (s *LLMService) SetModelByName(modelName string) error {
-	if !slices.Contains(s.ollamaStatus.InstalledModels, modelName) {
-		return fmt.Errorf("model %s is not installed", modelName)
+	s.mu.Lock()
+	provider, models := s.provider, s.models
+	s.mu.Unlock()
+	if !slices.Contains(models, modelName) {
+		return fmt.Errorf("model %s is not available on %s", modelName, provider.DisplayName())
 	}
 
-	llm, err := ollama.New(ollama.WithModel(modelName))
+	llm, err := provider.NewModel(modelName)
 	if err != nil {
 		return fmt.Errorf("failed to create LLM: %w", err)
 	}
@@ -256,6 +293,7 @@ func (s *LLMService) SetModelByName(modelName string) error {
 	s.mu.Lock()
 	s.llm = llm
 	s.modelName = modelName
+	s.providerErr = nil
 	s.mu.Unlock()
 	return nil
 }
